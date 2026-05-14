@@ -178,6 +178,17 @@ h2 {
   font-size: 14px;
 }
 
+.topbar-brand {
+  display: flex;
+  align-items: center;
+}
+
+.topbar-logo {
+  display: block;
+  width: auto;
+  height: 48px;
+}
+
 .toolbar {
   max-width: 1850px;
   margin: 0 auto 18px;

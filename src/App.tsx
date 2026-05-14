@@ -957,9 +957,12 @@ function App() {
   return (
     <main className="app-page">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">shohin_db</p>
-          <h1>商品DB管理</h1>
+        <div className="topbar-brand">
+          <img
+            src={`${import.meta.env.BASE_URL}login-logo.png`}
+            alt="商品DB"
+            className="topbar-logo"
+          />
         </div>
 
         <div className="topbar-actions">
