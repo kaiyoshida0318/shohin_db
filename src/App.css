@@ -983,6 +983,48 @@ tr:hover td:last-child {
   font-weight: 800;
 }
 
+
+.csv-mapping-help {
+  padding: 10px 12px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.csv-mapping-grid--source label {
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 13px;
+  background: #fff;
+}
+
+.csv-mapping-grid--source label.is-unassigned {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.csv-mapping-grid--source label > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.csv-mapping-grid--source label > span small {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
 .csv-mapping-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

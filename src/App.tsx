@@ -446,6 +446,55 @@ function getMappedCsvFields(fieldIndexes: Partial<Record<BulkFieldKey, number>>)
   )
 }
 
+function getCsvColumnAssignment(
+  mapping: CsvColumnMapping,
+  columnIndex: number,
+): CsvMappingKey | '' {
+  if (mapping.productCodeIndex === columnIndex) {
+    return 'product_code'
+  }
+
+  const assignedField = BULK_FIELD_COLUMNS.find(
+    (column) => mapping.fieldIndexes[column.key] === columnIndex,
+  )
+
+  return assignedField?.key ?? ''
+}
+
+function csvColumnHasData(dataRows: string[][], columnIndex: number) {
+  return dataRows.some((row) => (row[columnIndex] ?? '').trim())
+}
+
+function getUnassignedCsvColumnIndexes(mapping: CsvColumnMapping) {
+  return mapping.headers
+    .map((header, index) => ({ header, index }))
+    .filter(({ header, index }) => {
+      const hasHeaderOrData = Boolean(header.trim()) || csvColumnHasData(mapping.dataRows, index)
+      return hasHeaderOrData && !getCsvColumnAssignment(mapping, index)
+    })
+    .map(({ index }) => index)
+}
+
+function csvMappingNeedsManualCheck(mapping: CsvColumnMapping) {
+  const mappedFields = getMappedCsvFields(mapping.fieldIndexes)
+
+  return (
+    mapping.productCodeIndex === null ||
+    mappedFields.length === 0 ||
+    getUnassignedCsvColumnIndexes(mapping).length > 0
+  )
+}
+
+function getCsvMappingMessage(mapping: CsvColumnMapping) {
+  if (mapping.productCodeIndex === null || getMappedCsvFields(mapping.fieldIndexes).length === 0) {
+    return `${mapping.filename} の列名を自動識別できませんでした。下の列割り当てで指定してください。`
+  }
+
+  const unassignedCount = getUnassignedCsvColumnIndexes(mapping).length
+
+  return `${mapping.filename} に未識別列が ${unassignedCount} 列あります。全CSV列を確認して、必要な列だけ割り当ててください。`
+}
+
 function buildCsvImportResult(
   dataRows: string[][],
   productCodeIndex: number | null,
@@ -1055,13 +1104,9 @@ function App() {
       const buffer = await file.arrayBuffer()
       const text = decodeCsvBuffer(buffer)
       const mapping = createCsvColumnMapping(text, file.name)
-      const mappedFields = getMappedCsvFields(mapping.fieldIndexes)
-
-      if (mapping.productCodeIndex === null || mappedFields.length === 0) {
+      if (csvMappingNeedsManualCheck(mapping)) {
         setCsvColumnMapping(mapping)
-        setModalMessage(
-          `${file.name} の列名を自動識別できませんでした。下の列割り当てで指定してください。`,
-        )
+        setModalMessage(getCsvMappingMessage(mapping))
         return
       }
 
@@ -1129,28 +1174,38 @@ function App() {
     await importCsvFile(csvFile)
   }
 
-  function updateCsvMappingColumn(key: CsvMappingKey, value: string) {
-    const index = value === '' ? null : Number(value)
+  function updateCsvSourceColumnMapping(columnIndex: number, value: string) {
+    const key = value as CsvMappingKey | ''
 
     setCsvColumnMapping((prev) => {
       if (!prev) {
         return prev
       }
 
-      if (key === 'product_code') {
-        return {
-          ...prev,
-          productCodeIndex: index,
+      const nextFieldIndexes = { ...prev.fieldIndexes }
+
+      BULK_FIELD_COLUMNS.forEach((column) => {
+        if (nextFieldIndexes[column.key] === columnIndex || column.key === key) {
+          delete nextFieldIndexes[column.key]
         }
+      })
+
+      const next: CsvColumnMapping = {
+        ...prev,
+        productCodeIndex:
+          prev.productCodeIndex === columnIndex || key === 'product_code'
+            ? null
+            : prev.productCodeIndex,
+        fieldIndexes: nextFieldIndexes,
       }
 
-      return {
-        ...prev,
-        fieldIndexes: {
-          ...prev.fieldIndexes,
-          [key]: index ?? undefined,
-        },
+      if (key === 'product_code') {
+        next.productCodeIndex = columnIndex
+      } else if (key) {
+        next.fieldIndexes[key] = columnIndex
       }
+
+      return next
     })
   }
 
@@ -1862,42 +1917,41 @@ function App() {
                     </button>
                   </div>
 
-                  <div className="csv-mapping-grid">
-                    <label>
-                      商品コード
-                      <select
-                        value={csvColumnMapping.productCodeIndex ?? ''}
-                        onChange={(event) =>
-                          updateCsvMappingColumn('product_code', event.target.value)
-                        }
-                      >
-                        <option value="">選択してください</option>
-                        {csvColumnMapping.headers.map((header, index) => (
-                          <option key={`${header}-${index}`} value={index}>
-                            {index + 1}列目：{header || '(列名なし)'}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                  <div className="csv-mapping-help">
+                    CSVの全列を表示しています。必要な列は取り込み先を選び、不要な列は「取り込まない」のままでOKです。
+                  </div>
 
-                    {BULK_FIELD_COLUMNS.map((column) => (
-                      <label key={column.key}>
-                        {column.label}
-                        <select
-                          value={csvColumnMapping.fieldIndexes[column.key] ?? ''}
-                          onChange={(event) =>
-                            updateCsvMappingColumn(column.key, event.target.value)
-                          }
+                  <div className="csv-mapping-grid csv-mapping-grid--source">
+                    {csvColumnMapping.headers.map((header, index) => {
+                      const assignedKey = getCsvColumnAssignment(csvColumnMapping, index)
+                      const isUnassigned = !assignedKey && (header.trim() || csvColumnHasData(csvColumnMapping.dataRows, index))
+
+                      return (
+                        <label
+                          key={`${header}-${index}`}
+                          className={isUnassigned ? 'is-unassigned' : undefined}
                         >
-                          <option value="">取り込まない</option>
-                          {csvColumnMapping.headers.map((header, index) => (
-                            <option key={`${column.key}-${header}-${index}`} value={index}>
-                              {index + 1}列目：{header || '(列名なし)'}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
+                          <span>
+                            {index + 1}列目：{header || '(列名なし)'}
+                            {isUnassigned ? <small>未識別</small> : null}
+                          </span>
+                          <select
+                            value={assignedKey}
+                            onChange={(event) =>
+                              updateCsvSourceColumnMapping(index, event.target.value)
+                            }
+                          >
+                            <option value="">取り込まない</option>
+                            <option value="product_code">商品コード</option>
+                            {BULK_FIELD_COLUMNS.map((column) => (
+                              <option key={column.key} value={column.key}>
+                                {column.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )
+                    })}
                   </div>
 
                   <div className="csv-mapping-actions">
