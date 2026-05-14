@@ -337,7 +337,6 @@ function App() {
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
-  const [floorFilter, setFloorFilter] = useState('')
   const [tableView, setTableView] = useState<TableView>('all')
 
   const [loading, setLoading] = useState(false)
@@ -391,18 +390,6 @@ function App() {
     return new Set(products.map((product) => product.product_code))
   }, [products])
 
-  const floors = useMemo(() => {
-    const floorSet = new Set<string>()
-
-    products.forEach((product) => {
-      if (product.floor) {
-        floorSet.add(product.floor)
-      }
-    })
-
-    return Array.from(floorSet).sort()
-  }, [products])
-
   const bulkSummary = useMemo(() => {
     return buildBulkSummary(bulkRows, existingProductCodes)
   }, [bulkRows, existingProductCodes])
@@ -444,11 +431,9 @@ function App() {
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(q))
 
-      const matchesFloor = !floorFilter || draft.floor === floorFilter
-
-      return matchesKeyword && matchesFloor
+      return matchesKeyword
     })
-  }, [products, rowDrafts, editingCode, keyword, floorFilter])
+  }, [products, rowDrafts, editingCode, keyword])
 
   async function login() {
     setLoading(true)
@@ -1011,20 +996,11 @@ function App() {
           placeholder="商品コード・商品名・特記事項・ピック時アドバイス・棚番号で検索"
         />
 
-        <select value={floorFilter} onChange={(e) => setFloorFilter(e.target.value)}>
-          <option value="">全フロア</option>
-          {floors.map((floor) => (
-            <option key={floor} value={floor}>
-              {floor}
-            </option>
-          ))}
-        </select>
-
         <button onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
           再読み込み
         </button>
 
-        <button onClick={() => openCreateModal('single')}>新規追加</button>
+        <button onClick={() => openCreateModal('single')}>商品追加</button>
       </section>
 
       {message && <p className="message">{message}</p>}
@@ -1171,13 +1147,13 @@ function App() {
             className="modal-card"
             role="dialog"
             aria-modal="true"
-            aria-label="新規商品追加"
+            aria-label="商品追加"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">New Product</p>
-                <h2>新規商品追加</h2>
+                <p className="eyebrow">Product Add</p>
+                <h2>商品追加</h2>
               </div>
 
               <button className="secondary small" onClick={closeCreateModal}>
@@ -1185,25 +1161,17 @@ function App() {
               </button>
             </div>
 
-            <div className="modal-tabs">
-              <button
-                className={createTab === 'single' ? 'tab-button active' : 'tab-button'}
-                onClick={() => {
-                  setCreateTab('single')
-                  setModalMessage('')
-                }}
-              >
-                1件追加
-              </button>
+            <div className="modal-mode-bar">
+              <span>{createTab === 'single' ? '通常入力' : '複数行で追加'}</span>
 
               <button
-                className={createTab === 'bulk' ? 'tab-button active' : 'tab-button'}
+                className="secondary small"
                 onClick={() => {
-                  setCreateTab('bulk')
+                  setCreateTab(createTab === 'single' ? 'bulk' : 'single')
                   setModalMessage('')
                 }}
               >
-                複数行で追加
+                {createTab === 'single' ? '複数行で追加に切り替え' : '通常入力に戻る'}
               </button>
             </div>
 

@@ -589,7 +589,7 @@ tr:hover td:last-child {
 }
 
 .modal-card {
-  width: min(980px, 100%);
+  width: min(1280px, calc(100vw - 40px));
   max-height: calc(100vh - 56px);
   overflow: auto;
   border-radius: 28px;
@@ -604,6 +604,25 @@ tr:hover td:last-child {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+
+.modal-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.modal-mode-bar span {
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
 }
 
 .modal-tabs {
