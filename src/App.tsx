@@ -60,20 +60,6 @@ type SessionUser = {
 
 type TableView = 'all' | 'pick' | 'order' | 'custom'
 
-const emptyCreateForm = {
-  product_code: '',
-  product_name: '',
-  floor: '',
-  special_notes: '',
-  picking_advice: '',
-  rack_number: '',
-  rack_level: '',
-  sticker_color: '',
-}
-
-type CreateForm = typeof emptyCreateForm
-type CreateTab = 'single' | 'bulk'
-
 type BulkProductRow = {
   id: string
   product_code: string
@@ -344,8 +330,6 @@ function App() {
   const [message, setMessage] = useState('')
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
-  const [createTab, setCreateTab] = useState<CreateTab>('single')
-  const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm)
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
     createBulkRows(),
   )
@@ -486,9 +470,7 @@ function App() {
     }
   }
 
-  function openCreateModal(tab: CreateTab = 'single') {
-    setCreateTab(tab)
-    setCreateForm(emptyCreateForm)
+  function openCreateModal() {
     setBulkRows(createBulkRows())
     setModalMessage('')
     setIsCreateModalOpen(true)
@@ -496,16 +478,8 @@ function App() {
 
   function closeCreateModal() {
     setIsCreateModalOpen(false)
-    setCreateForm(emptyCreateForm)
     setBulkRows(createBulkRows())
     setModalMessage('')
-  }
-
-  function updateCreateForm(key: keyof CreateForm, value: string) {
-    setCreateForm((prev) => ({
-      ...prev,
-      [key]: value,
-    }))
   }
 
   function updateBulkRow(
@@ -623,44 +597,6 @@ function App() {
     }))
     setEditingCode(null)
     setMessage(`編集をキャンセルしました：${product.product_code}`)
-  }
-
-  async function createSingleProduct() {
-    const productCode = createForm.product_code.trim()
-
-    if (!productCode) {
-      setModalMessage('商品コードは必須です。')
-      return
-    }
-
-    if (existingProductCodes.has(productCode)) {
-      setModalMessage(`既存の商品コードです：${productCode}`)
-      return
-    }
-
-    setLoading(true)
-    setModalMessage('')
-
-    const { error } = await supabase.from('products').insert({
-      product_code: productCode,
-      product_name: createForm.product_name.trim() || null,
-      floor: createForm.floor.trim() || null,
-      special_notes: createForm.special_notes.trim() || null,
-      picking_advice: createForm.picking_advice.trim() || null,
-      rack_number: createForm.rack_number.trim() || null,
-      rack_level: createForm.rack_level.trim() || null,
-      sticker_color: createForm.sticker_color.trim() || null,
-    })
-
-    if (error) {
-      setModalMessage(`追加失敗: ${error.message}`)
-    } else {
-      closeCreateModal()
-      setMessage(`商品を追加しました：${productCode}`)
-      await fetchProducts()
-    }
-
-    setLoading(false)
   }
 
   async function createBulkProducts() {
@@ -1000,7 +936,7 @@ function App() {
           再読み込み
         </button>
 
-        <button onClick={() => openCreateModal('single')}>商品追加</button>
+        <button onClick={openCreateModal}>商品追加</button>
       </section>
 
       {message && <p className="message">{message}</p>}
@@ -1161,273 +1097,170 @@ function App() {
               </button>
             </div>
 
-            <div className="modal-mode-bar">
-              <span>{createTab === 'single' ? '通常入力' : '複数行で追加'}</span>
+            <div className="modal-body">
+              <div className="bulk-guide">
+                <strong>1商品1行で入力</strong>
+                <p>
+                  商品コード・商品名・階数・棚番号-位置・棚番号-段・シールカラー・特記事項・ピック時アドバイスの順で入力できます。
+                  Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
+                </p>
+              </div>
 
-              <button
-                className="secondary small"
-                onClick={() => {
-                  setCreateTab(createTab === 'single' ? 'bulk' : 'single')
-                  setModalMessage('')
-                }}
-              >
-                {createTab === 'single' ? '複数行で追加に切り替え' : '通常入力に戻る'}
-              </button>
-            </div>
+              <div className="bulk-row-toolbar">
+                <strong>商品入力行</strong>
 
-            {createTab === 'single' ? (
-              <div className="modal-body">
-                <label>
-                  商品コード
-                  <input
-                    value={createForm.product_code}
-                    onChange={(e) => updateCreateForm('product_code', e.target.value)}
-                    placeholder="mus-04"
-                  />
-                </label>
-
-                <label>
-                  商品名
-                  <input
-                    value={createForm.product_name}
-                    onChange={(e) => updateCreateForm('product_name', e.target.value)}
-                    placeholder="ストリングクリーナー"
-                  />
-                </label>
-
-                <div className="modal-grid">
-                  <label>
-                    階数
-                    <input
-                      value={createForm.floor}
-                      onChange={(e) => updateCreateForm('floor', e.target.value)}
-                      placeholder="3F"
-                    />
-                  </label>
-
-                  <label>
-                    棚番号-位置
-                    <input
-                      value={createForm.rack_number}
-                      onChange={(e) => updateCreateForm('rack_number', e.target.value)}
-                      placeholder="A-12"
-                    />
-                  </label>
-
-                  <label>
-                    棚番号-段
-                    <input
-                      value={createForm.rack_level}
-                      onChange={(e) => updateCreateForm('rack_level', e.target.value)}
-                      placeholder="3"
-                    />
-                  </label>
-
-                  <label>
-                    シールカラー
-                    <input
-                      value={createForm.sticker_color}
-                      onChange={(e) => updateCreateForm('sticker_color', e.target.value)}
-                      placeholder="赤"
-                    />
-                  </label>
-                </div>
-
-                <label>
-                  特記事項
-                  <textarea
-                    value={createForm.special_notes}
-                    onChange={(e) => updateCreateForm('special_notes', e.target.value)}
-                    placeholder="保管・取扱いで注意すること"
-                  />
-                </label>
-
-                <label>
-                  ピック時アドバイス
-                  <textarea
-                    value={createForm.picking_advice}
-                    onChange={(e) => updateCreateForm('picking_advice', e.target.value)}
-                    placeholder="ピック時に見る補足"
-                  />
-                </label>
-
-                {modalMessage && <p className="modal-message">{modalMessage}</p>}
-
-                <div className="modal-actions">
-                  <button onClick={createSingleProduct} disabled={loading}>
-                    {loading ? '追加中...' : '追加'}
+                <div className="bulk-row-actions">
+                  <button className="secondary small" onClick={() => addBulkRows(5)}>
+                    5行追加
                   </button>
-                  <button className="secondary" onClick={closeCreateModal}>
-                    キャンセル
+
+                  <button className="secondary small" onClick={clearBulkRows}>
+                    クリア
                   </button>
                 </div>
               </div>
-            ) : (
-              <div className="modal-body">
-                <div className="bulk-guide">
-                  <strong>1商品1行で入力</strong>
-                  <p>
-                    商品コード・商品名・階数・棚番号-位置・棚番号-段・シールカラー・特記事項・ピック時アドバイスの順で入力できます。
-                    Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
-                  </p>
-                </div>
 
-                <div className="bulk-row-toolbar">
-                  <strong>商品入力行</strong>
+              <div className="bulk-table-wrap">
+                <table className="bulk-input-table bulk-input-table--wide">
+                  <thead>
+                    <tr>
+                      <th>No.</th>
+                      <th>商品コード</th>
+                      <th>商品名</th>
+                      <th>階数</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th></th>
+                    </tr>
+                  </thead>
 
-                  <div className="bulk-row-actions">
-                    <button className="secondary small" onClick={() => addBulkRows(5)}>
-                      5行追加
-                    </button>
+                  <tbody>
+                    {bulkRows.map((row, index) => (
+                      <tr key={row.id}>
+                        <td className="bulk-row-number">{index + 1}</td>
 
-                    <button className="secondary small" onClick={clearBulkRows}>
-                      クリア
-                    </button>
-                  </div>
-                </div>
+                        <td>
+                          <input
+                            value={row.product_code}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'product_code', e.target.value)
+                            }
+                            onPaste={(e) => handleBulkPaste(e, index)}
+                            placeholder="mus-04"
+                          />
+                        </td>
 
-                <div className="bulk-table-wrap">
-                  <table className="bulk-input-table bulk-input-table--wide">
-                    <thead>
-                      <tr>
-                        <th>No.</th>
-                        <th>商品コード</th>
-                        <th>商品名</th>
-                        <th>階数</th>
-                        <th>棚番号-位置</th>
-                        <th>棚番号-段</th>
-                        <th>シールカラー</th>
-                        <th>特記事項</th>
-                        <th>ピック時アドバイス</th>
-                        <th></th>
+                        <td>
+                          <input
+                            value={row.product_name}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'product_name', e.target.value)
+                            }
+                            placeholder="ストリングクリーナー"
+                          />
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.floor}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'floor', e.target.value)
+                            }
+                            placeholder="3F"
+                          />
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.rack_number}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'rack_number', e.target.value)
+                            }
+                            placeholder="A-12"
+                          />
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.rack_level}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'rack_level', e.target.value)
+                            }
+                            placeholder="3"
+                          />
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.sticker_color}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'sticker_color', e.target.value)
+                            }
+                            placeholder="赤"
+                          />
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.special_notes}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'special_notes', e.target.value)
+                            }
+                            placeholder="特記事項"
+                          />
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.picking_advice}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'picking_advice', e.target.value)
+                            }
+                            placeholder="ピック時アドバイス"
+                          />
+                        </td>
+
+                        <td>
+                          <button
+                            className="secondary small"
+                            onClick={() => removeBulkRow(row.id)}
+                          >
+                            削除
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-
-                    <tbody>
-                      {bulkRows.map((row, index) => (
-                        <tr key={row.id}>
-                          <td className="bulk-row-number">{index + 1}</td>
-
-                          <td>
-                            <input
-                              value={row.product_code}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'product_code', e.target.value)
-                              }
-                              onPaste={(e) => handleBulkPaste(e, index)}
-                              placeholder="mus-04"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.product_name}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'product_name', e.target.value)
-                              }
-                              placeholder="ストリングクリーナー"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.floor}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'floor', e.target.value)
-                              }
-                              placeholder="3F"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.rack_number}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'rack_number', e.target.value)
-                              }
-                              placeholder="A-12"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.rack_level}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'rack_level', e.target.value)
-                              }
-                              placeholder="3"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.sticker_color}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'sticker_color', e.target.value)
-                              }
-                              placeholder="赤"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.special_notes}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'special_notes', e.target.value)
-                              }
-                              placeholder="特記事項"
-                            />
-                          </td>
-
-                          <td>
-                            <input
-                              value={row.picking_advice}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, 'picking_advice', e.target.value)
-                              }
-                              placeholder="ピック時アドバイス"
-                            />
-                          </td>
-
-                          <td>
-                            <button
-                              className="secondary small"
-                              onClick={() => removeBulkRow(row.id)}
-                            >
-                              削除
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="bulk-preview">
-                  <span>入力済み：{bulkSummary.filledCount}件</span>
-                  <span>追加予定：{bulkInsertableCount}件</span>
-                  <span>既存スキップ：{bulkExistingCount}件</span>
-                  {bulkSummary.duplicateCodes.length > 0 && (
-                    <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
-                  )}
-                </div>
-
-                {modalMessage && <p className="modal-message">{modalMessage}</p>}
-
-                <div className="modal-actions">
-                  <button
-                    onClick={createBulkProducts}
-                    disabled={loading || bulkInsertableCount === 0}
-                  >
-                    {loading ? '一括追加中...' : `${bulkInsertableCount}件を追加`}
-                  </button>
-
-                  <button className="secondary" onClick={closeCreateModal}>
-                    キャンセル
-                  </button>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
+
+              <div className="bulk-preview">
+                <span>入力済み：{bulkSummary.filledCount}件</span>
+                <span>追加予定：{bulkInsertableCount}件</span>
+                <span>既存スキップ：{bulkExistingCount}件</span>
+                {bulkSummary.duplicateCodes.length > 0 && (
+                  <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
+                )}
+              </div>
+
+              {modalMessage && <p className="modal-message">{modalMessage}</p>}
+
+              <div className="modal-actions">
+                <button
+                  onClick={createBulkProducts}
+                  disabled={loading || bulkInsertableCount === 0}
+                >
+                  {loading ? '一括追加中...' : `${bulkInsertableCount}件を追加`}
+                </button>
+
+                <button className="secondary" onClick={closeCreateModal}>
+                  キャンセル
+                </button>
+              </div>
+            </div>
           </section>
         </div>
       )}
