@@ -59,10 +59,14 @@ function formatDateTime(value: string | null) {
   return date.toLocaleString('ja-JP')
 }
 
-function shortUrl(value: string | null) {
-  if (!value) return ''
+function RakumartButton({ url }: { url: string | null }) {
+  if (!url) return <span className="empty-url">-</span>
 
-  return value.replace(/^https?:\/\//, '').slice(0, 36)
+  return (
+    <a className="url-button" href={url} target="_blank" rel="noreferrer">
+      開く
+    </a>
+  )
 }
 
 function App() {
@@ -180,6 +184,15 @@ function App() {
     }
 
     setLoading(false)
+  }
+
+  async function copyProductCode(productCode: string) {
+    try {
+      await navigator.clipboard.writeText(productCode)
+      setMessage(`商品コードをコピーしました：${productCode}`)
+    } catch {
+      setMessage('コピーに失敗しました。')
+    }
   }
 
   function startCreate() {
@@ -380,67 +393,64 @@ function App() {
               </thead>
 
               <tbody>
-                {filteredProducts.map((product) => (
-                  <tr key={product.product_code}>
-                    <td className="code">{product.product_code}</td>
-                    <td>{product.product_name}</td>
-                    <td>{product.floor}</td>
+                {filteredProducts.map((product) => {
+                  const isEditing =
+                    editingProduct?.product_code === product.product_code
 
-                    <td>{product.order_memo_1}</td>
-                    <td>
-                      {product.rakumart_url_1 && (
-                        <a href={product.rakumart_url_1} target="_blank" rel="noreferrer">
-                          {shortUrl(product.rakumart_url_1)}
-                        </a>
-                      )}
-                    </td>
+                  return (
+                    <tr
+                      key={product.product_code}
+                      className={isEditing ? 'is-editing' : ''}
+                    >
+                      <td className="code">
+                        <button
+                          type="button"
+                          className="code-copy"
+                          onClick={() => copyProductCode(product.product_code)}
+                          title="商品コードをコピー"
+                        >
+                          {product.product_code}
+                        </button>
+                      </td>
+                      <td>{product.product_name}</td>
+                      <td>{product.floor}</td>
 
-                    <td>{product.order_memo_2}</td>
-                    <td>
-                      {product.rakumart_url_2 && (
-                        <a href={product.rakumart_url_2} target="_blank" rel="noreferrer">
-                          {shortUrl(product.rakumart_url_2)}
-                        </a>
-                      )}
-                    </td>
+                      <td>{product.order_memo_1}</td>
+                      <td>
+                        <RakumartButton url={product.rakumart_url_1} />
+                      </td>
 
-                    <td>{product.order_memo_3}</td>
-                    <td>
-                      {product.rakumart_url_3 && (
-                        <a href={product.rakumart_url_3} target="_blank" rel="noreferrer">
-                          {shortUrl(product.rakumart_url_3)}
-                        </a>
-                      )}
-                    </td>
+                      <td>{product.order_memo_2}</td>
+                      <td>
+                        <RakumartButton url={product.rakumart_url_2} />
+                      </td>
 
-                    <td>{product.order_memo_4}</td>
-                    <td>
-                      {product.rakumart_url_4 && (
-                        <a href={product.rakumart_url_4} target="_blank" rel="noreferrer">
-                          {shortUrl(product.rakumart_url_4)}
-                        </a>
-                      )}
-                    </td>
+                      <td>{product.order_memo_3}</td>
+                      <td>
+                        <RakumartButton url={product.rakumart_url_3} />
+                      </td>
 
-                    <td>{product.order_memo_5}</td>
-                    <td>
-                      {product.rakumart_url_5 && (
-                        <a href={product.rakumart_url_5} target="_blank" rel="noreferrer">
-                          {shortUrl(product.rakumart_url_5)}
-                        </a>
-                      )}
-                    </td>
+                      <td>{product.order_memo_4}</td>
+                      <td>
+                        <RakumartButton url={product.rakumart_url_4} />
+                      </td>
 
-                    <td>{formatDateTime(product.product_info_synced_at)}</td>
-                    <td>{formatDateTime(product.order_status_synced_at)}</td>
-                    <td>{formatDateTime(product.updated_at)}</td>
-                    <td>
-                      <button className="small" onClick={() => startEdit(product)}>
-                        編集
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      <td>{product.order_memo_5}</td>
+                      <td>
+                        <RakumartButton url={product.rakumart_url_5} />
+                      </td>
+
+                      <td>{formatDateTime(product.product_info_synced_at)}</td>
+                      <td>{formatDateTime(product.order_status_synced_at)}</td>
+                      <td>{formatDateTime(product.updated_at)}</td>
+                      <td>
+                        <button className="small" onClick={() => startEdit(product)}>
+                          編集
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
 
                 {filteredProducts.length === 0 && (
                   <tr>
