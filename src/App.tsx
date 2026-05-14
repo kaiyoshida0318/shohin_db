@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, type DragEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -111,6 +111,16 @@ type CsvImportResult = {
   fields: BulkFieldKey[]
 }
 
+type CsvColumnMapping = {
+  filename: string
+  headers: string[]
+  dataRows: string[][]
+  productCodeIndex: number | null
+  fieldIndexes: Partial<Record<BulkFieldKey, number>>
+}
+
+type CsvMappingKey = BulkFieldKey | 'product_code'
+
 const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
   product_code: [
     '商品コード',
@@ -177,6 +187,23 @@ type BulkSummary = {
 }
 
 const INITIAL_BULK_ROW_COUNT = 10
+
+function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
+  return {
+    product_code: productCode,
+    product_name: '',
+    floor: '',
+    special_notes: '',
+    picking_advice: '',
+    rack_number: '',
+    rack_level: '',
+    sticker_color: '',
+  }
+}
+
+function getBulkFieldLabel(key: BulkFieldKey) {
+  return BULK_FIELD_COLUMNS.find((column) => column.key === key)?.label ?? key
+}
 
 function createBulkRow(): BulkProductRow {
   return {
@@ -279,7 +306,23 @@ function parseCsvRows(text: string) {
   return parseDelimitedRows(text, delimiter)
 }
 
-function parseCsvImport(text: string): CsvImportResult {
+
+function getInitialCsvFieldIndexes(headers: string[]) {
+  return BULK_FIELD_COLUMNS.reduce<Partial<Record<BulkFieldKey, number>>>(
+    (indexes, column) => {
+      const index = getCsvColumnIndex(headers, column.key)
+
+      if (index >= 0) {
+        indexes[column.key] = index
+      }
+
+      return indexes
+    },
+    {},
+  )
+}
+
+function createCsvColumnMapping(text: string, filename: string): CsvColumnMapping {
   const rows = parseCsvRows(text)
 
   if (rows.length < 2) {
@@ -289,34 +332,47 @@ function parseCsvImport(text: string): CsvImportResult {
   const headers = rows[0]
   const productCodeIndex = getCsvColumnIndex(headers, 'product_code')
 
-  if (productCodeIndex < 0) {
-    throw new Error('CSVの1行目に「商品コード」列が必要です。')
+  return {
+    filename,
+    headers,
+    dataRows: rows.slice(1),
+    productCodeIndex: productCodeIndex >= 0 ? productCodeIndex : null,
+    fieldIndexes: getInitialCsvFieldIndexes(headers),
   }
+}
 
-  const fieldIndexes = BULK_FIELD_COLUMNS.map((column) => ({
+function getMappedCsvFields(fieldIndexes: Partial<Record<BulkFieldKey, number>>) {
+  return BULK_FIELD_COLUMNS.map((column) => ({
     key: column.key,
-    index: getCsvColumnIndex(headers, column.key),
-  })).filter((column): column is { key: BulkFieldKey; index: number } => column.index >= 0)
+    index: fieldIndexes[column.key],
+  })).filter(
+    (column): column is { key: BulkFieldKey; index: number } =>
+      typeof column.index === 'number' && column.index >= 0,
+  )
+}
 
-  if (fieldIndexes.length === 0) {
-    throw new Error('CSVの1行目に追加/更新対象の列名がありません。')
+function buildCsvImportResult(
+  dataRows: string[][],
+  productCodeIndex: number | null,
+  fieldIndexes: Partial<Record<BulkFieldKey, number>>,
+): CsvImportResult {
+  if (productCodeIndex === null || productCodeIndex < 0) {
+    throw new Error('商品コードに使うCSV列を選択してください。')
   }
 
-  const importedRows = rows
-    .slice(1)
-    .map((cells) => {
-      const row: CleanBulkProductRow = {
-        product_code: cells[productCodeIndex]?.trim() ?? '',
-        product_name: '',
-        floor: '',
-        rack_number: '',
-        rack_level: '',
-        sticker_color: '',
-        special_notes: '',
-        picking_advice: '',
-      }
+  const mappedFields = getMappedCsvFields(fieldIndexes)
 
-      fieldIndexes.forEach(({ key, index }) => {
+  if (mappedFields.length === 0) {
+    throw new Error('追加/更新する列を1つ以上選択してください。')
+  }
+
+  const importedRows = dataRows
+    .map((cells) => {
+      const row = createEmptyCleanBulkProductRow(
+        cells[productCodeIndex]?.trim() ?? '',
+      )
+
+      mappedFields.forEach(({ key, index }) => {
         row[key] = cells[index]?.trim() ?? ''
       })
 
@@ -330,9 +386,10 @@ function parseCsvImport(text: string): CsvImportResult {
 
   return {
     rows: importedRows,
-    fields: fieldIndexes.map((field) => field.key),
+    fields: mappedFields.map((field) => field.key),
   }
 }
+
 
 function cleanRowToBulkRow(row: CleanBulkProductRow): BulkProductRow {
   return {
@@ -388,16 +445,7 @@ function parseClipboardRows(
         return null
       }
 
-      const row: CleanBulkProductRow = {
-        product_code: cells[0]?.trim() ?? '',
-        product_name: '',
-        floor: '',
-        rack_number: '',
-        rack_level: '',
-        sticker_color: '',
-        special_notes: '',
-        picking_advice: '',
-      }
+      const row = createEmptyCleanBulkProductRow(cells[0]?.trim() ?? '')
 
       selectedFields.forEach((key, fieldIndex) => {
         row[key] = cells[fieldIndex + 1]?.trim() ?? ''
@@ -598,6 +646,8 @@ function App() {
   const [selectedBulkFields, setSelectedBulkFields] = useState<BulkFieldKey[]>(
     DEFAULT_BULK_FIELD_KEYS,
   )
+  const [csvColumnMapping, setCsvColumnMapping] = useState<CsvColumnMapping | null>(null)
+  const [isCsvDragOver, setIsCsvDragOver] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
 
   useEffect(() => {
@@ -750,6 +800,8 @@ function App() {
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
+    setCsvColumnMapping(null)
+    setIsCsvDragOver(false)
     setModalMessage('')
     setIsCreateModalOpen(true)
   }
@@ -759,6 +811,8 @@ function App() {
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
+    setCsvColumnMapping(null)
+    setIsCsvDragOver(false)
     setModalMessage('')
   }
 
@@ -804,6 +858,7 @@ function App() {
 
   function clearBulkRows() {
     setBulkRows(createBulkRows())
+    setCsvColumnMapping(null)
     setModalMessage('')
   }
 
@@ -853,6 +908,53 @@ function App() {
     })
   }
 
+
+  function applyCsvImportResult(result: CsvImportResult, filename: string) {
+    const blankRows = createBulkRows(3)
+
+    setSelectedBulkFields(result.fields)
+    setBulkRows([...result.rows.map(cleanRowToBulkRow), ...blankRows])
+    setCsvColumnMapping(null)
+    setModalMessage(
+      `${filename} を読み込みました。対象列：${result.fields
+        .map(getBulkFieldLabel)
+        .join('・')}`,
+    )
+  }
+
+  async function importCsvFile(file: File) {
+    try {
+      const buffer = await file.arrayBuffer()
+      const text = decodeCsvBuffer(buffer)
+      const mapping = createCsvColumnMapping(text, file.name)
+      const mappedFields = getMappedCsvFields(mapping.fieldIndexes)
+
+      if (mapping.productCodeIndex === null || mappedFields.length === 0) {
+        setCsvColumnMapping(mapping)
+        setModalMessage(
+          `${file.name} の列名を自動識別できませんでした。下の列割り当てで指定してください。`,
+        )
+        return
+      }
+
+      applyCsvImportResult(
+        buildCsvImportResult(
+          mapping.dataRows,
+          mapping.productCodeIndex,
+          mapping.fieldIndexes,
+        ),
+        file.name,
+      )
+    } catch (error) {
+      setCsvColumnMapping(null)
+      setModalMessage(
+        error instanceof Error
+          ? `CSV読み込み失敗: ${error.message}`
+          : 'CSV読み込みに失敗しました。',
+      )
+    }
+  }
+
   async function handleBulkCsvImport(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
@@ -861,28 +963,91 @@ function App() {
       return
     }
 
-    try {
-      const buffer = await file.arrayBuffer()
-      const text = decodeCsvBuffer(buffer)
-      const result = parseCsvImport(text)
-      const blankRows = createBulkRows(3)
+    await importCsvFile(file)
+  }
 
-      setSelectedBulkFields(result.fields)
-      setBulkRows([...result.rows.map(cleanRowToBulkRow), ...blankRows])
-      setModalMessage(
-        `${file.name} を読み込みました。対象列：${result.fields
-          .map((key) => BULK_FIELD_COLUMNS.find((column) => column.key === key)?.label)
-          .filter(Boolean)
-          .join('・')}`,
+  function handleCsvDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsCsvDragOver(true)
+  }
+
+  function handleCsvDragLeave(event: DragEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget as Node | null
+
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      setIsCsvDragOver(false)
+    }
+  }
+
+  async function handleCsvDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setIsCsvDragOver(false)
+
+    const droppedFiles = Array.from(event.dataTransfer.files)
+    const csvFile =
+      droppedFiles.find(
+        (file) =>
+          file.name.toLowerCase().endsWith('.csv') ||
+          file.type.includes('csv') ||
+          file.type === 'text/plain',
+      ) ?? droppedFiles[0]
+
+    if (!csvFile) {
+      setModalMessage('CSVファイルをドロップしてください。')
+      return
+    }
+
+    await importCsvFile(csvFile)
+  }
+
+  function updateCsvMappingColumn(key: CsvMappingKey, value: string) {
+    const index = value === '' ? null : Number(value)
+
+    setCsvColumnMapping((prev) => {
+      if (!prev) {
+        return prev
+      }
+
+      if (key === 'product_code') {
+        return {
+          ...prev,
+          productCodeIndex: index,
+        }
+      }
+
+      return {
+        ...prev,
+        fieldIndexes: {
+          ...prev.fieldIndexes,
+          [key]: index ?? undefined,
+        },
+      }
+    })
+  }
+
+  function applyManualCsvMapping() {
+    if (!csvColumnMapping) {
+      return
+    }
+
+    try {
+      const result = buildCsvImportResult(
+        csvColumnMapping.dataRows,
+        csvColumnMapping.productCodeIndex,
+        csvColumnMapping.fieldIndexes,
       )
+
+      applyCsvImportResult(result, csvColumnMapping.filename)
     } catch (error) {
       setModalMessage(
         error instanceof Error
-          ? `CSV読み込み失敗: ${error.message}`
-          : 'CSV読み込みに失敗しました。',
+          ? `CSV列割り当て失敗: ${error.message}`
+          : 'CSV列割り当てに失敗しました。',
       )
     }
   }
+
 
 
   function startEdit(product: Product) {
@@ -1467,10 +1632,15 @@ function App() {
                 </div>
               </div>
 
-              <div className="bulk-csv-import">
+              <div
+                className={isCsvDragOver ? 'bulk-csv-import is-drag-over' : 'bulk-csv-import'}
+                onDragOver={handleCsvDragOver}
+                onDragLeave={handleCsvDragLeave}
+                onDrop={handleCsvDrop}
+              >
                 <div>
                   <strong>CSV読み込み</strong>
-                  <span>1行目の列名で取り込みます。</span>
+                  <span>CSVを選択、またはここにドロップできます。列名が合わない場合は手動で割り当てできます。</span>
                 </div>
 
                 <label className="csv-upload-button">
@@ -1482,6 +1652,68 @@ function App() {
                   />
                 </label>
               </div>
+
+              {csvColumnMapping && (
+                <div className="csv-mapping-panel">
+                  <div className="csv-mapping-head">
+                    <div>
+                      <strong>CSV列の手動割り当て</strong>
+                      <span>{csvColumnMapping.filename}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary small"
+                      onClick={() => setCsvColumnMapping(null)}
+                    >
+                      割り当てを閉じる
+                    </button>
+                  </div>
+
+                  <div className="csv-mapping-grid">
+                    <label>
+                      商品コード
+                      <select
+                        value={csvColumnMapping.productCodeIndex ?? ''}
+                        onChange={(event) =>
+                          updateCsvMappingColumn('product_code', event.target.value)
+                        }
+                      >
+                        <option value="">選択してください</option>
+                        {csvColumnMapping.headers.map((header, index) => (
+                          <option key={`${header}-${index}`} value={index}>
+                            {index + 1}列目：{header || '(列名なし)'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {BULK_FIELD_COLUMNS.map((column) => (
+                      <label key={column.key}>
+                        {column.label}
+                        <select
+                          value={csvColumnMapping.fieldIndexes[column.key] ?? ''}
+                          onChange={(event) =>
+                            updateCsvMappingColumn(column.key, event.target.value)
+                          }
+                        >
+                          <option value="">取り込まない</option>
+                          {csvColumnMapping.headers.map((header, index) => (
+                            <option key={`${column.key}-${header}-${index}`} value={index}>
+                              {index + 1}列目：{header || '(列名なし)'}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className="csv-mapping-actions">
+                    <button type="button" onClick={applyManualCsvMapping}>
+                      この割り当てでCSVを反映
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <label className="bulk-update-option">
                 <input

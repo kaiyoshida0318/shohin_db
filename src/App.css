@@ -941,3 +941,77 @@ tr:hover td:last-child {
   opacity: 0;
   cursor: pointer;
 }
+
+.bulk-csv-import.is-drag-over {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.16);
+}
+
+.csv-mapping-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #c7d2fe;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.csv-mapping-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.csv-mapping-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.csv-mapping-head strong {
+  color: #263347;
+}
+
+.csv-mapping-head span {
+  color: #66758a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.csv-mapping-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.csv-mapping-grid label {
+  display: grid;
+  gap: 6px;
+  color: #526177;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.csv-mapping-grid select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #d8e0ea;
+  border-radius: 11px;
+  background: #fff;
+  color: #263347;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.csv-mapping-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1200px) {
+  .csv-mapping-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
