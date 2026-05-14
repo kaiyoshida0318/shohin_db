@@ -58,7 +58,7 @@ type SessionUser = {
   email?: string
 }
 
-type TableView = 'all' | 'pick' | 'custom'
+type TableView = 'all' | 'pick' | 'order' | 'custom'
 
 const emptyCreateForm = {
   product_code: '',
@@ -897,6 +897,24 @@ function App() {
     )
   }
 
+  function renderOrderColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_2', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_2')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_3', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_3')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_4', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_4')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_5', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_5')}</td>
+      </>
+    )
+  }
+
   function renderCustomColumns(product: Product, draft: EditableProduct) {
     return (
       <>
@@ -914,7 +932,7 @@ function App() {
     )
   }
 
-  const tableColSpan = tableView === 'all' ? 22 : tableView === 'pick' ? 9 : 12
+  const tableColSpan = tableView === 'all' ? 22 : tableView === 'pick' ? 9 : tableView === 'order' ? 13 : 12
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -1013,6 +1031,9 @@ function App() {
               <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
                 ピック用
               </ViewButton>
+              <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
+                オーダー状況
+              </ViewButton>
               <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
                 カスタム
               </ViewButton>
@@ -1062,6 +1083,22 @@ function App() {
                     </>
                   )}
 
+                  {tableView === 'order' && (
+                    <>
+                      <th>商品名</th>
+                      <th>オーダー1</th>
+                      <th>RM1</th>
+                      <th>オーダー2</th>
+                      <th>RM2</th>
+                      <th>オーダー3</th>
+                      <th>RM3</th>
+                      <th>オーダー4</th>
+                      <th>RM4</th>
+                      <th>オーダー5</th>
+                      <th>RM5</th>
+                    </>
+                  )}
+
                   {tableView === 'custom' && (
                     <>
                       <th>商品名</th>
@@ -1105,6 +1142,7 @@ function App() {
 
                       {tableView === 'all' && renderAllColumns(product, draft)}
                       {tableView === 'pick' && renderPickColumns(product, draft)}
+                      {tableView === 'order' && renderOrderColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
                       <td>{renderActions(product, draft)}</td>

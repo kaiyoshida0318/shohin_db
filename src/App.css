@@ -295,6 +295,10 @@ table {
   min-width: 1380px;
 }
 
+.products-table--order {
+  min-width: 1720px;
+}
+
 .products-table--custom {
   min-width: 1800px;
 }
