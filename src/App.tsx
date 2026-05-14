@@ -85,7 +85,9 @@ type CleanBulkProductRow = {
 
 type BulkSummary = {
   filledCount: number
+  uniqueRows: CleanBulkProductRow[]
   insertRows: CleanBulkProductRow[]
+  updateRows: CleanBulkProductRow[]
   existingCount: number
   duplicateCodes: string[]
 }
@@ -183,7 +185,7 @@ function buildBulkSummary(
     uniqueRows.push(row)
   })
 
-  const existingRows = uniqueRows.filter((row) =>
+  const updateRows = uniqueRows.filter((row) =>
     existingProductCodes.has(row.product_code),
   )
 
@@ -193,8 +195,10 @@ function buildBulkSummary(
 
   return {
     filledCount: filledRows.length,
+    uniqueRows,
     insertRows,
-    existingCount: existingRows.length,
+    updateRows,
+    existingCount: updateRows.length,
     duplicateCodes: Array.from(duplicateCodeSet),
   }
 }
@@ -333,6 +337,7 @@ function App() {
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
     createBulkRows(),
   )
+  const [bulkShouldUpdateExisting, setBulkShouldUpdateExisting] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
 
   useEffect(() => {
@@ -379,7 +384,11 @@ function App() {
   }, [bulkRows, existingProductCodes])
 
   const bulkInsertableCount = bulkSummary.insertRows.length
+  const bulkUpdateableCount = bulkSummary.updateRows.length
   const bulkExistingCount = bulkSummary.existingCount
+  const bulkActionableCount = bulkShouldUpdateExisting
+    ? bulkSummary.uniqueRows.length
+    : bulkInsertableCount
 
   const filteredProducts = useMemo(() => {
     const q = keyword.trim().toLowerCase()
@@ -472,6 +481,7 @@ function App() {
 
   function openCreateModal() {
     setBulkRows(createBulkRows())
+    setBulkShouldUpdateExisting(false)
     setModalMessage('')
     setIsCreateModalOpen(true)
   }
@@ -479,6 +489,7 @@ function App() {
   function closeCreateModal() {
     setIsCreateModalOpen(false)
     setBulkRows(createBulkRows())
+    setBulkShouldUpdateExisting(false)
     setModalMessage('')
   }
 
@@ -600,16 +611,20 @@ function App() {
   }
 
   async function createBulkProducts() {
-    const insertRows = bulkSummary.insertRows
+    const targetRows = bulkShouldUpdateExisting
+      ? bulkSummary.uniqueRows
+      : bulkSummary.insertRows
 
     if (bulkSummary.filledCount === 0) {
-      setModalMessage('追加できる商品がありません。')
+      setModalMessage('追加/更新できる商品がありません。')
       return
     }
 
-    if (insertRows.length === 0) {
+    if (targetRows.length === 0) {
       setModalMessage(
-        'すべて既存商品コード、または入力内重複のため追加対象がありません。',
+        bulkShouldUpdateExisting
+          ? '入力内重複のため追加/更新対象がありません。'
+          : 'すべて既存商品コード、または入力内重複のため追加対象がありません。既存も更新する場合はチェックを入れてください。',
       )
       return
     }
@@ -617,7 +632,8 @@ function App() {
     setLoading(true)
     setModalMessage('')
 
-    const payload = insertRows.map((row) => ({
+    const now = new Date().toISOString()
+    const payload = targetRows.map((row) => ({
       product_code: row.product_code,
       product_name: row.product_name || null,
       floor: row.floor || null,
@@ -626,16 +642,23 @@ function App() {
       rack_number: row.rack_number || null,
       rack_level: row.rack_level || null,
       sticker_color: row.sticker_color || null,
+      updated_at: now,
     }))
 
-    const { error } = await supabase.from('products').insert(payload)
+    const { error } = bulkShouldUpdateExisting
+      ? await supabase
+          .from('products')
+          .upsert(payload, { onConflict: 'product_code' })
+      : await supabase.from('products').insert(payload)
 
     if (error) {
-      setModalMessage(`一括追加失敗: ${error.message}`)
+      setModalMessage(`一括追加/更新失敗: ${error.message}`)
     } else {
       closeCreateModal()
       setMessage(
-        `${insertRows.length}件追加しました。既存商品のスキップ：${bulkExistingCount}件`,
+        bulkShouldUpdateExisting
+          ? `${bulkInsertableCount}件追加、${bulkUpdateableCount}件更新しました。`
+          : `${bulkInsertableCount}件追加しました。既存商品のスキップ：${bulkExistingCount}件`,
       )
       await fetchProducts()
     }
@@ -936,7 +959,7 @@ function App() {
           再読み込み
         </button>
 
-        <button onClick={openCreateModal}>商品追加</button>
+        <button onClick={openCreateModal}>商品追加/更新</button>
       </section>
 
       {message && <p className="message">{message}</p>}
@@ -1083,13 +1106,13 @@ function App() {
             className="modal-card"
             role="dialog"
             aria-modal="true"
-            aria-label="商品追加"
+            aria-label="商品追加/更新"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">Product Add</p>
-                <h2>商品追加</h2>
+                <p className="eyebrow">Product Add / Update</p>
+                <h2>商品追加/更新</h2>
               </div>
 
               <button className="secondary small" onClick={closeCreateModal}>
@@ -1105,6 +1128,18 @@ function App() {
                   Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
                 </p>
               </div>
+
+              <label className="bulk-update-option">
+                <input
+                  type="checkbox"
+                  checked={bulkShouldUpdateExisting}
+                  onChange={(event) =>
+                    setBulkShouldUpdateExisting(event.target.checked)
+                  }
+                />
+                <span>既存の商品コードも更新する</span>
+                <small>ONにすると、既存商品の商品名・階数・棚番号・シールカラー・特記事項・ピック時アドバイスを入力内容で上書きします。</small>
+              </label>
 
               <div className="bulk-row-toolbar">
                 <strong>商品入力行</strong>
@@ -1240,7 +1275,8 @@ function App() {
               <div className="bulk-preview">
                 <span>入力済み：{bulkSummary.filledCount}件</span>
                 <span>追加予定：{bulkInsertableCount}件</span>
-                <span>既存スキップ：{bulkExistingCount}件</span>
+                <span>更新予定：{bulkShouldUpdateExisting ? bulkUpdateableCount : 0}件</span>
+                <span>既存スキップ：{bulkShouldUpdateExisting ? 0 : bulkExistingCount}件</span>
                 {bulkSummary.duplicateCodes.length > 0 && (
                   <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
                 )}
@@ -1251,9 +1287,13 @@ function App() {
               <div className="modal-actions">
                 <button
                   onClick={createBulkProducts}
-                  disabled={loading || bulkInsertableCount === 0}
+                  disabled={loading || bulkActionableCount === 0}
                 >
-                  {loading ? '一括追加中...' : `${bulkInsertableCount}件を追加`}
+                  {loading
+                    ? '一括追加/更新中...'
+                    : bulkShouldUpdateExisting
+                      ? `${bulkInsertableCount}件追加 / ${bulkUpdateableCount}件更新`
+                      : `${bulkInsertableCount}件を追加`}
                 </button>
 
                 <button className="secondary" onClick={closeCreateModal}>
