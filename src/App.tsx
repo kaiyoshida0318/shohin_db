@@ -1629,14 +1629,14 @@ function App() {
               <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
                 すべて
               </ViewButton>
-              <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
-                ピック用
-              </ViewButton>
               <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
                 オーダー状況
               </ViewButton>
               <ViewButton active={tableView === 'purchase'} onClick={() => setTableView('purchase')}>
-                発注用
+                オーダー用
+              </ViewButton>
+              <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
+                ピック用
               </ViewButton>
               <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
                 カスタム
