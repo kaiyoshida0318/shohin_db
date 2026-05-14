@@ -7,6 +7,12 @@ type Product = {
   product_name: string | null
   floor: string | null
 
+  special_notes: string | null
+  picking_advice: string | null
+  rack_number: string | null
+  rack_level: string | null
+  sticker_color: string | null
+
   order_memo_1: string | null
   rakumart_url_1: string | null
   order_memo_2: string | null
@@ -24,34 +30,47 @@ type Product = {
   updated_at: string | null
 }
 
+type EditableProduct = {
+  product_name: string
+  floor: string
+
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
+
+  order_memo_1: string
+  rakumart_url_1: string
+  order_memo_2: string
+  rakumart_url_2: string
+  order_memo_3: string
+  rakumart_url_3: string
+  order_memo_4: string
+  rakumart_url_4: string
+  order_memo_5: string
+  rakumart_url_5: string
+}
+
+type EditableProductKey = keyof EditableProduct
+
 type SessionUser = {
   email?: string
 }
 
-const emptyForm = {
-  product_code: '',
-  product_name: '',
-  floor: '',
-
-  order_memo_1: '',
-  rakumart_url_1: '',
-  order_memo_2: '',
-  rakumart_url_2: '',
-  order_memo_3: '',
-  rakumart_url_3: '',
-  order_memo_4: '',
-  rakumart_url_4: '',
-  order_memo_5: '',
-  rakumart_url_5: '',
-}
+type TableView = 'all' | 'pick' | 'custom'
 
 const emptyCreateForm = {
   product_code: '',
   product_name: '',
   floor: '',
+  special_notes: '',
+  picking_advice: '',
+  rack_number: '',
+  rack_level: '',
+  sticker_color: '',
 }
 
-type ProductForm = typeof emptyForm
 type CreateForm = typeof emptyCreateForm
 type CreateTab = 'single' | 'bulk'
 
@@ -60,12 +79,22 @@ type BulkProductRow = {
   product_code: string
   product_name: string
   floor: string
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
 }
 
 type CleanBulkProductRow = {
   product_code: string
   product_name: string
   floor: string
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
 }
 
 type BulkSummary = {
@@ -86,6 +115,11 @@ function createBulkRow(): BulkProductRow {
     product_code: '',
     product_name: '',
     floor: '',
+    special_notes: '',
+    picking_advice: '',
+    rack_number: '',
+    rack_level: '',
+    sticker_color: '',
   }
 }
 
@@ -120,6 +154,11 @@ function parseClipboardRows(text: string): CleanBulkProductRow[] {
         product_code: cells[0]?.trim() ?? '',
         product_name: cells[1]?.trim() ?? '',
         floor: cells[2]?.trim() ?? '',
+        rack_number: cells[3]?.trim() ?? '',
+        rack_level: cells[4]?.trim() ?? '',
+        sticker_color: cells[5]?.trim() ?? '',
+        special_notes: cells[6]?.trim() ?? '',
+        picking_advice: cells[7]?.trim() ?? '',
       }
     })
     .filter((row): row is CleanBulkProductRow => {
@@ -136,6 +175,11 @@ function buildBulkSummary(
       product_code: row.product_code.trim(),
       product_name: row.product_name.trim(),
       floor: row.floor.trim(),
+      special_notes: row.special_notes.trim(),
+      picking_advice: row.picking_advice.trim(),
+      rack_number: row.rack_number.trim(),
+      rack_level: row.rack_level.trim(),
+      sticker_color: row.sticker_color.trim(),
     }))
     .filter((row) => row.product_code)
 
@@ -181,6 +225,58 @@ function formatDateTime(value: string | null) {
   return date.toLocaleString('ja-JP')
 }
 
+function productToDraft(product: Product): EditableProduct {
+  return {
+    product_name: product.product_name ?? '',
+    floor: product.floor ?? '',
+    special_notes: product.special_notes ?? '',
+    picking_advice: product.picking_advice ?? '',
+    rack_number: product.rack_number ?? '',
+    rack_level: product.rack_level ?? '',
+    sticker_color: product.sticker_color ?? '',
+    order_memo_1: product.order_memo_1 ?? '',
+    rakumart_url_1: product.rakumart_url_1 ?? '',
+    order_memo_2: product.order_memo_2 ?? '',
+    rakumart_url_2: product.rakumart_url_2 ?? '',
+    order_memo_3: product.order_memo_3 ?? '',
+    rakumart_url_3: product.rakumart_url_3 ?? '',
+    order_memo_4: product.order_memo_4 ?? '',
+    rakumart_url_4: product.rakumart_url_4 ?? '',
+    order_memo_5: product.order_memo_5 ?? '',
+    rakumart_url_5: product.rakumart_url_5 ?? '',
+  }
+}
+
+function normalizeDraft(draft: EditableProduct) {
+  return {
+    product_name: draft.product_name.trim() || null,
+    floor: draft.floor.trim() || null,
+    special_notes: draft.special_notes.trim() || null,
+    picking_advice: draft.picking_advice.trim() || null,
+    rack_number: draft.rack_number.trim() || null,
+    rack_level: draft.rack_level.trim() || null,
+    sticker_color: draft.sticker_color.trim() || null,
+    order_memo_1: draft.order_memo_1.trim() || null,
+    rakumart_url_1: draft.rakumart_url_1.trim() || null,
+    order_memo_2: draft.order_memo_2.trim() || null,
+    rakumart_url_2: draft.rakumart_url_2.trim() || null,
+    order_memo_3: draft.order_memo_3.trim() || null,
+    rakumart_url_3: draft.rakumart_url_3.trim() || null,
+    order_memo_4: draft.order_memo_4.trim() || null,
+    rakumart_url_4: draft.rakumart_url_4.trim() || null,
+    order_memo_5: draft.order_memo_5.trim() || null,
+    rakumart_url_5: draft.rakumart_url_5.trim() || null,
+  }
+}
+
+function isDraftDirty(product: Product, draft: EditableProduct) {
+  const original = productToDraft(product)
+
+  return (Object.keys(original) as EditableProductKey[]).some(
+    (key) => original[key] !== draft[key],
+  )
+}
+
 function RakumartButton({ url }: { url: string | null }) {
   if (!url) return <span className="empty-url">-</span>
 
@@ -191,21 +287,72 @@ function RakumartButton({ url }: { url: string | null }) {
   )
 }
 
+function UrlEditCell({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="url-edit-cell">
+      <input
+        className="table-input url-input"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="URL"
+      />
+
+      {value.trim() ? (
+        <a className="url-button" href={value.trim()} target="_blank" rel="noreferrer">
+          開く
+        </a>
+      ) : (
+        <span className="empty-url">-</span>
+      )}
+    </div>
+  )
+}
+
+function DisplayText({ value, className = '' }: { value: string | null; className?: string }) {
+  return <span className={`cell-text ${className}`}>{value || '-'}</span>
+}
+
+function ViewButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean
+  children: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={active ? 'view-button active' : 'view-button'}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
 function App() {
-  const brandLogoUrl = `${import.meta.env.BASE_URL}shohin-db-logo.png`
   const [user, setUser] = useState<SessionUser | null>(null)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
   const [products, setProducts] = useState<Product[]>([])
+  const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
+  const [editingCode, setEditingCode] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const [floorFilter, setFloorFilter] = useState('')
+  const [tableView, setTableView] = useState<TableView>('all')
 
   const [loading, setLoading] = useState(false)
+  const [savingCode, setSavingCode] = useState<string | null>(null)
   const [message, setMessage] = useState('')
-
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [form, setForm] = useState<ProductForm>(emptyForm)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createTab, setCreateTab] = useState<CreateTab>('single')
@@ -235,6 +382,21 @@ function App() {
     }
   }, [user])
 
+  useEffect(() => {
+    setRowDrafts((prev) => {
+      const nextDrafts: Record<string, EditableProduct> = {}
+
+      products.forEach((product) => {
+        nextDrafts[product.product_code] =
+          editingCode === product.product_code && prev[product.product_code]
+            ? prev[product.product_code]
+            : productToDraft(product)
+      })
+
+      return nextDrafts
+    })
+  }, [products, editingCode])
+
   const existingProductCodes = useMemo(() => {
     return new Set(products.map((product) => product.product_code))
   }, [products])
@@ -262,31 +424,41 @@ function App() {
     const q = keyword.trim().toLowerCase()
 
     return products.filter((product) => {
+      const draft =
+        editingCode === product.product_code
+          ? rowDrafts[product.product_code] ?? productToDraft(product)
+          : productToDraft(product)
+
       const matchesKeyword =
         !q ||
         [
           product.product_code,
-          product.product_name,
-          product.floor,
-          product.order_memo_1,
-          product.rakumart_url_1,
-          product.order_memo_2,
-          product.rakumart_url_2,
-          product.order_memo_3,
-          product.rakumart_url_3,
-          product.order_memo_4,
-          product.rakumart_url_4,
-          product.order_memo_5,
-          product.rakumart_url_5,
+          draft.product_name,
+          draft.floor,
+          draft.special_notes,
+          draft.picking_advice,
+          draft.rack_number,
+          draft.rack_level,
+          draft.sticker_color,
+          draft.order_memo_1,
+          draft.rakumart_url_1,
+          draft.order_memo_2,
+          draft.rakumart_url_2,
+          draft.order_memo_3,
+          draft.rakumart_url_3,
+          draft.order_memo_4,
+          draft.rakumart_url_4,
+          draft.order_memo_5,
+          draft.rakumart_url_5,
         ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(q))
 
-      const matchesFloor = !floorFilter || product.floor === floorFilter
+      const matchesFloor = !floorFilter || draft.floor === floorFilter
 
       return matchesKeyword && matchesFloor
     })
-  }, [products, keyword, floorFilter])
+  }, [products, rowDrafts, editingCode, keyword, floorFilter])
 
   async function login() {
     setLoading(true)
@@ -307,6 +479,8 @@ function App() {
   async function logout() {
     await supabase.auth.signOut()
     setProducts([])
+    setRowDrafts({})
+    setEditingCode(null)
     setUser(null)
   }
 
@@ -350,41 +524,6 @@ function App() {
     setCreateForm(emptyCreateForm)
     setBulkRows(createBulkRows())
     setModalMessage('')
-  }
-
-  function clearEditing() {
-    setEditingProduct(null)
-    setForm(emptyForm)
-    setMessage('')
-  }
-
-  function startEdit(product: Product) {
-    setEditingProduct(product)
-    setMessage('')
-
-    setForm({
-      product_code: product.product_code ?? '',
-      product_name: product.product_name ?? '',
-      floor: product.floor ?? '',
-
-      order_memo_1: product.order_memo_1 ?? '',
-      rakumart_url_1: product.rakumart_url_1 ?? '',
-      order_memo_2: product.order_memo_2 ?? '',
-      rakumart_url_2: product.rakumart_url_2 ?? '',
-      order_memo_3: product.order_memo_3 ?? '',
-      rakumart_url_3: product.rakumart_url_3 ?? '',
-      order_memo_4: product.order_memo_4 ?? '',
-      rakumart_url_4: product.rakumart_url_4 ?? '',
-      order_memo_5: product.order_memo_5 ?? '',
-      rakumart_url_5: product.rakumart_url_5 ?? '',
-    })
-  }
-
-  function updateForm(key: keyof ProductForm, value: string) {
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-    }))
   }
 
   function updateCreateForm(key: keyof CreateForm, value: string) {
@@ -461,11 +600,54 @@ function App() {
           product_code: pastedRow.product_code,
           product_name: pastedRow.product_name,
           floor: pastedRow.floor,
+          rack_number: pastedRow.rack_number,
+          rack_level: pastedRow.rack_level,
+          sticker_color: pastedRow.sticker_color,
+          special_notes: pastedRow.special_notes,
+          picking_advice: pastedRow.picking_advice,
         }
       })
 
       return next
     })
+  }
+
+  function startEdit(product: Product) {
+    setEditingCode(product.product_code)
+    setRowDrafts((prev) => ({
+      ...prev,
+      [product.product_code]: productToDraft(product),
+    }))
+    setMessage('')
+  }
+
+  function updateDraft(
+    productCode: string,
+    key: EditableProductKey,
+    value: string,
+  ) {
+    const product = products.find((item) => item.product_code === productCode)
+
+    if (!product) {
+      return
+    }
+
+    setRowDrafts((prev) => ({
+      ...prev,
+      [productCode]: {
+        ...(prev[productCode] ?? productToDraft(product)),
+        [key]: value,
+      },
+    }))
+  }
+
+  function cancelEdit(product: Product) {
+    setRowDrafts((prev) => ({
+      ...prev,
+      [product.product_code]: productToDraft(product),
+    }))
+    setEditingCode(null)
+    setMessage(`編集をキャンセルしました：${product.product_code}`)
   }
 
   async function createSingleProduct() {
@@ -488,6 +670,11 @@ function App() {
       product_code: productCode,
       product_name: createForm.product_name.trim() || null,
       floor: createForm.floor.trim() || null,
+      special_notes: createForm.special_notes.trim() || null,
+      picking_advice: createForm.picking_advice.trim() || null,
+      rack_number: createForm.rack_number.trim() || null,
+      rack_level: createForm.rack_level.trim() || null,
+      sticker_color: createForm.sticker_color.trim() || null,
     })
 
     if (error) {
@@ -523,6 +710,11 @@ function App() {
       product_code: row.product_code,
       product_name: row.product_name || null,
       floor: row.floor || null,
+      special_notes: row.special_notes || null,
+      picking_advice: row.picking_advice || null,
+      rack_number: row.rack_number || null,
+      rack_level: row.rack_level || null,
+      sticker_color: row.sticker_color || null,
     }))
 
     const { error } = await supabase.from('products').insert(payload)
@@ -540,65 +732,201 @@ function App() {
     setLoading(false)
   }
 
-  async function saveProduct() {
-    if (!form.product_code.trim()) {
-      setMessage('商品コードは必須です。')
+  async function saveRow(product: Product) {
+    const draft = rowDrafts[product.product_code]
+
+    if (!draft) {
+      setMessage('保存対象が見つかりません。')
       return
     }
 
-    setLoading(true)
+    setSavingCode(product.product_code)
     setMessage('')
 
     const payload = {
-      product_code: form.product_code.trim(),
-      product_name: form.product_name.trim() || null,
-      floor: form.floor.trim() || null,
-
-      order_memo_1: form.order_memo_1.trim() || null,
-      rakumart_url_1: form.rakumart_url_1.trim() || null,
-      order_memo_2: form.order_memo_2.trim() || null,
-      rakumart_url_2: form.rakumart_url_2.trim() || null,
-      order_memo_3: form.order_memo_3.trim() || null,
-      rakumart_url_3: form.rakumart_url_3.trim() || null,
-      order_memo_4: form.order_memo_4.trim() || null,
-      rakumart_url_4: form.rakumart_url_4.trim() || null,
-      order_memo_5: form.order_memo_5.trim() || null,
-      rakumart_url_5: form.rakumart_url_5.trim() || null,
+      ...normalizeDraft(draft),
+      updated_at: new Date().toISOString(),
     }
 
-    const request = editingProduct
-      ? supabase
-          .from('products')
-          .update(payload)
-          .eq('product_code', editingProduct.product_code)
-      : supabase.from('products').insert(payload)
-
-    const { error } = await request
+    const { error } = await supabase
+      .from('products')
+      .update(payload)
+      .eq('product_code', product.product_code)
 
     if (error) {
       setMessage(`保存失敗: ${error.message}`)
     } else {
-      setMessage('保存しました。')
-      setEditingProduct(null)
-      setForm(emptyForm)
+      setMessage(`保存しました：${product.product_code}`)
+      setEditingCode(null)
       await fetchProducts()
     }
 
-    setLoading(false)
+    setSavingCode(null)
   }
+
+  function renderTextCell(
+    product: Product,
+    draft: EditableProduct,
+    key: EditableProductKey,
+    options: {
+      className?: string
+      inputClassName?: string
+      multiline?: boolean
+      placeholder?: string
+    } = {},
+  ) {
+    const isEditing = editingCode === product.product_code
+
+    if (isEditing) {
+      if (options.multiline) {
+        return (
+          <textarea
+            className={`table-input table-textarea ${options.inputClassName ?? ''}`}
+            value={draft[key]}
+            onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
+            placeholder={options.placeholder}
+          />
+        )
+      }
+
+      return (
+        <input
+          className={`table-input ${options.inputClassName ?? ''}`}
+          value={draft[key]}
+          onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
+          placeholder={options.placeholder}
+        />
+      )
+    }
+
+    return <DisplayText value={product[key] ?? null} className={options.className} />
+  }
+
+  function renderUrlCell(product: Product, draft: EditableProduct, key: EditableProductKey) {
+    const isEditing = editingCode === product.product_code
+
+    if (isEditing) {
+      return (
+        <UrlEditCell
+          value={draft[key]}
+          onChange={(value) => updateDraft(product.product_code, key, value)}
+        />
+      )
+    }
+
+    return <RakumartButton url={product[key] ?? null} />
+  }
+
+  function renderActions(product: Product, draft: EditableProduct) {
+    const isEditing = editingCode === product.product_code
+    const dirty = isEditing && isDraftDirty(product, draft)
+    const isSaving = savingCode === product.product_code
+    const editLocked = Boolean(editingCode) && !isEditing
+
+    if (isEditing) {
+      return (
+        <div className="row-actions">
+          <button
+            className="small"
+            onClick={() => saveRow(product)}
+            disabled={!dirty || isSaving || Boolean(savingCode)}
+          >
+            {isSaving ? '保存中' : '保存'}
+          </button>
+
+          <button
+            className="secondary small"
+            onClick={() => cancelEdit(product)}
+            disabled={isSaving}
+          >
+            キャンセル
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <button
+        className="small"
+        onClick={() => startEdit(product)}
+        disabled={editLocked || Boolean(savingCode)}
+      >
+        編集
+      </button>
+    )
+  }
+
+  function renderAllColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
+        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_2', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_2')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_3', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_3')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_4', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_4')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_5', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_5')}</td>
+        <td>{formatDateTime(product.product_info_synced_at)}</td>
+        <td>{formatDateTime(product.order_status_synced_at)}</td>
+        <td>{formatDateTime(product.updated_at)}</td>
+      </>
+    )
+  }
+
+  function renderPickColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
+        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+      </>
+    )
+  }
+
+  function renderCustomColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
+        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
+        <td>{formatDateTime(product.updated_at)}</td>
+      </>
+    )
+  }
+
+  const tableColSpan = tableView === 'all' ? 22 : tableView === 'pick' ? 9 : 12
+  const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
     return (
       <main className="login-page">
         <section className="login-card">
-          <div className="login-brand">
-            <img className="login-brand-logo" src={brandLogoUrl} alt="商品DB" />
-            <div>
-              <p className="eyebrow">shohin_db</p>
-              <p className="description">
-                社内の商品データベースを検索・確認・編集する管理画面です。
-              </p>
-            </div>
+          <div>
+            <p className="eyebrow">shohin_db</p>
+            <h1>商品DB管理</h1>
+            <p className="description">
+              社内の商品データベースを検索・確認・編集する管理画面です。
+            </p>
           </div>
 
           <div className="form-stack">
@@ -635,8 +963,9 @@ function App() {
   return (
     <main className="app-page">
       <header className="topbar">
-        <div className="header-brand">
-          <img className="header-logo" src={brandLogoUrl} alt="商品DB" />
+        <div>
+          <p className="eyebrow">shohin_db</p>
+          <h1>商品DB管理</h1>
         </div>
 
         <div className="topbar-actions">
@@ -651,7 +980,7 @@ function App() {
         <input
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="商品コード・商品名・発注メモ・ラクマートURLで検索"
+          placeholder="商品コード・商品名・特記事項・ピック時アドバイス・棚番号で検索"
         />
 
         <select value={floorFilter} onChange={(e) => setFloorFilter(e.target.value)}>
@@ -663,7 +992,7 @@ function App() {
           ))}
         </select>
 
-        <button onClick={fetchProducts} disabled={loading}>
+        <button onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
           再読み込み
         </button>
 
@@ -672,48 +1001,101 @@ function App() {
 
       {message && <p className="message">{message}</p>}
 
-      <section className="layout">
+      <section className="layout layout--full">
         <div className="table-card">
           <div className="table-header">
-            <strong>商品一覧</strong>
-            <span>{filteredProducts.length}件</span>
+            <div>
+              <strong>商品一覧</strong>
+              <span>{filteredProducts.length}件</span>
+            </div>
+
+            <div className="view-switch" aria-label="表示用途切り替え">
+              <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
+                すべて
+              </ViewButton>
+              <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
+                ピック用
+              </ViewButton>
+              <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
+                カスタム
+              </ViewButton>
+            </div>
           </div>
 
           <div className="table-wrap">
-            <table>
+            <table className={tableClassName}>
               <thead>
                 <tr>
                   <th>商品コード</th>
-                  <th>商品名</th>
-                  <th>階数</th>
-                  <th>発注1</th>
-                  <th>ラクマート1</th>
-                  <th>発注2</th>
-                  <th>ラクマート2</th>
-                  <th>発注3</th>
-                  <th>ラクマート3</th>
-                  <th>発注4</th>
-                  <th>ラクマート4</th>
-                  <th>発注5</th>
-                  <th>ラクマート5</th>
-                  <th>商品同期</th>
-                  <th>発注同期</th>
-                  <th>更新日</th>
-                  <th></th>
+
+                  {tableView === 'all' && (
+                    <>
+                      <th>商品名</th>
+                      <th>階数</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                      <th>発注1</th>
+                      <th>ラクマート1</th>
+                      <th>発注2</th>
+                      <th>ラクマート2</th>
+                      <th>発注3</th>
+                      <th>ラクマート3</th>
+                      <th>発注4</th>
+                      <th>ラクマート4</th>
+                      <th>発注5</th>
+                      <th>ラクマート5</th>
+                      <th>商品同期</th>
+                      <th>発注同期</th>
+                      <th>更新日</th>
+                    </>
+                  )}
+
+                  {tableView === 'pick' && (
+                    <>
+                      <th>商品名</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th>階数</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                    </>
+                  )}
+
+                  {tableView === 'custom' && (
+                    <>
+                      <th>商品名</th>
+                      <th>階数</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th>発注1</th>
+                      <th>ラクマート1</th>
+                      <th>更新日</th>
+                    </>
+                  )}
+
+                  <th>操作</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredProducts.map((product) => {
-                  const isEditing =
-                    editingProduct?.product_code === product.product_code
+                  const draft = rowDrafts[product.product_code] ?? productToDraft(product)
+                  const isEditing = editingCode === product.product_code
+                  const dirty = isEditing && isDraftDirty(product, draft)
 
                   return (
                     <tr
                       key={product.product_code}
-                      className={isEditing ? 'is-editing' : ''}
+                      className={`${isEditing ? 'is-editing' : ''} ${dirty ? 'is-dirty' : ''}`}
                     >
-                      <td className="code">
+                      <td className="code sticky-code-cell">
                         <button
                           type="button"
                           className="code-copy"
@@ -723,49 +1105,19 @@ function App() {
                           {product.product_code}
                         </button>
                       </td>
-                      <td>{product.product_name}</td>
-                      <td>{product.floor}</td>
 
-                      <td>{product.order_memo_1}</td>
-                      <td>
-                        <RakumartButton url={product.rakumart_url_1} />
-                      </td>
+                      {tableView === 'all' && renderAllColumns(product, draft)}
+                      {tableView === 'pick' && renderPickColumns(product, draft)}
+                      {tableView === 'custom' && renderCustomColumns(product, draft)}
 
-                      <td>{product.order_memo_2}</td>
-                      <td>
-                        <RakumartButton url={product.rakumart_url_2} />
-                      </td>
-
-                      <td>{product.order_memo_3}</td>
-                      <td>
-                        <RakumartButton url={product.rakumart_url_3} />
-                      </td>
-
-                      <td>{product.order_memo_4}</td>
-                      <td>
-                        <RakumartButton url={product.rakumart_url_4} />
-                      </td>
-
-                      <td>{product.order_memo_5}</td>
-                      <td>
-                        <RakumartButton url={product.rakumart_url_5} />
-                      </td>
-
-                      <td>{formatDateTime(product.product_info_synced_at)}</td>
-                      <td>{formatDateTime(product.order_status_synced_at)}</td>
-                      <td>{formatDateTime(product.updated_at)}</td>
-                      <td>
-                        <button className="small" onClick={() => startEdit(product)}>
-                          編集
-                        </button>
-                      </td>
+                      <td>{renderActions(product, draft)}</td>
                     </tr>
                   )
                 })}
 
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={17} className="empty">
+                    <td colSpan={tableColSpan} className="empty">
                       商品がありません。
                     </td>
                   </tr>
@@ -774,147 +1126,6 @@ function App() {
             </table>
           </div>
         </div>
-
-        <aside className="edit-card">
-          {editingProduct ? (
-            <>
-              <div className="edit-card-head">
-                <h2>商品編集</h2>
-                <button className="secondary small" onClick={clearEditing}>
-                  解除
-                </button>
-              </div>
-
-              <label>
-                商品コード
-                <input
-                  value={form.product_code}
-                  onChange={(e) => updateForm('product_code', e.target.value)}
-                />
-              </label>
-
-              <label>
-                商品名
-                <input
-                  value={form.product_name}
-                  onChange={(e) => updateForm('product_name', e.target.value)}
-                />
-              </label>
-
-              <label>
-                階数
-                <input
-                  value={form.floor}
-                  onChange={(e) => updateForm('floor', e.target.value)}
-                  placeholder="3F など"
-                />
-              </label>
-
-              <div className="order-edit-grid">
-                <label>
-                  発注1
-                  <input
-                    value={form.order_memo_1}
-                    onChange={(e) => updateForm('order_memo_1', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL1
-                  <input
-                    value={form.rakumart_url_1}
-                    onChange={(e) => updateForm('rakumart_url_1', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注2
-                  <input
-                    value={form.order_memo_2}
-                    onChange={(e) => updateForm('order_memo_2', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL2
-                  <input
-                    value={form.rakumart_url_2}
-                    onChange={(e) => updateForm('rakumart_url_2', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注3
-                  <input
-                    value={form.order_memo_3}
-                    onChange={(e) => updateForm('order_memo_3', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL3
-                  <input
-                    value={form.rakumart_url_3}
-                    onChange={(e) => updateForm('rakumart_url_3', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注4
-                  <input
-                    value={form.order_memo_4}
-                    onChange={(e) => updateForm('order_memo_4', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL4
-                  <input
-                    value={form.rakumart_url_4}
-                    onChange={(e) => updateForm('rakumart_url_4', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注5
-                  <input
-                    value={form.order_memo_5}
-                    onChange={(e) => updateForm('order_memo_5', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL5
-                  <input
-                    value={form.rakumart_url_5}
-                    onChange={(e) => updateForm('rakumart_url_5', e.target.value)}
-                  />
-                </label>
-              </div>
-
-              <div className="edit-actions">
-                <button onClick={saveProduct} disabled={loading}>
-                  {loading ? '保存中...' : '保存'}
-                </button>
-
-                <button className="secondary" onClick={clearEditing}>
-                  クリア
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="edit-placeholder">
-              <h2>商品編集</h2>
-              <p>一覧の「編集」を押すと、ここで商品情報を編集できます。</p>
-              <button onClick={() => openCreateModal('single')}>新規追加</button>
-            </div>
-          )}
-        </aside>
       </section>
 
       {isCreateModalOpen && (
@@ -979,12 +1190,59 @@ function App() {
                   />
                 </label>
 
+                <div className="modal-grid">
+                  <label>
+                    階数
+                    <input
+                      value={createForm.floor}
+                      onChange={(e) => updateCreateForm('floor', e.target.value)}
+                      placeholder="3F"
+                    />
+                  </label>
+
+                  <label>
+                    棚番号-位置
+                    <input
+                      value={createForm.rack_number}
+                      onChange={(e) => updateCreateForm('rack_number', e.target.value)}
+                      placeholder="A-12"
+                    />
+                  </label>
+
+                  <label>
+                    棚番号-段
+                    <input
+                      value={createForm.rack_level}
+                      onChange={(e) => updateCreateForm('rack_level', e.target.value)}
+                      placeholder="3"
+                    />
+                  </label>
+
+                  <label>
+                    シールカラー
+                    <input
+                      value={createForm.sticker_color}
+                      onChange={(e) => updateCreateForm('sticker_color', e.target.value)}
+                      placeholder="赤"
+                    />
+                  </label>
+                </div>
+
                 <label>
-                  階数
-                  <input
-                    value={createForm.floor}
-                    onChange={(e) => updateCreateForm('floor', e.target.value)}
-                    placeholder="3F"
+                  特記事項
+                  <textarea
+                    value={createForm.special_notes}
+                    onChange={(e) => updateCreateForm('special_notes', e.target.value)}
+                    placeholder="保管・取扱いで注意すること"
+                  />
+                </label>
+
+                <label>
+                  ピック時アドバイス
+                  <textarea
+                    value={createForm.picking_advice}
+                    onChange={(e) => updateCreateForm('picking_advice', e.target.value)}
+                    placeholder="ピック時に見る補足"
                   />
                 </label>
 
@@ -1004,7 +1262,7 @@ function App() {
                 <div className="bulk-guide">
                   <strong>1商品1行で入力</strong>
                   <p>
-                    商品コード・商品名・階数を行ごとに入力してください。
+                    商品コード・商品名・階数・棚番号-位置・棚番号-段・シールカラー・特記事項・ピック時アドバイスの順で入力できます。
                     Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
                   </p>
                 </div>
@@ -1024,13 +1282,18 @@ function App() {
                 </div>
 
                 <div className="bulk-table-wrap">
-                  <table className="bulk-input-table">
+                  <table className="bulk-input-table bulk-input-table--wide">
                     <thead>
                       <tr>
                         <th>No.</th>
                         <th>商品コード</th>
                         <th>商品名</th>
                         <th>階数</th>
+                        <th>棚番号-位置</th>
+                        <th>棚番号-段</th>
+                        <th>シールカラー</th>
+                        <th>特記事項</th>
+                        <th>ピック時アドバイス</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -1068,6 +1331,56 @@ function App() {
                                 updateBulkRow(row.id, 'floor', e.target.value)
                               }
                               placeholder="3F"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.rack_number}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'rack_number', e.target.value)
+                              }
+                              placeholder="A-12"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.rack_level}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'rack_level', e.target.value)
+                              }
+                              placeholder="3"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.sticker_color}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'sticker_color', e.target.value)
+                              }
+                              placeholder="赤"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.special_notes}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'special_notes', e.target.value)
+                              }
+                              placeholder="特記事項"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.picking_advice}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'picking_advice', e.target.value)
+                              }
+                              placeholder="ピック時アドバイス"
                             />
                           </td>
 
