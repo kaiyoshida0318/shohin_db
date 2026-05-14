@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ClipboardEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -56,15 +56,117 @@ type CreateForm = typeof emptyCreateForm
 type CreateTab = 'single' | 'bulk'
 
 type BulkProductRow = {
+  id: string
   product_code: string
   product_name: string
   floor: string
 }
 
-type BulkParseResult = {
-  rows: BulkProductRow[]
-  invalidLines: number[]
+type CleanBulkProductRow = {
+  product_code: string
+  product_name: string
+  floor: string
+}
+
+type BulkSummary = {
+  filledCount: number
+  insertRows: CleanBulkProductRow[]
+  existingCount: number
   duplicateCodes: string[]
+}
+
+const INITIAL_BULK_ROW_COUNT = 10
+
+function createBulkRow(): BulkProductRow {
+  return {
+    id:
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`,
+    product_code: '',
+    product_name: '',
+    floor: '',
+  }
+}
+
+function createBulkRows(count = INITIAL_BULK_ROW_COUNT): BulkProductRow[] {
+  return Array.from({ length: count }, () => createBulkRow())
+}
+
+function splitBulkLine(line: string) {
+  const cells = line.includes('\t') ? line.split('\t') : line.split(',')
+  return cells.map((cell) => cell.trim())
+}
+
+function parseClipboardRows(text: string): CleanBulkProductRow[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return lines
+    .map((line, index) => {
+      const cells = splitBulkLine(line)
+      const firstCell = (cells[0] ?? '').toLowerCase()
+
+      if (
+        index === 0 &&
+        ['product_code', '商品コード', '商品番号', 'code'].includes(firstCell)
+      ) {
+        return null
+      }
+
+      return {
+        product_code: cells[0]?.trim() ?? '',
+        product_name: cells[1]?.trim() ?? '',
+        floor: cells[2]?.trim() ?? '',
+      }
+    })
+    .filter((row): row is CleanBulkProductRow => {
+      return Boolean(row?.product_code)
+    })
+}
+
+function buildBulkSummary(
+  rows: BulkProductRow[],
+  existingProductCodes: Set<string>,
+): BulkSummary {
+  const filledRows = rows
+    .map((row) => ({
+      product_code: row.product_code.trim(),
+      product_name: row.product_name.trim(),
+      floor: row.floor.trim(),
+    }))
+    .filter((row) => row.product_code)
+
+  const seenCodes = new Set<string>()
+  const duplicateCodeSet = new Set<string>()
+  const uniqueRows: CleanBulkProductRow[] = []
+
+  filledRows.forEach((row) => {
+    if (seenCodes.has(row.product_code)) {
+      duplicateCodeSet.add(row.product_code)
+      return
+    }
+
+    seenCodes.add(row.product_code)
+    uniqueRows.push(row)
+  })
+
+  const existingRows = uniqueRows.filter((row) =>
+    existingProductCodes.has(row.product_code),
+  )
+
+  const insertRows = uniqueRows.filter(
+    (row) => !existingProductCodes.has(row.product_code),
+  )
+
+  return {
+    filledCount: filledRows.length,
+    insertRows,
+    existingCount: existingRows.length,
+    duplicateCodes: Array.from(duplicateCodeSet),
+  }
 }
 
 function formatDateTime(value: string | null) {
@@ -89,65 +191,6 @@ function RakumartButton({ url }: { url: string | null }) {
   )
 }
 
-function splitBulkLine(line: string) {
-  const cells = line.includes('\t') ? line.split('\t') : line.split(',')
-  return cells.map((cell) => cell.trim())
-}
-
-function parseBulkProducts(text: string): BulkParseResult {
-  const rows: BulkProductRow[] = []
-  const invalidLines: number[] = []
-  const duplicateCodeSet = new Set<string>()
-  const seenCodeSet = new Set<string>()
-
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  lines.forEach((line, index) => {
-    const lineNumber = index + 1
-    const cells = splitBulkLine(line)
-
-    const firstCell = (cells[0] ?? '').toLowerCase()
-
-    if (
-      index === 0 &&
-      ['product_code', '商品コード', '商品番号', 'code'].includes(firstCell)
-    ) {
-      return
-    }
-
-    const productCode = cells[0]?.trim() ?? ''
-    const productName = cells[1]?.trim() ?? ''
-    const floor = cells[2]?.trim() ?? ''
-
-    if (!productCode) {
-      invalidLines.push(lineNumber)
-      return
-    }
-
-    if (seenCodeSet.has(productCode)) {
-      duplicateCodeSet.add(productCode)
-      return
-    }
-
-    seenCodeSet.add(productCode)
-
-    rows.push({
-      product_code: productCode,
-      product_name: productName,
-      floor,
-    })
-  })
-
-  return {
-    rows,
-    invalidLines,
-    duplicateCodes: Array.from(duplicateCodeSet),
-  }
-}
-
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [email, setEmail] = useState('')
@@ -166,7 +209,9 @@ function App() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createTab, setCreateTab] = useState<CreateTab>('single')
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm)
-  const [bulkText, setBulkText] = useState('')
+  const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
+    createBulkRows(),
+  )
   const [modalMessage, setModalMessage] = useState('')
 
   useEffect(() => {
@@ -205,17 +250,12 @@ function App() {
     return Array.from(floorSet).sort()
   }, [products])
 
-  const bulkPreview = useMemo(() => {
-    return parseBulkProducts(bulkText)
-  }, [bulkText])
+  const bulkSummary = useMemo(() => {
+    return buildBulkSummary(bulkRows, existingProductCodes)
+  }, [bulkRows, existingProductCodes])
 
-  const bulkExistingCount = useMemo(() => {
-    return bulkPreview.rows.filter((row) =>
-      existingProductCodes.has(row.product_code),
-    ).length
-  }, [bulkPreview.rows, existingProductCodes])
-
-  const bulkInsertableCount = bulkPreview.rows.length - bulkExistingCount
+  const bulkInsertableCount = bulkSummary.insertRows.length
+  const bulkExistingCount = bulkSummary.existingCount
 
   const filteredProducts = useMemo(() => {
     const q = keyword.trim().toLowerCase()
@@ -299,7 +339,7 @@ function App() {
   function openCreateModal(tab: CreateTab = 'single') {
     setCreateTab(tab)
     setCreateForm(emptyCreateForm)
-    setBulkText('')
+    setBulkRows(createBulkRows())
     setModalMessage('')
     setIsCreateModalOpen(true)
   }
@@ -307,7 +347,7 @@ function App() {
   function closeCreateModal() {
     setIsCreateModalOpen(false)
     setCreateForm(emptyCreateForm)
-    setBulkText('')
+    setBulkRows(createBulkRows())
     setModalMessage('')
   }
 
@@ -353,6 +393,80 @@ function App() {
     }))
   }
 
+  function updateBulkRow(
+    rowId: string,
+    key: keyof Omit<BulkProductRow, 'id'>,
+    value: string,
+  ) {
+    setBulkRows((prev) =>
+      prev.map((row) =>
+        row.id === rowId
+          ? {
+              ...row,
+              [key]: value,
+            }
+          : row,
+      ),
+    )
+  }
+
+  function addBulkRows(count = 5) {
+    setBulkRows((prev) => [...prev, ...createBulkRows(count)])
+  }
+
+  function removeBulkRow(rowId: string) {
+    setBulkRows((prev) => {
+      const next = prev.filter((row) => row.id !== rowId)
+      return next.length > 0 ? next : createBulkRows(1)
+    })
+  }
+
+  function clearBulkRows() {
+    setBulkRows(createBulkRows())
+    setModalMessage('')
+  }
+
+  function handleBulkPaste(
+    event: ClipboardEvent<HTMLInputElement>,
+    startIndex: number,
+  ) {
+    const text = event.clipboardData.getData('text')
+
+    if (!text.includes('\n') && !text.includes('\t')) {
+      return
+    }
+
+    const pastedRows = parseClipboardRows(text)
+
+    if (pastedRows.length === 0) {
+      return
+    }
+
+    event.preventDefault()
+
+    setBulkRows((prev) => {
+      const next = [...prev]
+      const requiredLength = startIndex + pastedRows.length
+
+      while (next.length < requiredLength) {
+        next.push(createBulkRow())
+      }
+
+      pastedRows.forEach((pastedRow, offset) => {
+        const targetIndex = startIndex + offset
+
+        next[targetIndex] = {
+          ...next[targetIndex],
+          product_code: pastedRow.product_code,
+          product_name: pastedRow.product_name,
+          floor: pastedRow.floor,
+        }
+      })
+
+      return next
+    })
+  }
+
   async function createSingleProduct() {
     const productCode = createForm.product_code.trim()
 
@@ -387,19 +501,17 @@ function App() {
   }
 
   async function createBulkProducts() {
-    const rows = bulkPreview.rows
+    const insertRows = bulkSummary.insertRows
 
-    if (rows.length === 0) {
+    if (bulkSummary.filledCount === 0) {
       setModalMessage('追加できる商品がありません。')
       return
     }
 
-    const insertRows = rows.filter(
-      (row) => !existingProductCodes.has(row.product_code),
-    )
-
     if (insertRows.length === 0) {
-      setModalMessage('すべて既存商品コードのため、追加対象がありません。')
+      setModalMessage(
+        'すべて既存商品コード、または入力内重複のため追加対象がありません。',
+      )
       return
     }
 
@@ -888,31 +1000,95 @@ function App() {
             ) : (
               <div className="modal-body">
                 <div className="bulk-guide">
-                  <strong>Excelから3列コピーして貼り付け</strong>
-                  <pre>{`商品コード\t商品名\t階数
-mus-04\tストリングクリーナー\t3F
-sb-08-short-04\tショルダーベルト ストライプ 黒 ショート\t3F`}</pre>
+                  <strong>1商品1行で入力</strong>
+                  <p>
+                    商品コード・商品名・階数を行ごとに入力してください。
+                    Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
+                  </p>
                 </div>
 
-                <label>
-                  貼り付け欄
-                  <textarea
-                    className="bulk-textarea"
-                    value={bulkText}
-                    onChange={(e) => setBulkText(e.target.value)}
-                    placeholder={'商品コード\t商品名\t階数'}
-                  />
-                </label>
+                <div className="bulk-row-toolbar">
+                  <strong>商品入力行</strong>
+
+                  <div className="bulk-row-actions">
+                    <button className="secondary small" onClick={() => addBulkRows(5)}>
+                      5行追加
+                    </button>
+
+                    <button className="secondary small" onClick={clearBulkRows}>
+                      クリア
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bulk-table-wrap">
+                  <table className="bulk-input-table">
+                    <thead>
+                      <tr>
+                        <th>No.</th>
+                        <th>商品コード</th>
+                        <th>商品名</th>
+                        <th>階数</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {bulkRows.map((row, index) => (
+                        <tr key={row.id}>
+                          <td className="bulk-row-number">{index + 1}</td>
+
+                          <td>
+                            <input
+                              value={row.product_code}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'product_code', e.target.value)
+                              }
+                              onPaste={(e) => handleBulkPaste(e, index)}
+                              placeholder="mus-04"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.product_name}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'product_name', e.target.value)
+                              }
+                              placeholder="ストリングクリーナー"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.floor}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'floor', e.target.value)
+                              }
+                              placeholder="3F"
+                            />
+                          </td>
+
+                          <td>
+                            <button
+                              className="secondary small"
+                              onClick={() => removeBulkRow(row.id)}
+                            >
+                              削除
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
                 <div className="bulk-preview">
-                  <span>読み取り：{bulkPreview.rows.length}件</span>
+                  <span>入力済み：{bulkSummary.filledCount}件</span>
                   <span>追加予定：{bulkInsertableCount}件</span>
                   <span>既存スキップ：{bulkExistingCount}件</span>
-                  {bulkPreview.duplicateCodes.length > 0 && (
-                    <span>貼付内重複：{bulkPreview.duplicateCodes.length}件</span>
-                  )}
-                  {bulkPreview.invalidLines.length > 0 && (
-                    <span>不正行：{bulkPreview.invalidLines.join(', ')}</span>
+                  {bulkSummary.duplicateCodes.length > 0 && (
+                    <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
                   )}
                 </div>
 
@@ -925,6 +1101,7 @@ sb-08-short-04\tショルダーベルト ストライプ 黒 ショート\t3F`}<
                   >
                     {loading ? '一括追加中...' : `${bulkInsertableCount}件を追加`}
                   </button>
+
                   <button className="secondary" onClick={closeCreateModal}>
                     キャンセル
                   </button>
