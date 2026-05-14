@@ -83,6 +83,28 @@ type CleanBulkProductRow = {
   sticker_color: string
 }
 
+type BulkFieldKey = Exclude<keyof CleanBulkProductRow, 'product_code'>
+
+type BulkFieldColumn = {
+  key: BulkFieldKey
+  label: string
+  placeholder: string
+}
+
+const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
+  { key: 'product_name', label: '商品名', placeholder: 'ストリングクリーナー' },
+  { key: 'floor', label: '階数', placeholder: '3F' },
+  { key: 'rack_number', label: '棚番号-位置', placeholder: 'A-12' },
+  { key: 'rack_level', label: '棚番号-段', placeholder: '3' },
+  { key: 'sticker_color', label: 'シールカラー', placeholder: '赤' },
+  { key: 'special_notes', label: '特記事項', placeholder: '特記事項' },
+  { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: 'ピック時アドバイス' },
+]
+
+const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
+  (column) => column.key,
+)
+
 type BulkSummary = {
   filledCount: number
   uniqueRows: CleanBulkProductRow[]
@@ -120,7 +142,10 @@ function splitBulkLine(line: string) {
   return cells.map((cell) => cell.trim())
 }
 
-function parseClipboardRows(text: string): CleanBulkProductRow[] {
+function parseClipboardRows(
+  text: string,
+  selectedFields: BulkFieldKey[],
+): CleanBulkProductRow[] {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -138,21 +163,28 @@ function parseClipboardRows(text: string): CleanBulkProductRow[] {
         return null
       }
 
-      return {
+      const row: CleanBulkProductRow = {
         product_code: cells[0]?.trim() ?? '',
-        product_name: cells[1]?.trim() ?? '',
-        floor: cells[2]?.trim() ?? '',
-        rack_number: cells[3]?.trim() ?? '',
-        rack_level: cells[4]?.trim() ?? '',
-        sticker_color: cells[5]?.trim() ?? '',
-        special_notes: cells[6]?.trim() ?? '',
-        picking_advice: cells[7]?.trim() ?? '',
+        product_name: '',
+        floor: '',
+        rack_number: '',
+        rack_level: '',
+        sticker_color: '',
+        special_notes: '',
+        picking_advice: '',
       }
+
+      selectedFields.forEach((key, fieldIndex) => {
+        row[key] = cells[fieldIndex + 1]?.trim() ?? ''
+      })
+
+      return row
     })
     .filter((row): row is CleanBulkProductRow => {
       return Boolean(row?.product_code)
     })
 }
+
 
 function buildBulkSummary(
   rows: BulkProductRow[],
@@ -338,6 +370,9 @@ function App() {
     createBulkRows(),
   )
   const [bulkShouldUpdateExisting, setBulkShouldUpdateExisting] = useState(false)
+  const [selectedBulkFields, setSelectedBulkFields] = useState<BulkFieldKey[]>(
+    DEFAULT_BULK_FIELD_KEYS,
+  )
   const [modalMessage, setModalMessage] = useState('')
 
   useEffect(() => {
@@ -382,6 +417,16 @@ function App() {
   const bulkSummary = useMemo(() => {
     return buildBulkSummary(bulkRows, existingProductCodes)
   }, [bulkRows, existingProductCodes])
+
+  const selectedBulkColumns = useMemo(() => {
+    return BULK_FIELD_COLUMNS.filter((column) =>
+      selectedBulkFields.includes(column.key),
+    )
+  }, [selectedBulkFields])
+
+  const bulkSelectedColumnText = selectedBulkColumns
+    .map((column) => column.label)
+    .join('・')
 
   const bulkInsertableCount = bulkSummary.insertRows.length
   const bulkUpdateableCount = bulkSummary.updateRows.length
@@ -482,6 +527,7 @@ function App() {
   function openCreateModal() {
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
+    setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
     setModalMessage('')
     setIsCreateModalOpen(true)
   }
@@ -490,7 +536,20 @@ function App() {
     setIsCreateModalOpen(false)
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
+    setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
     setModalMessage('')
+  }
+
+  function toggleBulkField(fieldKey: BulkFieldKey) {
+    setSelectedBulkFields((prev) => {
+      if (prev.includes(fieldKey)) {
+        return prev.length > 1 ? prev.filter((key) => key !== fieldKey) : prev
+      }
+
+      return BULK_FIELD_COLUMNS.filter(
+        (column) => column.key === fieldKey || prev.includes(column.key),
+      ).map((column) => column.key)
+    })
   }
 
   function updateBulkRow(
@@ -536,7 +595,7 @@ function App() {
       return
     }
 
-    const pastedRows = parseClipboardRows(text)
+    const pastedRows = parseClipboardRows(text, selectedBulkFields)
 
     if (pastedRows.length === 0) {
       return
@@ -633,17 +692,18 @@ function App() {
     setModalMessage('')
 
     const now = new Date().toISOString()
-    const payload = targetRows.map((row) => ({
-      product_code: row.product_code,
-      product_name: row.product_name || null,
-      floor: row.floor || null,
-      special_notes: row.special_notes || null,
-      picking_advice: row.picking_advice || null,
-      rack_number: row.rack_number || null,
-      rack_level: row.rack_level || null,
-      sticker_color: row.sticker_color || null,
-      updated_at: now,
-    }))
+    const payload = targetRows.map((row) => {
+      const productPayload: Record<string, string | null> = {
+        product_code: row.product_code,
+        updated_at: now,
+      }
+
+      selectedBulkFields.forEach((key) => {
+        productPayload[key] = row[key] || null
+      })
+
+      return productPayload
+    })
 
     const { error } = bulkShouldUpdateExisting
       ? await supabase
@@ -1124,9 +1184,41 @@ function App() {
               <div className="bulk-guide">
                 <strong>1商品1行で入力</strong>
                 <p>
-                  商品コード・商品名・階数・棚番号-位置・棚番号-段・シールカラー・特記事項・ピック時アドバイスの順で入力できます。
+                  商品コード{bulkSelectedColumnText ? `・${bulkSelectedColumnText}` : ''}の順で入力できます。
                   Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
                 </p>
+              </div>
+
+              <div className="bulk-field-selector">
+                <div className="bulk-field-selector-head">
+                  <strong>追加/更新の対象列</strong>
+                  <span>商品コードは固定です。外した列は入力欄から消えて、既存データも上書きしません。</span>
+                </div>
+
+                <div className="bulk-field-buttons">
+                  {BULK_FIELD_COLUMNS.map((column) => {
+                    const selected = selectedBulkFields.includes(column.key)
+                    const locked = selected && selectedBulkFields.length === 1
+
+                    return (
+                      <button
+                        key={column.key}
+                        type="button"
+                        className={
+                          selected
+                            ? 'bulk-field-button active'
+                            : 'bulk-field-button'
+                        }
+                        onClick={() => toggleBulkField(column.key)}
+                        disabled={locked}
+                        title={locked ? '対象列は最低1列必要です' : undefined}
+                      >
+                        {selected ? '✓ ' : '+ '}
+                        {column.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               <label className="bulk-update-option">
@@ -1138,7 +1230,7 @@ function App() {
                   }
                 />
                 <span>既存の商品コードも更新する</span>
-                <small>ONにすると、既存商品の商品名・階数・棚番号・シールカラー・特記事項・ピック時アドバイスを入力内容で上書きします。</small>
+                <small>ONにすると、既存商品の対象列だけを入力内容で上書きします。対象外の列とRM/オーダー列は触りません。</small>
               </label>
 
               <div className="bulk-row-toolbar">
@@ -1161,13 +1253,9 @@ function App() {
                     <tr>
                       <th>No.</th>
                       <th>商品コード</th>
-                      <th>商品名</th>
-                      <th>階数</th>
-                      <th>棚番号-位置</th>
-                      <th>棚番号-段</th>
-                      <th>シールカラー</th>
-                      <th>特記事項</th>
-                      <th>ピック時アドバイス</th>
+                      {selectedBulkColumns.map((column) => (
+                        <th key={column.key}>{column.label}</th>
+                      ))}
                       <th></th>
                     </tr>
                   </thead>
@@ -1188,75 +1276,17 @@ function App() {
                           />
                         </td>
 
-                        <td>
-                          <input
-                            value={row.product_name}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'product_name', e.target.value)
-                            }
-                            placeholder="ストリングクリーナー"
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            value={row.floor}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'floor', e.target.value)
-                            }
-                            placeholder="3F"
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            value={row.rack_number}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'rack_number', e.target.value)
-                            }
-                            placeholder="A-12"
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            value={row.rack_level}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'rack_level', e.target.value)
-                            }
-                            placeholder="3"
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            value={row.sticker_color}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'sticker_color', e.target.value)
-                            }
-                            placeholder="赤"
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            value={row.special_notes}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'special_notes', e.target.value)
-                            }
-                            placeholder="特記事項"
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            value={row.picking_advice}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'picking_advice', e.target.value)
-                            }
-                            placeholder="ピック時アドバイス"
-                          />
-                        </td>
+                        {selectedBulkColumns.map((column) => (
+                          <td key={column.key}>
+                            <input
+                              value={row[column.key]}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, column.key, e.target.value)
+                              }
+                              placeholder={column.placeholder}
+                            />
+                          </td>
+                        ))}
 
                         <td>
                           <button
