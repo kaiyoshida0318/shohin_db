@@ -13,6 +13,16 @@ type Product = {
   rack_level: string | null
   sticker_color: string | null
 
+  order_url_1: string | null
+  order_url_2: string | null
+  order_url_3: string | null
+  order_size: string | null
+  order_color: string | null
+  order_simple_instruction: string | null
+  order_detail_instruction: string | null
+  order_quantity_condition: string | null
+  order_note: string | null
+
   order_memo_1: string | null
   rakumart_url_1: string | null
   order_memo_2: string | null
@@ -40,6 +50,16 @@ type EditableProduct = {
   rack_level: string
   sticker_color: string
 
+  order_url_1: string
+  order_url_2: string
+  order_url_3: string
+  order_size: string
+  order_color: string
+  order_simple_instruction: string
+  order_detail_instruction: string
+  order_quantity_condition: string
+  order_note: string
+
   order_memo_1: string
   rakumart_url_1: string
   order_memo_2: string
@@ -58,7 +78,7 @@ type SessionUser = {
   email?: string
 }
 
-type TableView = 'all' | 'pick' | 'order' | 'custom'
+type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'custom'
 
 type BulkProductRow = {
   id: string
@@ -70,6 +90,15 @@ type BulkProductRow = {
   rack_number: string
   rack_level: string
   sticker_color: string
+  order_url_1: string
+  order_url_2: string
+  order_url_3: string
+  order_size: string
+  order_color: string
+  order_simple_instruction: string
+  order_detail_instruction: string
+  order_quantity_condition: string
+  order_note: string
 }
 
 type CleanBulkProductRow = {
@@ -81,6 +110,15 @@ type CleanBulkProductRow = {
   rack_number: string
   rack_level: string
   sticker_color: string
+  order_url_1: string
+  order_url_2: string
+  order_url_3: string
+  order_size: string
+  order_color: string
+  order_simple_instruction: string
+  order_detail_instruction: string
+  order_quantity_condition: string
+  order_note: string
 }
 
 type BulkFieldKey = Exclude<keyof CleanBulkProductRow, 'product_code'>
@@ -99,6 +137,15 @@ const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'sticker_color', label: 'シールカラー', placeholder: '赤' },
   { key: 'special_notes', label: '特記事項', placeholder: '特記事項' },
   { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: 'ピック時アドバイス' },
+  { key: 'order_url_1', label: '発注URL1', placeholder: 'https://...' },
+  { key: 'order_url_2', label: '発注URL2', placeholder: 'https://...' },
+  { key: 'order_url_3', label: '発注URL3', placeholder: 'https://...' },
+  { key: 'order_size', label: 'サイズ', placeholder: 'M' },
+  { key: 'order_color', label: 'カラー', placeholder: 'ブラック' },
+  { key: 'order_simple_instruction', label: '■簡潔指示', placeholder: '●商品コード▲mmdd-数量' },
+  { key: 'order_detail_instruction', label: '▲具体指示', placeholder: '具体指示' },
+  { key: 'order_quantity_condition', label: '数量条件指定', placeholder: '数量条件指定' },
+  { key: 'order_note', label: '補足情報', placeholder: '補足情報' },
 ]
 
 const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
@@ -175,6 +222,36 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
     'pickingAdvice',
     'advice',
   ],
+  order_url_1: ['発注URL1', '発注URL 1', 'order_url_1', 'orderUrl1', 'purchase_url_1', 'purchaseUrl1'],
+  order_url_2: ['発注URL2', '発注URL 2', 'order_url_2', 'orderUrl2', 'purchase_url_2', 'purchaseUrl2'],
+  order_url_3: ['発注URL3', '発注URL 3', 'order_url_3', 'orderUrl3', 'purchase_url_3', 'purchaseUrl3'],
+  order_size: ['サイズ', 'order_size', 'orderSize', 'purchase_size', 'purchaseSize', 'size'],
+  order_color: ['カラー', '色', 'order_color', 'orderColor', 'purchase_color', 'purchaseColor'],
+  order_simple_instruction: [
+    '■簡潔指示',
+    '簡潔指示',
+    'order_simple_instruction',
+    'orderSimpleInstruction',
+    'simple_instruction',
+    'simpleInstruction',
+  ],
+  order_detail_instruction: [
+    '▲具体指示',
+    '具体指示',
+    'order_detail_instruction',
+    'orderDetailInstruction',
+    'detail_instruction',
+    'detailInstruction',
+  ],
+  order_quantity_condition: [
+    '数量条件指定',
+    '数量条件',
+    'order_quantity_condition',
+    'orderQuantityCondition',
+    'quantity_condition',
+    'quantityCondition',
+  ],
+  order_note: ['補足情報', '補足', 'order_note', 'orderNote', 'purchase_note', 'purchaseNote'],
 }
 
 type BulkSummary = {
@@ -198,6 +275,15 @@ function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
     rack_number: '',
     rack_level: '',
     sticker_color: '',
+    order_url_1: '',
+    order_url_2: '',
+    order_url_3: '',
+    order_size: '',
+    order_color: '',
+    order_simple_instruction: '',
+    order_detail_instruction: '',
+    order_quantity_condition: '',
+    order_note: '',
   }
 }
 
@@ -219,6 +305,15 @@ function createBulkRow(): BulkProductRow {
     rack_number: '',
     rack_level: '',
     sticker_color: '',
+    order_url_1: '',
+    order_url_2: '',
+    order_url_3: '',
+    order_size: '',
+    order_color: '',
+    order_simple_instruction: '',
+    order_detail_instruction: '',
+    order_quantity_condition: '',
+    order_note: '',
   }
 }
 
@@ -473,6 +568,15 @@ function buildBulkSummary(
       rack_number: row.rack_number.trim(),
       rack_level: row.rack_level.trim(),
       sticker_color: row.sticker_color.trim(),
+      order_url_1: row.order_url_1.trim(),
+      order_url_2: row.order_url_2.trim(),
+      order_url_3: row.order_url_3.trim(),
+      order_size: row.order_size.trim(),
+      order_color: row.order_color.trim(),
+      order_simple_instruction: row.order_simple_instruction.trim(),
+      order_detail_instruction: row.order_detail_instruction.trim(),
+      order_quantity_condition: row.order_quantity_condition.trim(),
+      order_note: row.order_note.trim(),
     }))
     .filter((row) => row.product_code)
 
@@ -529,6 +633,15 @@ function productToDraft(product: Product): EditableProduct {
     rack_number: product.rack_number ?? '',
     rack_level: product.rack_level ?? '',
     sticker_color: product.sticker_color ?? '',
+    order_url_1: product.order_url_1 ?? '',
+    order_url_2: product.order_url_2 ?? '',
+    order_url_3: product.order_url_3 ?? '',
+    order_size: product.order_size ?? '',
+    order_color: product.order_color ?? '',
+    order_simple_instruction: product.order_simple_instruction ?? '',
+    order_detail_instruction: product.order_detail_instruction ?? '',
+    order_quantity_condition: product.order_quantity_condition ?? '',
+    order_note: product.order_note ?? '',
     order_memo_1: product.order_memo_1 ?? '',
     rakumart_url_1: product.rakumart_url_1 ?? '',
     order_memo_2: product.order_memo_2 ?? '',
@@ -551,6 +664,15 @@ function normalizeDraft(draft: EditableProduct) {
     rack_number: draft.rack_number.trim() || null,
     rack_level: draft.rack_level.trim() || null,
     sticker_color: draft.sticker_color.trim() || null,
+    order_url_1: draft.order_url_1.trim() || null,
+    order_url_2: draft.order_url_2.trim() || null,
+    order_url_3: draft.order_url_3.trim() || null,
+    order_size: draft.order_size.trim() || null,
+    order_color: draft.order_color.trim() || null,
+    order_simple_instruction: draft.order_simple_instruction.trim() || null,
+    order_detail_instruction: draft.order_detail_instruction.trim() || null,
+    order_quantity_condition: draft.order_quantity_condition.trim() || null,
+    order_note: draft.order_note.trim() || null,
     order_memo_1: draft.order_memo_1.trim() || null,
     rakumart_url_1: draft.rakumart_url_1.trim() || null,
     order_memo_2: draft.order_memo_2.trim() || null,
@@ -727,6 +849,15 @@ function App() {
           draft.rack_number,
           draft.rack_level,
           draft.sticker_color,
+          draft.order_url_1,
+          draft.order_url_2,
+          draft.order_url_3,
+          draft.order_size,
+          draft.order_color,
+          draft.order_simple_instruction,
+          draft.order_detail_instruction,
+          draft.order_quantity_condition,
+          draft.order_note,
           draft.order_memo_1,
           draft.rakumart_url_1,
           draft.order_memo_2,
@@ -894,14 +1025,11 @@ function App() {
         next[targetIndex] = {
           ...next[targetIndex],
           product_code: pastedRow.product_code,
-          product_name: pastedRow.product_name,
-          floor: pastedRow.floor,
-          rack_number: pastedRow.rack_number,
-          rack_level: pastedRow.rack_level,
-          sticker_color: pastedRow.sticker_color,
-          special_notes: pastedRow.special_notes,
-          picking_advice: pastedRow.picking_advice,
         }
+
+        selectedBulkFields.forEach((key) => {
+          next[targetIndex][key] = pastedRow[key]
+        })
       })
 
       return next
@@ -1215,6 +1343,35 @@ function App() {
     return <DisplayText value={product[key] ?? null} className={options.className} />
   }
 
+  function renderUrlTextCell(
+    product: Product,
+    draft: EditableProduct,
+    key: EditableProductKey,
+  ) {
+    const isEditing = editingCode === product.product_code
+
+    if (isEditing) {
+      return (
+        <UrlEditCell
+          value={draft[key]}
+          onChange={(value) => updateDraft(product.product_code, key, value)}
+        />
+      )
+    }
+
+    const url = String(product[key] ?? '').trim()
+
+    if (!url) {
+      return <DisplayText value={null} className="mono-text" />
+    }
+
+    return (
+      <a className="order-link mono-text" href={url} target="_blank" rel="noreferrer">
+        開く
+      </a>
+    )
+  }
+
   function renderOrderMemoCell(
     product: Product,
     draft: EditableProduct,
@@ -1352,6 +1509,23 @@ function App() {
     )
   }
 
+  function renderPurchaseColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
+        <td>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
+        <td>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
+        <td>{renderTextCell(product, draft, 'order_size', { inputClassName: 'small-text-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_color', { inputClassName: 'small-text-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_simple_instruction', { className: 'note-text', multiline: true, placeholder: '■簡潔指示' })}</td>
+        <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
+        <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
+        <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
+      </>
+    )
+  }
+
   function renderCustomColumns(product: Product, draft: EditableProduct) {
     return (
       <>
@@ -1368,7 +1542,7 @@ function App() {
     )
   }
 
-  const tableColSpan = tableView === 'all' ? 17 : tableView === 'pick' ? 9 : tableView === 'order' ? 8 : 11
+  const tableColSpan = tableView === 'all' ? 17 : tableView === 'pick' ? 9 : tableView === 'order' ? 8 : tableView === 'purchase' ? 12 : 11
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -1461,6 +1635,9 @@ function App() {
               <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
                 オーダー状況
               </ViewButton>
+              <ViewButton active={tableView === 'purchase'} onClick={() => setTableView('purchase')}>
+                発注用
+              </ViewButton>
               <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
                 カスタム
               </ViewButton>
@@ -1516,6 +1693,21 @@ function App() {
                     </>
                   )}
 
+                  {tableView === 'purchase' && (
+                    <>
+                      <th>商品名</th>
+                      <th>発注URL1</th>
+                      <th>発注URL2</th>
+                      <th>発注URL3</th>
+                      <th>サイズ</th>
+                      <th>カラー</th>
+                      <th>■簡潔指示</th>
+                      <th>▲具体指示</th>
+                      <th>数量条件指定</th>
+                      <th>補足情報</th>
+                    </>
+                  )}
+
                   {tableView === 'custom' && (
                     <>
                       <th>商品名</th>
@@ -1559,6 +1751,7 @@ function App() {
                       {tableView === 'all' && renderAllColumns(product, draft)}
                       {tableView === 'pick' && renderPickColumns(product, draft)}
                       {tableView === 'order' && renderOrderColumns(product, draft)}
+                      {tableView === 'purchase' && renderPurchaseColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
                       <td>{renderActions(product, draft)}</td>
@@ -1724,7 +1917,7 @@ function App() {
                   }
                 />
                 <span>既存の商品コードも更新する</span>
-                <small>ONにすると、既存商品の対象列だけを入力内容で上書きします。対象外の列とRM/オーダー列は触りません。</small>
+                <small>ONにすると、既存商品の対象列だけを入力内容で上書きします。対象外の列は触りません。</small>
               </label>
 
               <div className="bulk-row-toolbar">

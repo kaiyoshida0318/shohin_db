@@ -299,6 +299,10 @@ table {
   min-width: 1180px;
 }
 
+.products-table--purchase {
+  min-width: 1980px;
+}
+
 .products-table--custom {
   min-width: 1550px;
 }
@@ -788,7 +792,7 @@ tr:hover td:last-child {
 
 .bulk-input-table {
   width: 100%;
-  min-width: 1560px;
+  min-width: 2600px;
   border-collapse: collapse;
 }
 
