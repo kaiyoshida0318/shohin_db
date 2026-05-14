@@ -7,6 +7,12 @@ type Product = {
   product_name: string | null
   floor: string | null
 
+  special_notes: string | null
+  picking_advice: string | null
+  rack_number: string | null
+  rack_level: string | null
+  sticker_color: string | null
+
   order_memo_1: string | null
   rakumart_url_1: string | null
   order_memo_2: string | null
@@ -27,6 +33,13 @@ type Product = {
 type EditableProduct = {
   product_name: string
   floor: string
+
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
+
   order_memo_1: string
   rakumart_url_1: string
   order_memo_2: string
@@ -45,10 +58,17 @@ type SessionUser = {
   email?: string
 }
 
+type TableView = 'all' | 'pick' | 'custom'
+
 const emptyCreateForm = {
   product_code: '',
   product_name: '',
   floor: '',
+  special_notes: '',
+  picking_advice: '',
+  rack_number: '',
+  rack_level: '',
+  sticker_color: '',
 }
 
 type CreateForm = typeof emptyCreateForm
@@ -59,12 +79,22 @@ type BulkProductRow = {
   product_code: string
   product_name: string
   floor: string
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
 }
 
 type CleanBulkProductRow = {
   product_code: string
   product_name: string
   floor: string
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
 }
 
 type BulkSummary = {
@@ -85,6 +115,11 @@ function createBulkRow(): BulkProductRow {
     product_code: '',
     product_name: '',
     floor: '',
+    special_notes: '',
+    picking_advice: '',
+    rack_number: '',
+    rack_level: '',
+    sticker_color: '',
   }
 }
 
@@ -119,6 +154,11 @@ function parseClipboardRows(text: string): CleanBulkProductRow[] {
         product_code: cells[0]?.trim() ?? '',
         product_name: cells[1]?.trim() ?? '',
         floor: cells[2]?.trim() ?? '',
+        rack_number: cells[3]?.trim() ?? '',
+        rack_level: cells[4]?.trim() ?? '',
+        sticker_color: cells[5]?.trim() ?? '',
+        special_notes: cells[6]?.trim() ?? '',
+        picking_advice: cells[7]?.trim() ?? '',
       }
     })
     .filter((row): row is CleanBulkProductRow => {
@@ -135,6 +175,11 @@ function buildBulkSummary(
       product_code: row.product_code.trim(),
       product_name: row.product_name.trim(),
       floor: row.floor.trim(),
+      special_notes: row.special_notes.trim(),
+      picking_advice: row.picking_advice.trim(),
+      rack_number: row.rack_number.trim(),
+      rack_level: row.rack_level.trim(),
+      sticker_color: row.sticker_color.trim(),
     }))
     .filter((row) => row.product_code)
 
@@ -184,6 +229,11 @@ function productToDraft(product: Product): EditableProduct {
   return {
     product_name: product.product_name ?? '',
     floor: product.floor ?? '',
+    special_notes: product.special_notes ?? '',
+    picking_advice: product.picking_advice ?? '',
+    rack_number: product.rack_number ?? '',
+    rack_level: product.rack_level ?? '',
+    sticker_color: product.sticker_color ?? '',
     order_memo_1: product.order_memo_1 ?? '',
     rakumart_url_1: product.rakumart_url_1 ?? '',
     order_memo_2: product.order_memo_2 ?? '',
@@ -201,6 +251,11 @@ function normalizeDraft(draft: EditableProduct) {
   return {
     product_name: draft.product_name.trim() || null,
     floor: draft.floor.trim() || null,
+    special_notes: draft.special_notes.trim() || null,
+    picking_advice: draft.picking_advice.trim() || null,
+    rack_number: draft.rack_number.trim() || null,
+    rack_level: draft.rack_level.trim() || null,
+    sticker_color: draft.sticker_color.trim() || null,
     order_memo_1: draft.order_memo_1.trim() || null,
     rakumart_url_1: draft.rakumart_url_1.trim() || null,
     order_memo_2: draft.order_memo_2.trim() || null,
@@ -263,6 +318,26 @@ function DisplayText({ value, className = '' }: { value: string | null; classNam
   return <span className={`cell-text ${className}`}>{value || '-'}</span>
 }
 
+function ViewButton({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean
+  children: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={active ? 'view-button active' : 'view-button'}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  )
+}
+
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [email, setEmail] = useState('')
@@ -273,6 +348,7 @@ function App() {
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const [floorFilter, setFloorFilter] = useState('')
+  const [tableView, setTableView] = useState<TableView>('all')
 
   const [loading, setLoading] = useState(false)
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -359,6 +435,11 @@ function App() {
           product.product_code,
           draft.product_name,
           draft.floor,
+          draft.special_notes,
+          draft.picking_advice,
+          draft.rack_number,
+          draft.rack_level,
+          draft.sticker_color,
           draft.order_memo_1,
           draft.rakumart_url_1,
           draft.order_memo_2,
@@ -519,6 +600,11 @@ function App() {
           product_code: pastedRow.product_code,
           product_name: pastedRow.product_name,
           floor: pastedRow.floor,
+          rack_number: pastedRow.rack_number,
+          rack_level: pastedRow.rack_level,
+          sticker_color: pastedRow.sticker_color,
+          special_notes: pastedRow.special_notes,
+          picking_advice: pastedRow.picking_advice,
         }
       })
 
@@ -584,6 +670,11 @@ function App() {
       product_code: productCode,
       product_name: createForm.product_name.trim() || null,
       floor: createForm.floor.trim() || null,
+      special_notes: createForm.special_notes.trim() || null,
+      picking_advice: createForm.picking_advice.trim() || null,
+      rack_number: createForm.rack_number.trim() || null,
+      rack_level: createForm.rack_level.trim() || null,
+      sticker_color: createForm.sticker_color.trim() || null,
     })
 
     if (error) {
@@ -619,6 +710,11 @@ function App() {
       product_code: row.product_code,
       product_name: row.product_name || null,
       floor: row.floor || null,
+      special_notes: row.special_notes || null,
+      picking_advice: row.picking_advice || null,
+      rack_number: row.rack_number || null,
+      rack_level: row.rack_level || null,
+      sticker_color: row.sticker_color || null,
     }))
 
     const { error } = await supabase.from('products').insert(payload)
@@ -667,6 +763,159 @@ function App() {
 
     setSavingCode(null)
   }
+
+  function renderTextCell(
+    product: Product,
+    draft: EditableProduct,
+    key: EditableProductKey,
+    options: {
+      className?: string
+      inputClassName?: string
+      multiline?: boolean
+      placeholder?: string
+    } = {},
+  ) {
+    const isEditing = editingCode === product.product_code
+
+    if (isEditing) {
+      if (options.multiline) {
+        return (
+          <textarea
+            className={`table-input table-textarea ${options.inputClassName ?? ''}`}
+            value={draft[key]}
+            onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
+            placeholder={options.placeholder}
+          />
+        )
+      }
+
+      return (
+        <input
+          className={`table-input ${options.inputClassName ?? ''}`}
+          value={draft[key]}
+          onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
+          placeholder={options.placeholder}
+        />
+      )
+    }
+
+    return <DisplayText value={product[key] ?? null} className={options.className} />
+  }
+
+  function renderUrlCell(product: Product, draft: EditableProduct, key: EditableProductKey) {
+    const isEditing = editingCode === product.product_code
+
+    if (isEditing) {
+      return (
+        <UrlEditCell
+          value={draft[key]}
+          onChange={(value) => updateDraft(product.product_code, key, value)}
+        />
+      )
+    }
+
+    return <RakumartButton url={product[key] ?? null} />
+  }
+
+  function renderActions(product: Product, draft: EditableProduct) {
+    const isEditing = editingCode === product.product_code
+    const dirty = isEditing && isDraftDirty(product, draft)
+    const isSaving = savingCode === product.product_code
+    const editLocked = Boolean(editingCode) && !isEditing
+
+    if (isEditing) {
+      return (
+        <div className="row-actions">
+          <button
+            className="small"
+            onClick={() => saveRow(product)}
+            disabled={!dirty || isSaving || Boolean(savingCode)}
+          >
+            {isSaving ? '保存中' : '保存'}
+          </button>
+
+          <button
+            className="secondary small"
+            onClick={() => cancelEdit(product)}
+            disabled={isSaving}
+          >
+            キャンセル
+          </button>
+        </div>
+      )
+    }
+
+    return (
+      <button
+        className="small"
+        onClick={() => startEdit(product)}
+        disabled={editLocked || Boolean(savingCode)}
+      >
+        編集
+      </button>
+    )
+  }
+
+  function renderAllColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
+        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_2', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_2')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_3', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_3')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_4', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_4')}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_5', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_5')}</td>
+        <td>{formatDateTime(product.product_info_synced_at)}</td>
+        <td>{formatDateTime(product.order_status_synced_at)}</td>
+        <td>{formatDateTime(product.updated_at)}</td>
+      </>
+    )
+  }
+
+  function renderPickColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
+        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+      </>
+    )
+  }
+
+  function renderCustomColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
+        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
+        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
+        <td>{formatDateTime(product.updated_at)}</td>
+      </>
+    )
+  }
+
+  const tableColSpan = tableView === 'all' ? 22 : tableView === 'pick' ? 9 : 12
+  const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
     return (
@@ -731,7 +980,7 @@ function App() {
         <input
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="商品コード・商品名・発注メモ・ラクマートURLで検索"
+          placeholder="商品コード・商品名・特記事項・ピック時アドバイス・棚番号で検索"
         />
 
         <select value={floorFilter} onChange={(e) => setFloorFilter(e.target.value)}>
@@ -755,30 +1004,82 @@ function App() {
       <section className="layout layout--full">
         <div className="table-card">
           <div className="table-header">
-            <strong>商品一覧</strong>
-            <span>{filteredProducts.length}件</span>
+            <div>
+              <strong>商品一覧</strong>
+              <span>{filteredProducts.length}件</span>
+            </div>
+
+            <div className="view-switch" aria-label="表示用途切り替え">
+              <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
+                すべて
+              </ViewButton>
+              <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
+                ピック用
+              </ViewButton>
+              <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
+                カスタム
+              </ViewButton>
+            </div>
           </div>
 
           <div className="table-wrap">
-            <table className="products-table">
+            <table className={tableClassName}>
               <thead>
                 <tr>
                   <th>商品コード</th>
-                  <th>商品名</th>
-                  <th>階数</th>
-                  <th>発注1</th>
-                  <th>ラクマート1</th>
-                  <th>発注2</th>
-                  <th>ラクマート2</th>
-                  <th>発注3</th>
-                  <th>ラクマート3</th>
-                  <th>発注4</th>
-                  <th>ラクマート4</th>
-                  <th>発注5</th>
-                  <th>ラクマート5</th>
-                  <th>商品同期</th>
-                  <th>発注同期</th>
-                  <th>更新日</th>
+
+                  {tableView === 'all' && (
+                    <>
+                      <th>商品名</th>
+                      <th>階数</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                      <th>発注1</th>
+                      <th>ラクマート1</th>
+                      <th>発注2</th>
+                      <th>ラクマート2</th>
+                      <th>発注3</th>
+                      <th>ラクマート3</th>
+                      <th>発注4</th>
+                      <th>ラクマート4</th>
+                      <th>発注5</th>
+                      <th>ラクマート5</th>
+                      <th>商品同期</th>
+                      <th>発注同期</th>
+                      <th>更新日</th>
+                    </>
+                  )}
+
+                  {tableView === 'pick' && (
+                    <>
+                      <th>商品名</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th>階数</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                    </>
+                  )}
+
+                  {tableView === 'custom' && (
+                    <>
+                      <th>商品名</th>
+                      <th>階数</th>
+                      <th>棚番号-位置</th>
+                      <th>棚番号-段</th>
+                      <th>シールカラー</th>
+                      <th>特記事項</th>
+                      <th>ピック時アドバイス</th>
+                      <th>発注1</th>
+                      <th>ラクマート1</th>
+                      <th>更新日</th>
+                    </>
+                  )}
+
                   <th>操作</th>
                 </tr>
               </thead>
@@ -788,8 +1089,6 @@ function App() {
                   const draft = rowDrafts[product.product_code] ?? productToDraft(product)
                   const isEditing = editingCode === product.product_code
                   const dirty = isEditing && isDraftDirty(product, draft)
-                  const isSaving = savingCode === product.product_code
-                  const editLocked = Boolean(editingCode) && !isEditing
 
                   return (
                     <tr
@@ -807,237 +1106,18 @@ function App() {
                         </button>
                       </td>
 
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input product-name-input"
-                            value={draft.product_name}
-                            onChange={(event) =>
-                              updateDraft(
-                                product.product_code,
-                                'product_name',
-                                event.target.value,
-                              )
-                            }
-                          />
-                        ) : (
-                          <DisplayText value={product.product_name} className="product-name-text" />
-                        )}
-                      </td>
+                      {tableView === 'all' && renderAllColumns(product, draft)}
+                      {tableView === 'pick' && renderPickColumns(product, draft)}
+                      {tableView === 'custom' && renderCustomColumns(product, draft)}
 
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input floor-input"
-                            value={draft.floor}
-                            onChange={(event) =>
-                              updateDraft(product.product_code, 'floor', event.target.value)
-                            }
-                          />
-                        ) : (
-                          <DisplayText value={product.floor} />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input order-input"
-                            value={draft.order_memo_1}
-                            onChange={(event) =>
-                              updateDraft(
-                                product.product_code,
-                                'order_memo_1',
-                                event.target.value,
-                              )
-                            }
-                            placeholder="0513-100"
-                          />
-                        ) : (
-                          <DisplayText value={product.order_memo_1} className="mono-text" />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <UrlEditCell
-                            value={draft.rakumart_url_1}
-                            onChange={(value) =>
-                              updateDraft(product.product_code, 'rakumart_url_1', value)
-                            }
-                          />
-                        ) : (
-                          <RakumartButton url={product.rakumart_url_1} />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input order-input"
-                            value={draft.order_memo_2}
-                            onChange={(event) =>
-                              updateDraft(
-                                product.product_code,
-                                'order_memo_2',
-                                event.target.value,
-                              )
-                            }
-                            placeholder="0513-100"
-                          />
-                        ) : (
-                          <DisplayText value={product.order_memo_2} className="mono-text" />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <UrlEditCell
-                            value={draft.rakumart_url_2}
-                            onChange={(value) =>
-                              updateDraft(product.product_code, 'rakumart_url_2', value)
-                            }
-                          />
-                        ) : (
-                          <RakumartButton url={product.rakumart_url_2} />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input order-input"
-                            value={draft.order_memo_3}
-                            onChange={(event) =>
-                              updateDraft(
-                                product.product_code,
-                                'order_memo_3',
-                                event.target.value,
-                              )
-                            }
-                            placeholder="0513-100"
-                          />
-                        ) : (
-                          <DisplayText value={product.order_memo_3} className="mono-text" />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <UrlEditCell
-                            value={draft.rakumart_url_3}
-                            onChange={(value) =>
-                              updateDraft(product.product_code, 'rakumart_url_3', value)
-                            }
-                          />
-                        ) : (
-                          <RakumartButton url={product.rakumart_url_3} />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input order-input"
-                            value={draft.order_memo_4}
-                            onChange={(event) =>
-                              updateDraft(
-                                product.product_code,
-                                'order_memo_4',
-                                event.target.value,
-                              )
-                            }
-                            placeholder="0513-100"
-                          />
-                        ) : (
-                          <DisplayText value={product.order_memo_4} className="mono-text" />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <UrlEditCell
-                            value={draft.rakumart_url_4}
-                            onChange={(value) =>
-                              updateDraft(product.product_code, 'rakumart_url_4', value)
-                            }
-                          />
-                        ) : (
-                          <RakumartButton url={product.rakumart_url_4} />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <input
-                            className="table-input order-input"
-                            value={draft.order_memo_5}
-                            onChange={(event) =>
-                              updateDraft(
-                                product.product_code,
-                                'order_memo_5',
-                                event.target.value,
-                              )
-                            }
-                            placeholder="0513-100"
-                          />
-                        ) : (
-                          <DisplayText value={product.order_memo_5} className="mono-text" />
-                        )}
-                      </td>
-
-                      <td>
-                        {isEditing ? (
-                          <UrlEditCell
-                            value={draft.rakumart_url_5}
-                            onChange={(value) =>
-                              updateDraft(product.product_code, 'rakumart_url_5', value)
-                            }
-                          />
-                        ) : (
-                          <RakumartButton url={product.rakumart_url_5} />
-                        )}
-                      </td>
-
-                      <td>{formatDateTime(product.product_info_synced_at)}</td>
-                      <td>{formatDateTime(product.order_status_synced_at)}</td>
-                      <td>{formatDateTime(product.updated_at)}</td>
-                      <td>
-                        {isEditing ? (
-                          <div className="row-actions">
-                            <button
-                              className="small"
-                              onClick={() => saveRow(product)}
-                              disabled={!dirty || isSaving || Boolean(savingCode)}
-                            >
-                              {isSaving ? '保存中' : '保存'}
-                            </button>
-
-                            <button
-                              className="secondary small"
-                              onClick={() => cancelEdit(product)}
-                              disabled={isSaving}
-                            >
-                              キャンセル
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            className="small"
-                            onClick={() => startEdit(product)}
-                            disabled={editLocked || Boolean(savingCode)}
-                          >
-                            編集
-                          </button>
-                        )}
-                      </td>
+                      <td>{renderActions(product, draft)}</td>
                     </tr>
                   )
                 })}
 
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={17} className="empty">
+                    <td colSpan={tableColSpan} className="empty">
                       商品がありません。
                     </td>
                   </tr>
@@ -1110,12 +1190,59 @@ function App() {
                   />
                 </label>
 
+                <div className="modal-grid">
+                  <label>
+                    階数
+                    <input
+                      value={createForm.floor}
+                      onChange={(e) => updateCreateForm('floor', e.target.value)}
+                      placeholder="3F"
+                    />
+                  </label>
+
+                  <label>
+                    棚番号-位置
+                    <input
+                      value={createForm.rack_number}
+                      onChange={(e) => updateCreateForm('rack_number', e.target.value)}
+                      placeholder="A-12"
+                    />
+                  </label>
+
+                  <label>
+                    棚番号-段
+                    <input
+                      value={createForm.rack_level}
+                      onChange={(e) => updateCreateForm('rack_level', e.target.value)}
+                      placeholder="3"
+                    />
+                  </label>
+
+                  <label>
+                    シールカラー
+                    <input
+                      value={createForm.sticker_color}
+                      onChange={(e) => updateCreateForm('sticker_color', e.target.value)}
+                      placeholder="赤"
+                    />
+                  </label>
+                </div>
+
                 <label>
-                  階数
-                  <input
-                    value={createForm.floor}
-                    onChange={(e) => updateCreateForm('floor', e.target.value)}
-                    placeholder="3F"
+                  特記事項
+                  <textarea
+                    value={createForm.special_notes}
+                    onChange={(e) => updateCreateForm('special_notes', e.target.value)}
+                    placeholder="保管・取扱いで注意すること"
+                  />
+                </label>
+
+                <label>
+                  ピック時アドバイス
+                  <textarea
+                    value={createForm.picking_advice}
+                    onChange={(e) => updateCreateForm('picking_advice', e.target.value)}
+                    placeholder="ピック時に見る補足"
                   />
                 </label>
 
@@ -1135,7 +1262,7 @@ function App() {
                 <div className="bulk-guide">
                   <strong>1商品1行で入力</strong>
                   <p>
-                    商品コード・商品名・階数を行ごとに入力してください。
+                    商品コード・商品名・階数・棚番号-位置・棚番号-段・シールカラー・特記事項・ピック時アドバイスの順で入力できます。
                     Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
                   </p>
                 </div>
@@ -1155,13 +1282,18 @@ function App() {
                 </div>
 
                 <div className="bulk-table-wrap">
-                  <table className="bulk-input-table">
+                  <table className="bulk-input-table bulk-input-table--wide">
                     <thead>
                       <tr>
                         <th>No.</th>
                         <th>商品コード</th>
                         <th>商品名</th>
                         <th>階数</th>
+                        <th>棚番号-位置</th>
+                        <th>棚番号-段</th>
+                        <th>シールカラー</th>
+                        <th>特記事項</th>
+                        <th>ピック時アドバイス</th>
                         <th></th>
                       </tr>
                     </thead>
@@ -1199,6 +1331,56 @@ function App() {
                                 updateBulkRow(row.id, 'floor', e.target.value)
                               }
                               placeholder="3F"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.rack_number}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'rack_number', e.target.value)
+                              }
+                              placeholder="A-12"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.rack_level}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'rack_level', e.target.value)
+                              }
+                              placeholder="3"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.sticker_color}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'sticker_color', e.target.value)
+                              }
+                              placeholder="赤"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.special_notes}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'special_notes', e.target.value)
+                              }
+                              placeholder="特記事項"
+                            />
+                          </td>
+
+                          <td>
+                            <input
+                              value={row.picking_advice}
+                              onChange={(e) =>
+                                updateBulkRow(row.id, 'picking_advice', e.target.value)
+                              }
+                              placeholder="ピック時アドバイス"
                             />
                           </td>
 
