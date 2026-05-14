@@ -55,7 +55,8 @@ button.small {
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   border: 1px solid #d8e0ea;
   border-radius: 12px;
@@ -66,7 +67,8 @@ textarea {
 }
 
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
@@ -82,6 +84,16 @@ label {
   font-size: 13px;
   font-weight: 700;
   color: #405067;
+}
+
+a {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
 }
 
 .login-page {
@@ -167,21 +179,20 @@ h2 {
   background: #fff;
   box-shadow: 0 12px 36px rgba(24, 39, 75, 0.06);
   display: grid;
-  grid-template-columns: 1fr 180px auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 12px;
 }
 
 .layout {
   max-width: 1850px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: 1fr 390px;
-  gap: 18px;
-  align-items: start;
 }
 
-.table-card,
-.edit-card {
+.layout--full {
+  display: block;
+}
+
+.table-card {
   border-radius: 24px;
   background: #fff;
   box-shadow: 0 18px 48px rgba(24, 39, 75, 0.08);
@@ -209,22 +220,26 @@ h2 {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1200px;
+}
+
+.products-table {
+  min-width: 2550px;
 }
 
 th,
 td {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid #edf1f6;
   text-align: left;
   white-space: nowrap;
   font-size: 14px;
+  vertical-align: middle;
 }
 
 th {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
   background: #f8fafc;
   color: #526177;
   font-size: 12px;
@@ -247,32 +262,6 @@ tr:hover td {
   padding: 40px;
 }
 
-.edit-card {
-  padding: 22px;
-  display: grid;
-  gap: 14px;
-  position: sticky;
-  top: 20px;
-}
-
-.edit-card h2 {
-  font-size: 20px;
-  margin-bottom: 4px;
-}
-
-.two-columns {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.edit-actions {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  margin-top: 4px;
-}
-
 .message {
   max-width: 1850px;
   margin: 0 auto 14px;
@@ -282,38 +271,6 @@ tr:hover td {
   color: #9a3412;
   border: 1px solid #fed7aa;
   font-weight: 700;
-}
-
-select {
-  width: 100%;
-  border: 1px solid #d8e0ea;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: #fff;
-  color: #172033;
-  outline: none;
-  font: inherit;
-}
-
-select:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
-.order-edit-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-a {
-  color: #2563eb;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
 }
 
 .code-copy {
@@ -330,6 +287,56 @@ a:hover {
 .code-copy:hover {
   text-decoration: underline;
   opacity: 1;
+}
+
+.sticky-code-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #fff;
+}
+
+tr:hover .sticky-code-cell {
+  background: #f8fbff;
+}
+
+.table-input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border-color: #e0e7ef;
+  background: #fbfdff;
+  font-size: 13px;
+}
+
+.table-input:focus {
+  background: #fff;
+}
+
+.product-name-input {
+  min-width: 270px;
+}
+
+.floor-input {
+  width: 74px;
+}
+
+.order-input {
+  width: 112px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.url-edit-cell {
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.url-input {
+  min-width: 210px;
+  font-size: 12px;
 }
 
 .url-button {
@@ -354,33 +361,22 @@ a:hover {
 
 .empty-url {
   color: #b7c0ce;
+  font-weight: 800;
+  text-align: center;
 }
 
-tr.is-editing td {
+tr.is-dirty td {
   background: #fff7ed !important;
 }
 
-tr.is-editing td:first-child {
+tr.is-dirty td:first-child {
   box-shadow: inset 4px 0 0 #f97316;
 }
 
-.edit-card-head {
+.row-actions {
   display: flex;
+  gap: 8px;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.edit-placeholder {
-  display: grid;
-  gap: 14px;
-  padding: 8px 0;
-}
-
-.edit-placeholder p {
-  margin: 0;
-  color: #66758a;
-  line-height: 1.7;
 }
 
 .modal-backdrop {
@@ -470,22 +466,6 @@ tr.is-editing td:first-child {
   color: #263347;
 }
 
-.bulk-preview {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.bulk-preview span {
-  padding: 7px 10px;
-  border-radius: 999px;
-  background: #eef4ff;
-  color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-/* 複数商品追加：1商品1行入力 */
 .bulk-guide p {
   margin: 0;
   color: #66758a;
@@ -563,5 +543,20 @@ tr.is-editing td:first-child {
 .bulk-row-number {
   text-align: center;
   color: #66758a;
+  font-weight: 800;
+}
+
+.bulk-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bulk-preview span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  font-size: 12px;
   font-weight: 800;
 }

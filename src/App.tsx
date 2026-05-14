@@ -24,25 +24,25 @@ type Product = {
   updated_at: string | null
 }
 
-type SessionUser = {
-  email?: string
+type EditableProduct = {
+  product_name: string
+  floor: string
+  order_memo_1: string
+  rakumart_url_1: string
+  order_memo_2: string
+  rakumart_url_2: string
+  order_memo_3: string
+  rakumart_url_3: string
+  order_memo_4: string
+  rakumart_url_4: string
+  order_memo_5: string
+  rakumart_url_5: string
 }
 
-const emptyForm = {
-  product_code: '',
-  product_name: '',
-  floor: '',
+type EditableProductKey = keyof EditableProduct
 
-  order_memo_1: '',
-  rakumart_url_1: '',
-  order_memo_2: '',
-  rakumart_url_2: '',
-  order_memo_3: '',
-  rakumart_url_3: '',
-  order_memo_4: '',
-  rakumart_url_4: '',
-  order_memo_5: '',
-  rakumart_url_5: '',
+type SessionUser = {
+  email?: string
 }
 
 const emptyCreateForm = {
@@ -51,7 +51,6 @@ const emptyCreateForm = {
   floor: '',
 }
 
-type ProductForm = typeof emptyForm
 type CreateForm = typeof emptyCreateForm
 type CreateTab = 'single' | 'bulk'
 
@@ -181,13 +180,72 @@ function formatDateTime(value: string | null) {
   return date.toLocaleString('ja-JP')
 }
 
-function RakumartButton({ url }: { url: string | null }) {
-  if (!url) return <span className="empty-url">-</span>
+function productToDraft(product: Product): EditableProduct {
+  return {
+    product_name: product.product_name ?? '',
+    floor: product.floor ?? '',
+    order_memo_1: product.order_memo_1 ?? '',
+    rakumart_url_1: product.rakumart_url_1 ?? '',
+    order_memo_2: product.order_memo_2 ?? '',
+    rakumart_url_2: product.rakumart_url_2 ?? '',
+    order_memo_3: product.order_memo_3 ?? '',
+    rakumart_url_3: product.rakumart_url_3 ?? '',
+    order_memo_4: product.order_memo_4 ?? '',
+    rakumart_url_4: product.rakumart_url_4 ?? '',
+    order_memo_5: product.order_memo_5 ?? '',
+    rakumart_url_5: product.rakumart_url_5 ?? '',
+  }
+}
 
+function normalizeDraft(draft: EditableProduct) {
+  return {
+    product_name: draft.product_name.trim() || null,
+    floor: draft.floor.trim() || null,
+    order_memo_1: draft.order_memo_1.trim() || null,
+    rakumart_url_1: draft.rakumart_url_1.trim() || null,
+    order_memo_2: draft.order_memo_2.trim() || null,
+    rakumart_url_2: draft.rakumart_url_2.trim() || null,
+    order_memo_3: draft.order_memo_3.trim() || null,
+    rakumart_url_3: draft.rakumart_url_3.trim() || null,
+    order_memo_4: draft.order_memo_4.trim() || null,
+    rakumart_url_4: draft.rakumart_url_4.trim() || null,
+    order_memo_5: draft.order_memo_5.trim() || null,
+    rakumart_url_5: draft.rakumart_url_5.trim() || null,
+  }
+}
+
+function isDraftDirty(product: Product, draft: EditableProduct) {
+  const original = productToDraft(product)
+
+  return (Object.keys(original) as EditableProductKey[]).some(
+    (key) => original[key] !== draft[key],
+  )
+}
+
+function UrlEditCell({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (value: string) => void
+}) {
   return (
-    <a className="url-button" href={url} target="_blank" rel="noreferrer">
-      開く
-    </a>
+    <div className="url-edit-cell">
+      <input
+        className="table-input url-input"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="URL"
+      />
+
+      {value.trim() ? (
+        <a className="url-button" href={value.trim()} target="_blank" rel="noreferrer">
+          開く
+        </a>
+      ) : (
+        <span className="empty-url">-</span>
+      )}
+    </div>
   )
 }
 
@@ -197,14 +255,13 @@ function App() {
   const [password, setPassword] = useState('')
 
   const [products, setProducts] = useState<Product[]>([])
+  const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
   const [keyword, setKeyword] = useState('')
   const [floorFilter, setFloorFilter] = useState('')
 
   const [loading, setLoading] = useState(false)
+  const [savingCode, setSavingCode] = useState<string | null>(null)
   const [message, setMessage] = useState('')
-
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
-  const [form, setForm] = useState<ProductForm>(emptyForm)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [createTab, setCreateTab] = useState<CreateTab>('single')
@@ -234,6 +291,16 @@ function App() {
     }
   }, [user])
 
+  useEffect(() => {
+    const nextDrafts: Record<string, EditableProduct> = {}
+
+    products.forEach((product) => {
+      nextDrafts[product.product_code] = productToDraft(product)
+    })
+
+    setRowDrafts(nextDrafts)
+  }, [products])
+
   const existingProductCodes = useMemo(() => {
     return new Set(products.map((product) => product.product_code))
   }, [products])
@@ -261,31 +328,33 @@ function App() {
     const q = keyword.trim().toLowerCase()
 
     return products.filter((product) => {
+      const draft = rowDrafts[product.product_code] ?? productToDraft(product)
+
       const matchesKeyword =
         !q ||
         [
           product.product_code,
-          product.product_name,
-          product.floor,
-          product.order_memo_1,
-          product.rakumart_url_1,
-          product.order_memo_2,
-          product.rakumart_url_2,
-          product.order_memo_3,
-          product.rakumart_url_3,
-          product.order_memo_4,
-          product.rakumart_url_4,
-          product.order_memo_5,
-          product.rakumart_url_5,
+          draft.product_name,
+          draft.floor,
+          draft.order_memo_1,
+          draft.rakumart_url_1,
+          draft.order_memo_2,
+          draft.rakumart_url_2,
+          draft.order_memo_3,
+          draft.rakumart_url_3,
+          draft.order_memo_4,
+          draft.rakumart_url_4,
+          draft.order_memo_5,
+          draft.rakumart_url_5,
         ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(q))
 
-      const matchesFloor = !floorFilter || product.floor === floorFilter
+      const matchesFloor = !floorFilter || draft.floor === floorFilter
 
       return matchesKeyword && matchesFloor
     })
-  }, [products, keyword, floorFilter])
+  }, [products, rowDrafts, keyword, floorFilter])
 
   async function login() {
     setLoading(true)
@@ -306,6 +375,7 @@ function App() {
   async function logout() {
     await supabase.auth.signOut()
     setProducts([])
+    setRowDrafts({})
     setUser(null)
   }
 
@@ -349,41 +419,6 @@ function App() {
     setCreateForm(emptyCreateForm)
     setBulkRows(createBulkRows())
     setModalMessage('')
-  }
-
-  function clearEditing() {
-    setEditingProduct(null)
-    setForm(emptyForm)
-    setMessage('')
-  }
-
-  function startEdit(product: Product) {
-    setEditingProduct(product)
-    setMessage('')
-
-    setForm({
-      product_code: product.product_code ?? '',
-      product_name: product.product_name ?? '',
-      floor: product.floor ?? '',
-
-      order_memo_1: product.order_memo_1 ?? '',
-      rakumart_url_1: product.rakumart_url_1 ?? '',
-      order_memo_2: product.order_memo_2 ?? '',
-      rakumart_url_2: product.rakumart_url_2 ?? '',
-      order_memo_3: product.order_memo_3 ?? '',
-      rakumart_url_3: product.rakumart_url_3 ?? '',
-      order_memo_4: product.order_memo_4 ?? '',
-      rakumart_url_4: product.rakumart_url_4 ?? '',
-      order_memo_5: product.order_memo_5 ?? '',
-      rakumart_url_5: product.rakumart_url_5 ?? '',
-    })
-  }
-
-  function updateForm(key: keyof ProductForm, value: string) {
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-    }))
   }
 
   function updateCreateForm(key: keyof CreateForm, value: string) {
@@ -467,6 +502,28 @@ function App() {
     })
   }
 
+  function updateDraft(
+    productCode: string,
+    key: EditableProductKey,
+    value: string,
+  ) {
+    setRowDrafts((prev) => ({
+      ...prev,
+      [productCode]: {
+        ...prev[productCode],
+        [key]: value,
+      },
+    }))
+  }
+
+  function resetRow(product: Product) {
+    setRowDrafts((prev) => ({
+      ...prev,
+      [product.product_code]: productToDraft(product),
+    }))
+    setMessage(`変更を戻しました：${product.product_code}`)
+  }
+
   async function createSingleProduct() {
     const productCode = createForm.product_code.trim()
 
@@ -539,51 +596,35 @@ function App() {
     setLoading(false)
   }
 
-  async function saveProduct() {
-    if (!form.product_code.trim()) {
-      setMessage('商品コードは必須です。')
+  async function saveRow(product: Product) {
+    const draft = rowDrafts[product.product_code]
+
+    if (!draft) {
+      setMessage('保存対象が見つかりません。')
       return
     }
 
-    setLoading(true)
+    setSavingCode(product.product_code)
     setMessage('')
 
     const payload = {
-      product_code: form.product_code.trim(),
-      product_name: form.product_name.trim() || null,
-      floor: form.floor.trim() || null,
-
-      order_memo_1: form.order_memo_1.trim() || null,
-      rakumart_url_1: form.rakumart_url_1.trim() || null,
-      order_memo_2: form.order_memo_2.trim() || null,
-      rakumart_url_2: form.rakumart_url_2.trim() || null,
-      order_memo_3: form.order_memo_3.trim() || null,
-      rakumart_url_3: form.rakumart_url_3.trim() || null,
-      order_memo_4: form.order_memo_4.trim() || null,
-      rakumart_url_4: form.rakumart_url_4.trim() || null,
-      order_memo_5: form.order_memo_5.trim() || null,
-      rakumart_url_5: form.rakumart_url_5.trim() || null,
+      ...normalizeDraft(draft),
+      updated_at: new Date().toISOString(),
     }
 
-    const request = editingProduct
-      ? supabase
-          .from('products')
-          .update(payload)
-          .eq('product_code', editingProduct.product_code)
-      : supabase.from('products').insert(payload)
-
-    const { error } = await request
+    const { error } = await supabase
+      .from('products')
+      .update(payload)
+      .eq('product_code', product.product_code)
 
     if (error) {
       setMessage(`保存失敗: ${error.message}`)
     } else {
-      setMessage('保存しました。')
-      setEditingProduct(null)
-      setForm(emptyForm)
+      setMessage(`保存しました：${product.product_code}`)
       await fetchProducts()
     }
 
-    setLoading(false)
+    setSavingCode(null)
   }
 
   if (!user) {
@@ -661,7 +702,7 @@ function App() {
           ))}
         </select>
 
-        <button onClick={fetchProducts} disabled={loading}>
+        <button onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
           再読み込み
         </button>
 
@@ -670,7 +711,7 @@ function App() {
 
       {message && <p className="message">{message}</p>}
 
-      <section className="layout">
+      <section className="layout layout--full">
         <div className="table-card">
           <div className="table-header">
             <strong>商品一覧</strong>
@@ -678,7 +719,7 @@ function App() {
           </div>
 
           <div className="table-wrap">
-            <table>
+            <table className="products-table">
               <thead>
                 <tr>
                   <th>商品コード</th>
@@ -697,21 +738,22 @@ function App() {
                   <th>商品同期</th>
                   <th>発注同期</th>
                   <th>更新日</th>
-                  <th></th>
+                  <th>操作</th>
                 </tr>
               </thead>
 
               <tbody>
                 {filteredProducts.map((product) => {
-                  const isEditing =
-                    editingProduct?.product_code === product.product_code
+                  const draft = rowDrafts[product.product_code] ?? productToDraft(product)
+                  const dirty = isDraftDirty(product, draft)
+                  const isSaving = savingCode === product.product_code
 
                   return (
                     <tr
                       key={product.product_code}
-                      className={isEditing ? 'is-editing' : ''}
+                      className={dirty ? 'is-dirty' : ''}
                     >
-                      <td className="code">
+                      <td className="code sticky-code-cell">
                         <button
                           type="button"
                           className="code-copy"
@@ -721,41 +763,172 @@ function App() {
                           {product.product_code}
                         </button>
                       </td>
-                      <td>{product.product_name}</td>
-                      <td>{product.floor}</td>
 
-                      <td>{product.order_memo_1}</td>
                       <td>
-                        <RakumartButton url={product.rakumart_url_1} />
+                        <input
+                          className="table-input product-name-input"
+                          value={draft.product_name}
+                          onChange={(event) =>
+                            updateDraft(
+                              product.product_code,
+                              'product_name',
+                              event.target.value,
+                            )
+                          }
+                        />
                       </td>
 
-                      <td>{product.order_memo_2}</td>
                       <td>
-                        <RakumartButton url={product.rakumart_url_2} />
+                        <input
+                          className="table-input floor-input"
+                          value={draft.floor}
+                          onChange={(event) =>
+                            updateDraft(product.product_code, 'floor', event.target.value)
+                          }
+                        />
                       </td>
 
-                      <td>{product.order_memo_3}</td>
                       <td>
-                        <RakumartButton url={product.rakumart_url_3} />
+                        <input
+                          className="table-input order-input"
+                          value={draft.order_memo_1}
+                          onChange={(event) =>
+                            updateDraft(
+                              product.product_code,
+                              'order_memo_1',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="0513-100"
+                        />
                       </td>
 
-                      <td>{product.order_memo_4}</td>
                       <td>
-                        <RakumartButton url={product.rakumart_url_4} />
+                        <UrlEditCell
+                          value={draft.rakumart_url_1}
+                          onChange={(value) =>
+                            updateDraft(product.product_code, 'rakumart_url_1', value)
+                          }
+                        />
                       </td>
 
-                      <td>{product.order_memo_5}</td>
                       <td>
-                        <RakumartButton url={product.rakumart_url_5} />
+                        <input
+                          className="table-input order-input"
+                          value={draft.order_memo_2}
+                          onChange={(event) =>
+                            updateDraft(
+                              product.product_code,
+                              'order_memo_2',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="0513-100"
+                        />
+                      </td>
+
+                      <td>
+                        <UrlEditCell
+                          value={draft.rakumart_url_2}
+                          onChange={(value) =>
+                            updateDraft(product.product_code, 'rakumart_url_2', value)
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        <input
+                          className="table-input order-input"
+                          value={draft.order_memo_3}
+                          onChange={(event) =>
+                            updateDraft(
+                              product.product_code,
+                              'order_memo_3',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="0513-100"
+                        />
+                      </td>
+
+                      <td>
+                        <UrlEditCell
+                          value={draft.rakumart_url_3}
+                          onChange={(value) =>
+                            updateDraft(product.product_code, 'rakumart_url_3', value)
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        <input
+                          className="table-input order-input"
+                          value={draft.order_memo_4}
+                          onChange={(event) =>
+                            updateDraft(
+                              product.product_code,
+                              'order_memo_4',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="0513-100"
+                        />
+                      </td>
+
+                      <td>
+                        <UrlEditCell
+                          value={draft.rakumart_url_4}
+                          onChange={(value) =>
+                            updateDraft(product.product_code, 'rakumart_url_4', value)
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        <input
+                          className="table-input order-input"
+                          value={draft.order_memo_5}
+                          onChange={(event) =>
+                            updateDraft(
+                              product.product_code,
+                              'order_memo_5',
+                              event.target.value,
+                            )
+                          }
+                          placeholder="0513-100"
+                        />
+                      </td>
+
+                      <td>
+                        <UrlEditCell
+                          value={draft.rakumart_url_5}
+                          onChange={(value) =>
+                            updateDraft(product.product_code, 'rakumart_url_5', value)
+                          }
+                        />
                       </td>
 
                       <td>{formatDateTime(product.product_info_synced_at)}</td>
                       <td>{formatDateTime(product.order_status_synced_at)}</td>
                       <td>{formatDateTime(product.updated_at)}</td>
                       <td>
-                        <button className="small" onClick={() => startEdit(product)}>
-                          編集
-                        </button>
+                        <div className="row-actions">
+                          <button
+                            className="small"
+                            onClick={() => saveRow(product)}
+                            disabled={!dirty || isSaving || Boolean(savingCode)}
+                          >
+                            {isSaving ? '保存中' : '保存'}
+                          </button>
+
+                          <button
+                            className="secondary small"
+                            onClick={() => resetRow(product)}
+                            disabled={!dirty || isSaving}
+                          >
+                            戻す
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -772,146 +945,6 @@ function App() {
             </table>
           </div>
         </div>
-
-        <aside className="edit-card">
-          {editingProduct ? (
-            <>
-              <div className="edit-card-head">
-                <h2>商品編集</h2>
-                <button className="secondary small" onClick={clearEditing}>
-                  解除
-                </button>
-              </div>
-
-              <label>
-                商品コード
-                <input
-                  value={form.product_code}
-                  onChange={(e) => updateForm('product_code', e.target.value)}
-                />
-              </label>
-
-              <label>
-                商品名
-                <input
-                  value={form.product_name}
-                  onChange={(e) => updateForm('product_name', e.target.value)}
-                />
-              </label>
-
-              <label>
-                階数
-                <input
-                  value={form.floor}
-                  onChange={(e) => updateForm('floor', e.target.value)}
-                  placeholder="3F など"
-                />
-              </label>
-
-              <div className="order-edit-grid">
-                <label>
-                  発注1
-                  <input
-                    value={form.order_memo_1}
-                    onChange={(e) => updateForm('order_memo_1', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL1
-                  <input
-                    value={form.rakumart_url_1}
-                    onChange={(e) => updateForm('rakumart_url_1', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注2
-                  <input
-                    value={form.order_memo_2}
-                    onChange={(e) => updateForm('order_memo_2', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL2
-                  <input
-                    value={form.rakumart_url_2}
-                    onChange={(e) => updateForm('rakumart_url_2', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注3
-                  <input
-                    value={form.order_memo_3}
-                    onChange={(e) => updateForm('order_memo_3', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL3
-                  <input
-                    value={form.rakumart_url_3}
-                    onChange={(e) => updateForm('rakumart_url_3', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注4
-                  <input
-                    value={form.order_memo_4}
-                    onChange={(e) => updateForm('order_memo_4', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL4
-                  <input
-                    value={form.rakumart_url_4}
-                    onChange={(e) => updateForm('rakumart_url_4', e.target.value)}
-                  />
-                </label>
-
-                <label>
-                  発注5
-                  <input
-                    value={form.order_memo_5}
-                    onChange={(e) => updateForm('order_memo_5', e.target.value)}
-                    placeholder="0513-100"
-                  />
-                </label>
-
-                <label>
-                  ラクマートURL5
-                  <input
-                    value={form.rakumart_url_5}
-                    onChange={(e) => updateForm('rakumart_url_5', e.target.value)}
-                  />
-                </label>
-              </div>
-
-              <div className="edit-actions">
-                <button onClick={saveProduct} disabled={loading}>
-                  {loading ? '保存中...' : '保存'}
-                </button>
-
-                <button className="secondary" onClick={clearEditing}>
-                  クリア
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="edit-placeholder">
-              <h2>商品編集</h2>
-              <p>一覧の「編集」を押すと、ここで商品情報を編集できます。</p>
-            </div>
-          )}
-        </aside>
       </section>
 
       {isCreateModalOpen && (
