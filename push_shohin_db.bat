@@ -3,9 +3,10 @@ setlocal EnableExtensions
 
 set "PROJECT_DIR=C:\dev\web\projects\shohin_db"
 
+
 echo.
 echo ========================================
-echo  shohin_db build + git push
+echo  shohin_db build + git pull/rebase + push
 echo ========================================
 echo.
 
@@ -42,7 +43,7 @@ set /p "MSG=Commit message (blank = Update shohin_db): "
 if "%MSG%"=="" set "MSG=Update shohin_db"
 
 echo.
-echo [1/5] npm run build
+echo [1/7] npm run build
 call npm run build
 if errorlevel 1 (
   echo.
@@ -53,11 +54,11 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/5] git status
+echo [2/7] git status
 git status
 
 echo.
-echo [3/5] git add -A
+echo [3/7] git add -A
 git add -A
 if errorlevel 1 (
   echo.
@@ -68,7 +69,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/5] git commit
+echo [4/7] git commit
 git diff --cached --quiet
 if errorlevel 1 (
   git commit -m "%MSG%"
@@ -84,15 +85,36 @@ if errorlevel 1 (
 )
 
 echo.
-echo [5/5] git push origin main
-git push origin main
+echo [5/7] git pull --rebase origin main
+git pull --rebase origin main
 if errorlevel 1 (
   echo.
-  echo ERROR: git push failed.
+  echo ERROR: git pull --rebase failed.
+  echo Remote main has changes that could not be merged automatically.
+  echo Please copy this screen and ask ChatGPT what to fix.
+  echo.
+  echo To cancel the rebase manually, run:
+  echo git rebase --abort
   echo.
   pause
   exit /b 1
 )
+
+echo.
+echo [6/7] git push origin main
+git push origin main
+if errorlevel 1 (
+  echo.
+  echo ERROR: git push failed.
+  echo Please copy this screen and ask ChatGPT what to fix.
+  echo.
+  pause
+  exit /b 1
+)
+
+echo.
+echo [7/7] git status
+git status
 
 echo.
 echo Done.

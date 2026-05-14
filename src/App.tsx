@@ -921,7 +921,7 @@ function App() {
     return (
       <main className="login-page">
         <section className="login-card login-card--simple">
-          <img src="/login-logo.png" alt="商品DB" className="login-logo" />
+          <img src={`${import.meta.env.BASE_URL}login-logo.png`} alt="Shohin DB" className="login-logo" />
 
           <div className="form-stack login-form-stack">
             <label>
