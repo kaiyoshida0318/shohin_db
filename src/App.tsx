@@ -1055,18 +1055,18 @@ function App() {
                       <th>棚番号-位置</th>
                       <th>棚番号-段</th>
                       <th>シールカラー</th>
-                      <th>発注1</th>
-                      <th>ラクマート1</th>
-                      <th>発注2</th>
-                      <th>ラクマート2</th>
-                      <th>発注3</th>
-                      <th>ラクマート3</th>
-                      <th>発注4</th>
-                      <th>ラクマート4</th>
-                      <th>発注5</th>
-                      <th>ラクマート5</th>
+                      <th>オーダー1</th>
+                      <th>RM1</th>
+                      <th>オーダー2</th>
+                      <th>RM2</th>
+                      <th>オーダー3</th>
+                      <th>RM3</th>
+                      <th>オーダー4</th>
+                      <th>RM4</th>
+                      <th>オーダー5</th>
+                      <th>RM5</th>
                       <th>商品同期</th>
-                      <th>発注同期</th>
+                      <th>オーダー同期</th>
                       <th>更新日</th>
                     </>
                   )}
@@ -1108,8 +1108,8 @@ function App() {
                       <th>シールカラー</th>
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
-                      <th>発注1</th>
-                      <th>ラクマート1</th>
+                      <th>オーダー1</th>
+                      <th>RM1</th>
                       <th>更新日</th>
                     </>
                   )}
