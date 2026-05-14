@@ -1,4 +1,4 @@
-import { type ClipboardEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -105,6 +105,68 @@ const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
   (column) => column.key,
 )
 
+
+type CsvImportResult = {
+  rows: CleanBulkProductRow[]
+  fields: BulkFieldKey[]
+}
+
+const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
+  product_code: [
+    '商品コード',
+    '商品番号',
+    '商品管理番号',
+    'SKUコード',
+    'product_code',
+    'productCode',
+    'code',
+    'sku',
+  ],
+  product_name: [
+    '商品名',
+    'product_name',
+    'productName',
+    'shipping_name',
+    'shippingName',
+    'name',
+  ],
+  floor: ['階数', 'フロア', 'floor'],
+  rack_number: [
+    '棚番号-位置',
+    '棚番号位置',
+    '棚番号',
+    'ラック番号',
+    'rack_number',
+    'rackNumber',
+    'rack',
+    'location',
+  ],
+  rack_level: [
+    '棚番号-段',
+    '棚番号段',
+    '段',
+    'ラック段',
+    'rack_level',
+    'rackLevel',
+    'level',
+  ],
+  sticker_color: [
+    'シールカラー',
+    'シール色',
+    'sticker_color',
+    'stickerColor',
+    'color',
+  ],
+  special_notes: ['特記事項', '注意事項', 'special_notes', 'specialNotes', 'notes', 'note'],
+  picking_advice: [
+    'ピック時アドバイス',
+    'ピックアドバイス',
+    'picking_advice',
+    'pickingAdvice',
+    'advice',
+  ],
+}
+
 type BulkSummary = {
   filledCount: number
   uniqueRows: CleanBulkProductRow[]
@@ -142,6 +204,167 @@ function splitBulkLine(line: string) {
   return cells.map((cell) => cell.trim())
 }
 
+function normalizeCsvHeader(value: string) {
+  return value
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_＿\-－ー]/g, '')
+}
+
+function getCsvColumnIndex(headers: string[], key: BulkFieldKey | 'product_code') {
+  const normalizedAliases = CSV_HEADER_ALIASES[key].map(normalizeCsvHeader)
+
+  return headers.findIndex((header) =>
+    normalizedAliases.includes(normalizeCsvHeader(header)),
+  )
+}
+
+function parseDelimitedRows(text: string, delimiter: ',' | '\t' = ',') {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let inQuotes = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    const nextChar = text[index + 1]
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        cell += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (char === delimiter && !inQuotes) {
+      row.push(cell.trim())
+      cell = ''
+      continue
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        index += 1
+      }
+
+      row.push(cell.trim())
+      if (row.some((value) => value)) {
+        rows.push(row)
+      }
+      row = []
+      cell = ''
+      continue
+    }
+
+    cell += char
+  }
+
+  row.push(cell.trim())
+  if (row.some((value) => value)) {
+    rows.push(row)
+  }
+
+  return rows
+}
+
+function parseCsvRows(text: string) {
+  const firstLine = text.split(/\r?\n/, 1)[0] ?? ''
+  const delimiter =
+    firstLine.split('\t').length > firstLine.split(',').length ? '\t' : ','
+
+  return parseDelimitedRows(text, delimiter)
+}
+
+function parseCsvImport(text: string): CsvImportResult {
+  const rows = parseCsvRows(text)
+
+  if (rows.length < 2) {
+    throw new Error('CSVに取り込めるデータ行がありません。')
+  }
+
+  const headers = rows[0]
+  const productCodeIndex = getCsvColumnIndex(headers, 'product_code')
+
+  if (productCodeIndex < 0) {
+    throw new Error('CSVの1行目に「商品コード」列が必要です。')
+  }
+
+  const fieldIndexes = BULK_FIELD_COLUMNS.map((column) => ({
+    key: column.key,
+    index: getCsvColumnIndex(headers, column.key),
+  })).filter((column): column is { key: BulkFieldKey; index: number } => column.index >= 0)
+
+  if (fieldIndexes.length === 0) {
+    throw new Error('CSVの1行目に追加/更新対象の列名がありません。')
+  }
+
+  const importedRows = rows
+    .slice(1)
+    .map((cells) => {
+      const row: CleanBulkProductRow = {
+        product_code: cells[productCodeIndex]?.trim() ?? '',
+        product_name: '',
+        floor: '',
+        rack_number: '',
+        rack_level: '',
+        sticker_color: '',
+        special_notes: '',
+        picking_advice: '',
+      }
+
+      fieldIndexes.forEach(({ key, index }) => {
+        row[key] = cells[index]?.trim() ?? ''
+      })
+
+      return row
+    })
+    .filter((row) => row.product_code)
+
+  if (importedRows.length === 0) {
+    throw new Error('商品コードが入っている行がありません。')
+  }
+
+  return {
+    rows: importedRows,
+    fields: fieldIndexes.map((field) => field.key),
+  }
+}
+
+function cleanRowToBulkRow(row: CleanBulkProductRow): BulkProductRow {
+  return {
+    id:
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`,
+    ...row,
+  }
+}
+
+function decodeCsvBuffer(buffer: ArrayBuffer) {
+  const utf8Text = new TextDecoder('utf-8').decode(buffer)
+
+  try {
+    const shiftJisText = new TextDecoder('shift_jis').decode(buffer)
+    const utf8ReplacementCount = (utf8Text.match(/�/g) ?? []).length
+    const shiftJisReplacementCount = (shiftJisText.match(/�/g) ?? []).length
+
+    if (
+      utf8ReplacementCount > shiftJisReplacementCount ||
+      (!utf8Text.includes('商品コード') && shiftJisText.includes('商品コード'))
+    ) {
+      return shiftJisText
+    }
+  } catch {
+    // ブラウザがshift_jisのTextDecoderに未対応の場合はUTF-8として扱う
+  }
+
+  return utf8Text
+}
+
 function parseClipboardRows(
   text: string,
   selectedFields: BulkFieldKey[],
@@ -154,11 +377,13 @@ function parseClipboardRows(
   return lines
     .map((line, index) => {
       const cells = splitBulkLine(line)
-      const firstCell = (cells[0] ?? '').toLowerCase()
+      const firstCell = normalizeCsvHeader(cells[0] ?? '')
 
       if (
         index === 0 &&
-        ['product_code', '商品コード', '商品番号', 'code'].includes(firstCell)
+        CSV_HEADER_ALIASES.product_code
+          .map(normalizeCsvHeader)
+          .includes(firstCell)
       ) {
         return null
       }
@@ -424,9 +649,6 @@ function App() {
     )
   }, [selectedBulkFields])
 
-  const bulkSelectedColumnText = selectedBulkColumns
-    .map((column) => column.label)
-    .join('・')
 
   const bulkInsertableCount = bulkSummary.insertRows.length
   const bulkUpdateableCount = bulkSummary.updateRows.length
@@ -630,6 +852,38 @@ function App() {
       return next
     })
   }
+
+  async function handleBulkCsvImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+
+    if (!file) {
+      return
+    }
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const text = decodeCsvBuffer(buffer)
+      const result = parseCsvImport(text)
+      const blankRows = createBulkRows(3)
+
+      setSelectedBulkFields(result.fields)
+      setBulkRows([...result.rows.map(cleanRowToBulkRow), ...blankRows])
+      setModalMessage(
+        `${file.name} を読み込みました。対象列：${result.fields
+          .map((key) => BULK_FIELD_COLUMNS.find((column) => column.key === key)?.label)
+          .filter(Boolean)
+          .join('・')}`,
+      )
+    } catch (error) {
+      setModalMessage(
+        error instanceof Error
+          ? `CSV読み込み失敗: ${error.message}`
+          : 'CSV読み込みに失敗しました。',
+      )
+    }
+  }
+
 
   function startEdit(product: Product) {
     setEditingCode(product.product_code)
@@ -1181,14 +1435,6 @@ function App() {
             </div>
 
             <div className="modal-body">
-              <div className="bulk-guide">
-                <strong>1商品1行で入力</strong>
-                <p>
-                  商品コード{bulkSelectedColumnText ? `・${bulkSelectedColumnText}` : ''}の順で入力できます。
-                  Excelから複数行コピーして、1行目の商品コード欄に貼り付けても自動展開されます。
-                </p>
-              </div>
-
               <div className="bulk-field-selector">
                 <div className="bulk-field-selector-head">
                   <strong>追加/更新の対象列</strong>
@@ -1219,6 +1465,22 @@ function App() {
                     )
                   })}
                 </div>
+              </div>
+
+              <div className="bulk-csv-import">
+                <div>
+                  <strong>CSV読み込み</strong>
+                  <span>1行目の列名で取り込みます。</span>
+                </div>
+
+                <label className="csv-upload-button">
+                  CSVを選択
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    onChange={handleBulkCsvImport}
+                  />
+                </label>
               </div>
 
               <label className="bulk-update-option">

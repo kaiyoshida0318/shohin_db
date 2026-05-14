@@ -891,3 +891,53 @@ tr:hover td:last-child {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.bulk-csv-import {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+
+.bulk-csv-import > div {
+  display: grid;
+  gap: 3px;
+}
+
+.bulk-csv-import strong {
+  color: #263347;
+}
+
+.bulk-csv-import span {
+  color: #66758a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.csv-upload-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 14px;
+  border: 1px solid #2563eb;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+}
+
+.csv-upload-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
