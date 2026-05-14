@@ -288,7 +288,7 @@ table {
 }
 
 .products-table--all {
-  min-width: 2550px;
+  min-width: 2050px;
 }
 
 .products-table--pick {
@@ -296,11 +296,11 @@ table {
 }
 
 .products-table--order {
-  min-width: 1720px;
+  min-width: 1180px;
 }
 
 .products-table--custom {
-  min-width: 1800px;
+  min-width: 1550px;
 }
 
 th,
@@ -408,6 +408,25 @@ th:first-child {
   text-decoration: none;
 }
 
+.order-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.order-link:hover {
+  background: #dbeafe;
+  text-decoration: none;
+}
+
 .empty-url {
   color: #b7c0ce;
 }
@@ -481,6 +500,27 @@ th:first-child {
   width: 100px;
   min-width: 100px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.order-edit-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 340px;
+}
+
+.order-rm-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.order-rm-edit-row > span {
+  width: 28px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .url-edit-cell {

@@ -277,16 +277,6 @@ function isDraftDirty(product: Product, draft: EditableProduct) {
   )
 }
 
-function RakumartButton({ url }: { url: string | null }) {
-  if (!url) return <span className="empty-url">-</span>
-
-  return (
-    <a className="url-button" href={url} target="_blank" rel="noreferrer">
-      開く
-    </a>
-  )
-}
-
 function UrlEditCell({
   value,
   onChange,
@@ -802,19 +792,53 @@ function App() {
     return <DisplayText value={product[key] ?? null} className={options.className} />
   }
 
-  function renderUrlCell(product: Product, draft: EditableProduct, key: EditableProductKey) {
+  function renderOrderMemoCell(
+    product: Product,
+    draft: EditableProduct,
+    orderKey: EditableProductKey,
+    urlKey: EditableProductKey,
+  ) {
     const isEditing = editingCode === product.product_code
 
     if (isEditing) {
       return (
-        <UrlEditCell
-          value={draft[key]}
-          onChange={(value) => updateDraft(product.product_code, key, value)}
-        />
+        <div className="order-edit-stack">
+          <input
+            className="table-input order-input"
+            value={draft[orderKey]}
+            onChange={(event) =>
+              updateDraft(product.product_code, orderKey, event.target.value)
+            }
+            placeholder="0513-100"
+          />
+
+          <div className="order-rm-edit-row">
+            <span>RM</span>
+            <UrlEditCell
+              value={draft[urlKey]}
+              onChange={(value) => updateDraft(product.product_code, urlKey, value)}
+            />
+          </div>
+        </div>
       )
     }
 
-    return <RakumartButton url={product[key] ?? null} />
+    const orderValue = String(product[orderKey] ?? '').trim()
+    const url = String(product[urlKey] ?? '').trim()
+
+    if (!orderValue) {
+      return <DisplayText value={null} className="mono-text" />
+    }
+
+    if (!url) {
+      return <DisplayText value={orderValue} className="mono-text" />
+    }
+
+    return (
+      <a className="order-link mono-text" href={url} target="_blank" rel="noreferrer" title="RMを開く">
+        {orderValue}
+      </a>
+    )
   }
 
   function renderActions(product: Product, draft: EditableProduct) {
@@ -866,16 +890,11 @@ function App() {
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_2', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_2')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_3', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_3')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_4', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_4')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_5', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_5')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_3', 'rakumart_url_3')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_4', 'rakumart_url_4')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_5', 'rakumart_url_5')}</td>
         <td>{formatDateTime(product.product_info_synced_at)}</td>
         <td>{formatDateTime(product.order_status_synced_at)}</td>
         <td>{formatDateTime(product.updated_at)}</td>
@@ -901,16 +920,11 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_2', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_2')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_3', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_3')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_4', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_4')}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_5', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_5')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_3', 'rakumart_url_3')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_4', 'rakumart_url_4')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_5', 'rakumart_url_5')}</td>
       </>
     )
   }
@@ -925,14 +939,13 @@ function App() {
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
-        <td>{renderTextCell(product, draft, 'order_memo_1', { className: 'mono-text', inputClassName: 'order-input', placeholder: '0513-100' })}</td>
-        <td>{renderUrlCell(product, draft, 'rakumart_url_1')}</td>
+        <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
         <td>{formatDateTime(product.updated_at)}</td>
       </>
     )
   }
 
-  const tableColSpan = tableView === 'all' ? 22 : tableView === 'pick' ? 9 : tableView === 'order' ? 13 : 12
+  const tableColSpan = tableView === 'all' ? 17 : tableView === 'pick' ? 9 : tableView === 'order' ? 8 : 11
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -1056,15 +1069,10 @@ function App() {
                       <th>棚番号-段</th>
                       <th>シールカラー</th>
                       <th>オーダー1</th>
-                      <th>RM1</th>
                       <th>オーダー2</th>
-                      <th>RM2</th>
                       <th>オーダー3</th>
-                      <th>RM3</th>
                       <th>オーダー4</th>
-                      <th>RM4</th>
                       <th>オーダー5</th>
-                      <th>RM5</th>
                       <th>商品同期</th>
                       <th>オーダー同期</th>
                       <th>更新日</th>
@@ -1087,15 +1095,10 @@ function App() {
                     <>
                       <th>商品名</th>
                       <th>オーダー1</th>
-                      <th>RM1</th>
                       <th>オーダー2</th>
-                      <th>RM2</th>
                       <th>オーダー3</th>
-                      <th>RM3</th>
                       <th>オーダー4</th>
-                      <th>RM4</th>
                       <th>オーダー5</th>
-                      <th>RM5</th>
                     </>
                   )}
 
@@ -1109,7 +1112,6 @@ function App() {
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
                       <th>オーダー1</th>
-                      <th>RM1</th>
                       <th>更新日</th>
                     </>
                   )}
