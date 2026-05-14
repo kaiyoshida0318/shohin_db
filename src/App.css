@@ -105,6 +105,24 @@ label {
   box-shadow: 0 24px 80px rgba(24, 39, 75, 0.12);
 }
 
+.login-card--simple {
+  width: min(480px, 100%);
+  grid-template-columns: 1fr;
+  gap: 24px;
+  padding: 28px;
+  background: #fff;
+}
+
+.login-logo {
+  display: block;
+  width: min(100%, 420px);
+  margin: 0 auto;
+}
+
+.login-form-stack {
+  gap: 14px;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #2563eb;

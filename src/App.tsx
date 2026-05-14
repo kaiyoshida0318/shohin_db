@@ -920,16 +920,10 @@ function App() {
   if (!user) {
     return (
       <main className="login-page">
-        <section className="login-card">
-          <div>
-            <p className="eyebrow">shohin_db</p>
-            <h1>商品DB管理</h1>
-            <p className="description">
-              社内の商品データベースを検索・確認・編集する管理画面です。
-            </p>
-          </div>
+        <section className="login-card login-card--simple">
+          <img src="/login-logo.png" alt="商品DB" className="login-logo" />
 
-          <div className="form-stack">
+          <div className="form-stack login-form-stack">
             <label>
               メールアドレス
               <input
