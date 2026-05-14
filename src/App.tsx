@@ -909,7 +909,6 @@ function App() {
             <div className="edit-placeholder">
               <h2>商品編集</h2>
               <p>一覧の「編集」を押すと、ここで商品情報を編集できます。</p>
-              <button onClick={() => openCreateModal('single')}>新規追加</button>
             </div>
           )}
         </aside>
