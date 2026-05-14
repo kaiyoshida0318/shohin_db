@@ -222,6 +222,16 @@ function isDraftDirty(product: Product, draft: EditableProduct) {
   )
 }
 
+function RakumartButton({ url }: { url: string | null }) {
+  if (!url) return <span className="empty-url">-</span>
+
+  return (
+    <a className="url-button" href={url} target="_blank" rel="noreferrer">
+      開く
+    </a>
+  )
+}
+
 function UrlEditCell({
   value,
   onChange,
@@ -249,6 +259,10 @@ function UrlEditCell({
   )
 }
 
+function DisplayText({ value, className = '' }: { value: string | null; className?: string }) {
+  return <span className={`cell-text ${className}`}>{value || '-'}</span>
+}
+
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [email, setEmail] = useState('')
@@ -256,6 +270,7 @@ function App() {
 
   const [products, setProducts] = useState<Product[]>([])
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
+  const [editingCode, setEditingCode] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const [floorFilter, setFloorFilter] = useState('')
 
@@ -292,14 +307,19 @@ function App() {
   }, [user])
 
   useEffect(() => {
-    const nextDrafts: Record<string, EditableProduct> = {}
+    setRowDrafts((prev) => {
+      const nextDrafts: Record<string, EditableProduct> = {}
 
-    products.forEach((product) => {
-      nextDrafts[product.product_code] = productToDraft(product)
+      products.forEach((product) => {
+        nextDrafts[product.product_code] =
+          editingCode === product.product_code && prev[product.product_code]
+            ? prev[product.product_code]
+            : productToDraft(product)
+      })
+
+      return nextDrafts
     })
-
-    setRowDrafts(nextDrafts)
-  }, [products])
+  }, [products, editingCode])
 
   const existingProductCodes = useMemo(() => {
     return new Set(products.map((product) => product.product_code))
@@ -328,7 +348,10 @@ function App() {
     const q = keyword.trim().toLowerCase()
 
     return products.filter((product) => {
-      const draft = rowDrafts[product.product_code] ?? productToDraft(product)
+      const draft =
+        editingCode === product.product_code
+          ? rowDrafts[product.product_code] ?? productToDraft(product)
+          : productToDraft(product)
 
       const matchesKeyword =
         !q ||
@@ -354,7 +377,7 @@ function App() {
 
       return matchesKeyword && matchesFloor
     })
-  }, [products, rowDrafts, keyword, floorFilter])
+  }, [products, rowDrafts, editingCode, keyword, floorFilter])
 
   async function login() {
     setLoading(true)
@@ -376,6 +399,7 @@ function App() {
     await supabase.auth.signOut()
     setProducts([])
     setRowDrafts({})
+    setEditingCode(null)
     setUser(null)
   }
 
@@ -502,26 +526,42 @@ function App() {
     })
   }
 
+  function startEdit(product: Product) {
+    setEditingCode(product.product_code)
+    setRowDrafts((prev) => ({
+      ...prev,
+      [product.product_code]: productToDraft(product),
+    }))
+    setMessage('')
+  }
+
   function updateDraft(
     productCode: string,
     key: EditableProductKey,
     value: string,
   ) {
+    const product = products.find((item) => item.product_code === productCode)
+
+    if (!product) {
+      return
+    }
+
     setRowDrafts((prev) => ({
       ...prev,
       [productCode]: {
-        ...prev[productCode],
+        ...(prev[productCode] ?? productToDraft(product)),
         [key]: value,
       },
     }))
   }
 
-  function resetRow(product: Product) {
+  function cancelEdit(product: Product) {
     setRowDrafts((prev) => ({
       ...prev,
       [product.product_code]: productToDraft(product),
     }))
-    setMessage(`変更を戻しました：${product.product_code}`)
+    setEditingCode(null)
+    setMessage(`編集をキャンセルしました：${product.product_code}`)
   }
 
   async function createSingleProduct() {
@@ -621,6 +661,7 @@ function App() {
       setMessage(`保存失敗: ${error.message}`)
     } else {
       setMessage(`保存しました：${product.product_code}`)
+      setEditingCode(null)
       await fetchProducts()
     }
 
@@ -745,13 +786,15 @@ function App() {
               <tbody>
                 {filteredProducts.map((product) => {
                   const draft = rowDrafts[product.product_code] ?? productToDraft(product)
-                  const dirty = isDraftDirty(product, draft)
+                  const isEditing = editingCode === product.product_code
+                  const dirty = isEditing && isDraftDirty(product, draft)
                   const isSaving = savingCode === product.product_code
+                  const editLocked = Boolean(editingCode) && !isEditing
 
                   return (
                     <tr
                       key={product.product_code}
-                      className={dirty ? 'is-dirty' : ''}
+                      className={`${isEditing ? 'is-editing' : ''} ${dirty ? 'is-dirty' : ''}`}
                     >
                       <td className="code sticky-code-cell">
                         <button
@@ -765,170 +808,228 @@ function App() {
                       </td>
 
                       <td>
-                        <input
-                          className="table-input product-name-input"
-                          value={draft.product_name}
-                          onChange={(event) =>
-                            updateDraft(
-                              product.product_code,
-                              'product_name',
-                              event.target.value,
-                            )
-                          }
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input product-name-input"
+                            value={draft.product_name}
+                            onChange={(event) =>
+                              updateDraft(
+                                product.product_code,
+                                'product_name',
+                                event.target.value,
+                              )
+                            }
+                          />
+                        ) : (
+                          <DisplayText value={product.product_name} className="product-name-text" />
+                        )}
                       </td>
 
                       <td>
-                        <input
-                          className="table-input floor-input"
-                          value={draft.floor}
-                          onChange={(event) =>
-                            updateDraft(product.product_code, 'floor', event.target.value)
-                          }
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input floor-input"
+                            value={draft.floor}
+                            onChange={(event) =>
+                              updateDraft(product.product_code, 'floor', event.target.value)
+                            }
+                          />
+                        ) : (
+                          <DisplayText value={product.floor} />
+                        )}
                       </td>
 
                       <td>
-                        <input
-                          className="table-input order-input"
-                          value={draft.order_memo_1}
-                          onChange={(event) =>
-                            updateDraft(
-                              product.product_code,
-                              'order_memo_1',
-                              event.target.value,
-                            )
-                          }
-                          placeholder="0513-100"
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input order-input"
+                            value={draft.order_memo_1}
+                            onChange={(event) =>
+                              updateDraft(
+                                product.product_code,
+                                'order_memo_1',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="0513-100"
+                          />
+                        ) : (
+                          <DisplayText value={product.order_memo_1} className="mono-text" />
+                        )}
                       </td>
 
                       <td>
-                        <UrlEditCell
-                          value={draft.rakumart_url_1}
-                          onChange={(value) =>
-                            updateDraft(product.product_code, 'rakumart_url_1', value)
-                          }
-                        />
+                        {isEditing ? (
+                          <UrlEditCell
+                            value={draft.rakumart_url_1}
+                            onChange={(value) =>
+                              updateDraft(product.product_code, 'rakumart_url_1', value)
+                            }
+                          />
+                        ) : (
+                          <RakumartButton url={product.rakumart_url_1} />
+                        )}
                       </td>
 
                       <td>
-                        <input
-                          className="table-input order-input"
-                          value={draft.order_memo_2}
-                          onChange={(event) =>
-                            updateDraft(
-                              product.product_code,
-                              'order_memo_2',
-                              event.target.value,
-                            )
-                          }
-                          placeholder="0513-100"
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input order-input"
+                            value={draft.order_memo_2}
+                            onChange={(event) =>
+                              updateDraft(
+                                product.product_code,
+                                'order_memo_2',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="0513-100"
+                          />
+                        ) : (
+                          <DisplayText value={product.order_memo_2} className="mono-text" />
+                        )}
                       </td>
 
                       <td>
-                        <UrlEditCell
-                          value={draft.rakumart_url_2}
-                          onChange={(value) =>
-                            updateDraft(product.product_code, 'rakumart_url_2', value)
-                          }
-                        />
+                        {isEditing ? (
+                          <UrlEditCell
+                            value={draft.rakumart_url_2}
+                            onChange={(value) =>
+                              updateDraft(product.product_code, 'rakumart_url_2', value)
+                            }
+                          />
+                        ) : (
+                          <RakumartButton url={product.rakumart_url_2} />
+                        )}
                       </td>
 
                       <td>
-                        <input
-                          className="table-input order-input"
-                          value={draft.order_memo_3}
-                          onChange={(event) =>
-                            updateDraft(
-                              product.product_code,
-                              'order_memo_3',
-                              event.target.value,
-                            )
-                          }
-                          placeholder="0513-100"
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input order-input"
+                            value={draft.order_memo_3}
+                            onChange={(event) =>
+                              updateDraft(
+                                product.product_code,
+                                'order_memo_3',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="0513-100"
+                          />
+                        ) : (
+                          <DisplayText value={product.order_memo_3} className="mono-text" />
+                        )}
                       </td>
 
                       <td>
-                        <UrlEditCell
-                          value={draft.rakumart_url_3}
-                          onChange={(value) =>
-                            updateDraft(product.product_code, 'rakumart_url_3', value)
-                          }
-                        />
+                        {isEditing ? (
+                          <UrlEditCell
+                            value={draft.rakumart_url_3}
+                            onChange={(value) =>
+                              updateDraft(product.product_code, 'rakumart_url_3', value)
+                            }
+                          />
+                        ) : (
+                          <RakumartButton url={product.rakumart_url_3} />
+                        )}
                       </td>
 
                       <td>
-                        <input
-                          className="table-input order-input"
-                          value={draft.order_memo_4}
-                          onChange={(event) =>
-                            updateDraft(
-                              product.product_code,
-                              'order_memo_4',
-                              event.target.value,
-                            )
-                          }
-                          placeholder="0513-100"
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input order-input"
+                            value={draft.order_memo_4}
+                            onChange={(event) =>
+                              updateDraft(
+                                product.product_code,
+                                'order_memo_4',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="0513-100"
+                          />
+                        ) : (
+                          <DisplayText value={product.order_memo_4} className="mono-text" />
+                        )}
                       </td>
 
                       <td>
-                        <UrlEditCell
-                          value={draft.rakumart_url_4}
-                          onChange={(value) =>
-                            updateDraft(product.product_code, 'rakumart_url_4', value)
-                          }
-                        />
+                        {isEditing ? (
+                          <UrlEditCell
+                            value={draft.rakumart_url_4}
+                            onChange={(value) =>
+                              updateDraft(product.product_code, 'rakumart_url_4', value)
+                            }
+                          />
+                        ) : (
+                          <RakumartButton url={product.rakumart_url_4} />
+                        )}
                       </td>
 
                       <td>
-                        <input
-                          className="table-input order-input"
-                          value={draft.order_memo_5}
-                          onChange={(event) =>
-                            updateDraft(
-                              product.product_code,
-                              'order_memo_5',
-                              event.target.value,
-                            )
-                          }
-                          placeholder="0513-100"
-                        />
+                        {isEditing ? (
+                          <input
+                            className="table-input order-input"
+                            value={draft.order_memo_5}
+                            onChange={(event) =>
+                              updateDraft(
+                                product.product_code,
+                                'order_memo_5',
+                                event.target.value,
+                              )
+                            }
+                            placeholder="0513-100"
+                          />
+                        ) : (
+                          <DisplayText value={product.order_memo_5} className="mono-text" />
+                        )}
                       </td>
 
                       <td>
-                        <UrlEditCell
-                          value={draft.rakumart_url_5}
-                          onChange={(value) =>
-                            updateDraft(product.product_code, 'rakumart_url_5', value)
-                          }
-                        />
+                        {isEditing ? (
+                          <UrlEditCell
+                            value={draft.rakumart_url_5}
+                            onChange={(value) =>
+                              updateDraft(product.product_code, 'rakumart_url_5', value)
+                            }
+                          />
+                        ) : (
+                          <RakumartButton url={product.rakumart_url_5} />
+                        )}
                       </td>
 
                       <td>{formatDateTime(product.product_info_synced_at)}</td>
                       <td>{formatDateTime(product.order_status_synced_at)}</td>
                       <td>{formatDateTime(product.updated_at)}</td>
                       <td>
-                        <div className="row-actions">
+                        {isEditing ? (
+                          <div className="row-actions">
+                            <button
+                              className="small"
+                              onClick={() => saveRow(product)}
+                              disabled={!dirty || isSaving || Boolean(savingCode)}
+                            >
+                              {isSaving ? '保存中' : '保存'}
+                            </button>
+
+                            <button
+                              className="secondary small"
+                              onClick={() => cancelEdit(product)}
+                              disabled={isSaving}
+                            >
+                              キャンセル
+                            </button>
+                          </div>
+                        ) : (
                           <button
                             className="small"
-                            onClick={() => saveRow(product)}
-                            disabled={!dirty || isSaving || Boolean(savingCode)}
+                            onClick={() => startEdit(product)}
+                            disabled={editLocked || Boolean(savingCode)}
                           >
-                            {isSaving ? '保存中' : '保存'}
+                            編集
                           </button>
-
-                          <button
-                            className="secondary small"
-                            onClick={() => resetRow(product)}
-                            disabled={!dirty || isSaving}
-                          >
-                            戻す
-                          </button>
-                        </div>
+                        )}
                       </td>
                     </tr>
                   )

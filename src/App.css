@@ -560,3 +560,59 @@ tr.is-dirty td:first-child {
   font-size: 12px;
   font-weight: 800;
 }
+
+.cell-text {
+  display: inline-block;
+  max-width: 320px;
+  overflow: hidden;
+  color: #263347;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.product-name-text {
+  min-width: 220px;
+  max-width: 360px;
+}
+
+.mono-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+}
+
+tr.is-editing td {
+  background: #eff6ff !important;
+}
+
+tr.is-editing td:first-child {
+  box-shadow: inset 4px 0 0 #2563eb;
+}
+
+tr.is-editing .sticky-code-cell {
+  background: #eff6ff !important;
+}
+
+tr.is-editing.is-dirty td {
+  background: #fff7ed !important;
+}
+
+tr.is-editing.is-dirty .sticky-code-cell {
+  background: #fff7ed !important;
+}
+
+.products-table td:last-child,
+.products-table th:last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: #fff;
+}
+
+.products-table th:last-child {
+  z-index: 3;
+  background: #f8fafc;
+}
+
+tr:hover .products-table td:last-child {
+  background: #f8fbff;
+}
