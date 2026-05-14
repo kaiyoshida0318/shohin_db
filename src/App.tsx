@@ -45,7 +45,27 @@ const emptyForm = {
   rakumart_url_5: '',
 }
 
+const emptyCreateForm = {
+  product_code: '',
+  product_name: '',
+  floor: '',
+}
+
 type ProductForm = typeof emptyForm
+type CreateForm = typeof emptyCreateForm
+type CreateTab = 'single' | 'bulk'
+
+type BulkProductRow = {
+  product_code: string
+  product_name: string
+  floor: string
+}
+
+type BulkParseResult = {
+  rows: BulkProductRow[]
+  invalidLines: number[]
+  duplicateCodes: string[]
+}
 
 function formatDateTime(value: string | null) {
   if (!value) return ''
@@ -69,6 +89,65 @@ function RakumartButton({ url }: { url: string | null }) {
   )
 }
 
+function splitBulkLine(line: string) {
+  const cells = line.includes('\t') ? line.split('\t') : line.split(',')
+  return cells.map((cell) => cell.trim())
+}
+
+function parseBulkProducts(text: string): BulkParseResult {
+  const rows: BulkProductRow[] = []
+  const invalidLines: number[] = []
+  const duplicateCodeSet = new Set<string>()
+  const seenCodeSet = new Set<string>()
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1
+    const cells = splitBulkLine(line)
+
+    const firstCell = (cells[0] ?? '').toLowerCase()
+
+    if (
+      index === 0 &&
+      ['product_code', '商品コード', '商品番号', 'code'].includes(firstCell)
+    ) {
+      return
+    }
+
+    const productCode = cells[0]?.trim() ?? ''
+    const productName = cells[1]?.trim() ?? ''
+    const floor = cells[2]?.trim() ?? ''
+
+    if (!productCode) {
+      invalidLines.push(lineNumber)
+      return
+    }
+
+    if (seenCodeSet.has(productCode)) {
+      duplicateCodeSet.add(productCode)
+      return
+    }
+
+    seenCodeSet.add(productCode)
+
+    rows.push({
+      product_code: productCode,
+      product_name: productName,
+      floor,
+    })
+  })
+
+  return {
+    rows,
+    invalidLines,
+    duplicateCodes: Array.from(duplicateCodeSet),
+  }
+}
+
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
   const [email, setEmail] = useState('')
@@ -83,6 +162,12 @@ function App() {
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [form, setForm] = useState<ProductForm>(emptyForm)
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [createTab, setCreateTab] = useState<CreateTab>('single')
+  const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm)
+  const [bulkText, setBulkText] = useState('')
+  const [modalMessage, setModalMessage] = useState('')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -104,6 +189,10 @@ function App() {
     }
   }, [user])
 
+  const existingProductCodes = useMemo(() => {
+    return new Set(products.map((product) => product.product_code))
+  }, [products])
+
   const floors = useMemo(() => {
     const floorSet = new Set<string>()
 
@@ -115,6 +204,18 @@ function App() {
 
     return Array.from(floorSet).sort()
   }, [products])
+
+  const bulkPreview = useMemo(() => {
+    return parseBulkProducts(bulkText)
+  }, [bulkText])
+
+  const bulkExistingCount = useMemo(() => {
+    return bulkPreview.rows.filter((row) =>
+      existingProductCodes.has(row.product_code),
+    ).length
+  }, [bulkPreview.rows, existingProductCodes])
+
+  const bulkInsertableCount = bulkPreview.rows.length - bulkExistingCount
 
   const filteredProducts = useMemo(() => {
     const q = keyword.trim().toLowerCase()
@@ -195,7 +296,22 @@ function App() {
     }
   }
 
-  function startCreate() {
+  function openCreateModal(tab: CreateTab = 'single') {
+    setCreateTab(tab)
+    setCreateForm(emptyCreateForm)
+    setBulkText('')
+    setModalMessage('')
+    setIsCreateModalOpen(true)
+  }
+
+  function closeCreateModal() {
+    setIsCreateModalOpen(false)
+    setCreateForm(emptyCreateForm)
+    setBulkText('')
+    setModalMessage('')
+  }
+
+  function clearEditing() {
     setEditingProduct(null)
     setForm(emptyForm)
     setMessage('')
@@ -228,6 +344,87 @@ function App() {
       ...prev,
       [key]: value,
     }))
+  }
+
+  function updateCreateForm(key: keyof CreateForm, value: string) {
+    setCreateForm((prev) => ({
+      ...prev,
+      [key]: value,
+    }))
+  }
+
+  async function createSingleProduct() {
+    const productCode = createForm.product_code.trim()
+
+    if (!productCode) {
+      setModalMessage('商品コードは必須です。')
+      return
+    }
+
+    if (existingProductCodes.has(productCode)) {
+      setModalMessage(`既存の商品コードです：${productCode}`)
+      return
+    }
+
+    setLoading(true)
+    setModalMessage('')
+
+    const { error } = await supabase.from('products').insert({
+      product_code: productCode,
+      product_name: createForm.product_name.trim() || null,
+      floor: createForm.floor.trim() || null,
+    })
+
+    if (error) {
+      setModalMessage(`追加失敗: ${error.message}`)
+    } else {
+      closeCreateModal()
+      setMessage(`商品を追加しました：${productCode}`)
+      await fetchProducts()
+    }
+
+    setLoading(false)
+  }
+
+  async function createBulkProducts() {
+    const rows = bulkPreview.rows
+
+    if (rows.length === 0) {
+      setModalMessage('追加できる商品がありません。')
+      return
+    }
+
+    const insertRows = rows.filter(
+      (row) => !existingProductCodes.has(row.product_code),
+    )
+
+    if (insertRows.length === 0) {
+      setModalMessage('すべて既存商品コードのため、追加対象がありません。')
+      return
+    }
+
+    setLoading(true)
+    setModalMessage('')
+
+    const payload = insertRows.map((row) => ({
+      product_code: row.product_code,
+      product_name: row.product_name || null,
+      floor: row.floor || null,
+    }))
+
+    const { error } = await supabase.from('products').insert(payload)
+
+    if (error) {
+      setModalMessage(`一括追加失敗: ${error.message}`)
+    } else {
+      closeCreateModal()
+      setMessage(
+        `${insertRows.length}件追加しました。既存商品のスキップ：${bulkExistingCount}件`,
+      )
+      await fetchProducts()
+    }
+
+    setLoading(false)
   }
 
   async function saveProduct() {
@@ -356,7 +553,7 @@ function App() {
           再読み込み
         </button>
 
-        <button onClick={startCreate}>新規追加</button>
+        <button onClick={() => openCreateModal('single')}>新規追加</button>
       </section>
 
       {message && <p className="message">{message}</p>}
@@ -465,131 +662,278 @@ function App() {
         </div>
 
         <aside className="edit-card">
-          <h2>{editingProduct ? '商品編集' : '新規商品追加'}</h2>
+          {editingProduct ? (
+            <>
+              <div className="edit-card-head">
+                <h2>商品編集</h2>
+                <button className="secondary small" onClick={clearEditing}>
+                  解除
+                </button>
+              </div>
 
-          <label>
-            商品コード
-            <input
-              value={form.product_code}
-              onChange={(e) => updateForm('product_code', e.target.value)}
-            />
-          </label>
+              <label>
+                商品コード
+                <input
+                  value={form.product_code}
+                  onChange={(e) => updateForm('product_code', e.target.value)}
+                />
+              </label>
 
-          <label>
-            商品名
-            <input
-              value={form.product_name}
-              onChange={(e) => updateForm('product_name', e.target.value)}
-            />
-          </label>
+              <label>
+                商品名
+                <input
+                  value={form.product_name}
+                  onChange={(e) => updateForm('product_name', e.target.value)}
+                />
+              </label>
 
-          <label>
-            階数
-            <input
-              value={form.floor}
-              onChange={(e) => updateForm('floor', e.target.value)}
-              placeholder="3F など"
-            />
-          </label>
+              <label>
+                階数
+                <input
+                  value={form.floor}
+                  onChange={(e) => updateForm('floor', e.target.value)}
+                  placeholder="3F など"
+                />
+              </label>
 
-          <div className="order-edit-grid">
-            <label>
-              発注1
-              <input
-                value={form.order_memo_1}
-                onChange={(e) => updateForm('order_memo_1', e.target.value)}
-                placeholder="0513-100"
-              />
-            </label>
+              <div className="order-edit-grid">
+                <label>
+                  発注1
+                  <input
+                    value={form.order_memo_1}
+                    onChange={(e) => updateForm('order_memo_1', e.target.value)}
+                    placeholder="0513-100"
+                  />
+                </label>
 
-            <label>
-              ラクマートURL1
-              <input
-                value={form.rakumart_url_1}
-                onChange={(e) => updateForm('rakumart_url_1', e.target.value)}
-              />
-            </label>
+                <label>
+                  ラクマートURL1
+                  <input
+                    value={form.rakumart_url_1}
+                    onChange={(e) => updateForm('rakumart_url_1', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              発注2
-              <input
-                value={form.order_memo_2}
-                onChange={(e) => updateForm('order_memo_2', e.target.value)}
-                placeholder="0513-100"
-              />
-            </label>
+                <label>
+                  発注2
+                  <input
+                    value={form.order_memo_2}
+                    onChange={(e) => updateForm('order_memo_2', e.target.value)}
+                    placeholder="0513-100"
+                  />
+                </label>
 
-            <label>
-              ラクマートURL2
-              <input
-                value={form.rakumart_url_2}
-                onChange={(e) => updateForm('rakumart_url_2', e.target.value)}
-              />
-            </label>
+                <label>
+                  ラクマートURL2
+                  <input
+                    value={form.rakumart_url_2}
+                    onChange={(e) => updateForm('rakumart_url_2', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              発注3
-              <input
-                value={form.order_memo_3}
-                onChange={(e) => updateForm('order_memo_3', e.target.value)}
-                placeholder="0513-100"
-              />
-            </label>
+                <label>
+                  発注3
+                  <input
+                    value={form.order_memo_3}
+                    onChange={(e) => updateForm('order_memo_3', e.target.value)}
+                    placeholder="0513-100"
+                  />
+                </label>
 
-            <label>
-              ラクマートURL3
-              <input
-                value={form.rakumart_url_3}
-                onChange={(e) => updateForm('rakumart_url_3', e.target.value)}
-              />
-            </label>
+                <label>
+                  ラクマートURL3
+                  <input
+                    value={form.rakumart_url_3}
+                    onChange={(e) => updateForm('rakumart_url_3', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              発注4
-              <input
-                value={form.order_memo_4}
-                onChange={(e) => updateForm('order_memo_4', e.target.value)}
-                placeholder="0513-100"
-              />
-            </label>
+                <label>
+                  発注4
+                  <input
+                    value={form.order_memo_4}
+                    onChange={(e) => updateForm('order_memo_4', e.target.value)}
+                    placeholder="0513-100"
+                  />
+                </label>
 
-            <label>
-              ラクマートURL4
-              <input
-                value={form.rakumart_url_4}
-                onChange={(e) => updateForm('rakumart_url_4', e.target.value)}
-              />
-            </label>
+                <label>
+                  ラクマートURL4
+                  <input
+                    value={form.rakumart_url_4}
+                    onChange={(e) => updateForm('rakumart_url_4', e.target.value)}
+                  />
+                </label>
 
-            <label>
-              発注5
-              <input
-                value={form.order_memo_5}
-                onChange={(e) => updateForm('order_memo_5', e.target.value)}
-                placeholder="0513-100"
-              />
-            </label>
+                <label>
+                  発注5
+                  <input
+                    value={form.order_memo_5}
+                    onChange={(e) => updateForm('order_memo_5', e.target.value)}
+                    placeholder="0513-100"
+                  />
+                </label>
 
-            <label>
-              ラクマートURL5
-              <input
-                value={form.rakumart_url_5}
-                onChange={(e) => updateForm('rakumart_url_5', e.target.value)}
-              />
-            </label>
-          </div>
+                <label>
+                  ラクマートURL5
+                  <input
+                    value={form.rakumart_url_5}
+                    onChange={(e) => updateForm('rakumart_url_5', e.target.value)}
+                  />
+                </label>
+              </div>
 
-          <div className="edit-actions">
-            <button onClick={saveProduct} disabled={loading}>
-              {loading ? '保存中...' : '保存'}
-            </button>
+              <div className="edit-actions">
+                <button onClick={saveProduct} disabled={loading}>
+                  {loading ? '保存中...' : '保存'}
+                </button>
 
-            <button className="secondary" onClick={startCreate}>
-              クリア
-            </button>
-          </div>
+                <button className="secondary" onClick={clearEditing}>
+                  クリア
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="edit-placeholder">
+              <h2>商品編集</h2>
+              <p>一覧の「編集」を押すと、ここで商品情報を編集できます。</p>
+              <button onClick={() => openCreateModal('single')}>新規追加</button>
+            </div>
+          )}
         </aside>
       </section>
+
+      {isCreateModalOpen && (
+        <div className="modal-backdrop" onClick={closeCreateModal}>
+          <section
+            className="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="新規商品追加"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">New Product</p>
+                <h2>新規商品追加</h2>
+              </div>
+
+              <button className="secondary small" onClick={closeCreateModal}>
+                閉じる
+              </button>
+            </div>
+
+            <div className="modal-tabs">
+              <button
+                className={createTab === 'single' ? 'tab-button active' : 'tab-button'}
+                onClick={() => {
+                  setCreateTab('single')
+                  setModalMessage('')
+                }}
+              >
+                1件追加
+              </button>
+
+              <button
+                className={createTab === 'bulk' ? 'tab-button active' : 'tab-button'}
+                onClick={() => {
+                  setCreateTab('bulk')
+                  setModalMessage('')
+                }}
+              >
+                複数行で追加
+              </button>
+            </div>
+
+            {createTab === 'single' ? (
+              <div className="modal-body">
+                <label>
+                  商品コード
+                  <input
+                    value={createForm.product_code}
+                    onChange={(e) => updateCreateForm('product_code', e.target.value)}
+                    placeholder="mus-04"
+                  />
+                </label>
+
+                <label>
+                  商品名
+                  <input
+                    value={createForm.product_name}
+                    onChange={(e) => updateCreateForm('product_name', e.target.value)}
+                    placeholder="ストリングクリーナー"
+                  />
+                </label>
+
+                <label>
+                  階数
+                  <input
+                    value={createForm.floor}
+                    onChange={(e) => updateCreateForm('floor', e.target.value)}
+                    placeholder="3F"
+                  />
+                </label>
+
+                {modalMessage && <p className="modal-message">{modalMessage}</p>}
+
+                <div className="modal-actions">
+                  <button onClick={createSingleProduct} disabled={loading}>
+                    {loading ? '追加中...' : '追加'}
+                  </button>
+                  <button className="secondary" onClick={closeCreateModal}>
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="modal-body">
+                <div className="bulk-guide">
+                  <strong>Excelから3列コピーして貼り付け</strong>
+                  <pre>{`商品コード\t商品名\t階数
+mus-04\tストリングクリーナー\t3F
+sb-08-short-04\tショルダーベルト ストライプ 黒 ショート\t3F`}</pre>
+                </div>
+
+                <label>
+                  貼り付け欄
+                  <textarea
+                    className="bulk-textarea"
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    placeholder={'商品コード\t商品名\t階数'}
+                  />
+                </label>
+
+                <div className="bulk-preview">
+                  <span>読み取り：{bulkPreview.rows.length}件</span>
+                  <span>追加予定：{bulkInsertableCount}件</span>
+                  <span>既存スキップ：{bulkExistingCount}件</span>
+                  {bulkPreview.duplicateCodes.length > 0 && (
+                    <span>貼付内重複：{bulkPreview.duplicateCodes.length}件</span>
+                  )}
+                  {bulkPreview.invalidLines.length > 0 && (
+                    <span>不正行：{bulkPreview.invalidLines.join(', ')}</span>
+                  )}
+                </div>
+
+                {modalMessage && <p className="modal-message">{modalMessage}</p>}
+
+                <div className="modal-actions">
+                  <button
+                    onClick={createBulkProducts}
+                    disabled={loading || bulkInsertableCount === 0}
+                  >
+                    {loading ? '一括追加中...' : `${bulkInsertableCount}件を追加`}
+                  </button>
+                  <button className="secondary" onClick={closeCreateModal}>
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </main>
   )
 }
