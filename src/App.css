@@ -443,11 +443,25 @@ a:hover {
   opacity: 1;
 }
 
-.sticky-code-cell {
+.sticky-image-cell {
   position: sticky;
   left: 0;
-  z-index: 1;
+  z-index: 3;
   background: #fff;
+}
+
+.sticky-code-cell {
+  position: sticky;
+  left: 86px;
+  z-index: 3;
+  min-width: 190px;
+  background: #fff;
+}
+
+th.sticky-image-cell,
+th.sticky-code-cell {
+  z-index: 5;
+  background: #f8fafc;
 }
 
 
@@ -662,6 +676,7 @@ tr.is-editing td {
   background: #eff6ff !important;
 }
 
+tr.is-editing .sticky-image-cell,
 tr.is-editing .sticky-code-cell {
   background: #eff6ff !important;
 }
@@ -670,12 +685,18 @@ tr.is-editing.is-dirty td {
   background: #fff7ed !important;
 }
 
+tr.is-editing.is-dirty .sticky-image-cell,
 tr.is-editing.is-dirty .sticky-code-cell {
   background: #fff7ed !important;
 }
 
 tr.is-editing td:first-child {
   box-shadow: inset 4px 0 0 #2563eb;
+}
+
+tr:hover .sticky-image-cell,
+tr:hover .sticky-code-cell {
+  background: #f8fbff;
 }
 
 .products-table td:last-child,

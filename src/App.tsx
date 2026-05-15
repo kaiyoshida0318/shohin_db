@@ -2007,8 +2007,8 @@ function App() {
             <table className={tableClassName}>
               <thead>
                 <tr>
-                  <th>商品コード</th>
-                  <th>画像</th>
+                  <th className="image-cell sticky-image-cell">画像</th>
+                  <th className="sticky-code-cell">商品コード</th>
 
                   {tableView === 'all' && (
                     <>
@@ -2097,6 +2097,14 @@ function App() {
                       key={product.product_code}
                       className={`${isEditing ? 'is-editing' : ''} ${dirty ? 'is-dirty' : ''}`}
                     >
+                      <td className="image-cell sticky-image-cell">
+                        <ProductImageCell
+                          product={product}
+                          version={imageCacheVersion}
+                          onPreview={setImagePreview}
+                        />
+                      </td>
+
                       <td className="code sticky-code-cell">
                         <button
                           type="button"
@@ -2106,14 +2114,6 @@ function App() {
                         >
                           {product.product_code}
                         </button>
-                      </td>
-
-                      <td className="image-cell">
-                        <ProductImageCell
-                          product={product}
-                          version={imageCacheVersion}
-                          onPreview={setImagePreview}
-                        />
                       </td>
 
                       {tableView === 'all' && renderAllColumns(product, draft)}
