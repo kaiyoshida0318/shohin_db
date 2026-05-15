@@ -842,6 +842,18 @@ function App() {
   }, [user])
 
   useEffect(() => {
+    if (!user || !message) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setMessage('')
+    }, 3200)
+
+    return () => window.clearTimeout(timer)
+  }, [message, user])
+
+  useEffect(() => {
     setRowDrafts((prev) => {
       const nextDrafts: Record<string, EditableProduct> = {}
 
@@ -1670,7 +1682,11 @@ function App() {
         <button onClick={openCreateModal}>商品追加/更新</button>
       </section>
 
-      {message && <p className="message">{message}</p>}
+      {message && (
+        <div className="toast-message" role="status" aria-live="polite">
+          {message}
+        </div>
+      )}
 
       <section className="layout layout--full">
         <div className="table-card">
