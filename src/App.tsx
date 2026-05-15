@@ -130,20 +130,20 @@ type BulkFieldColumn = {
 }
 
 const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
-  { key: 'product_name', label: '商品名', placeholder: 'ストリングクリーナー' },
-  { key: 'floor', label: '階数', placeholder: '3F' },
-  { key: 'rack_number', label: '棚番号-位置', placeholder: 'A-12' },
-  { key: 'rack_level', label: '棚番号-段', placeholder: '3' },
-  { key: 'sticker_color', label: 'シールカラー', placeholder: '赤' },
+  { key: 'product_name', label: '商品名', placeholder: '商品名' },
+  { key: 'floor', label: '階数', placeholder: '階数' },
+  { key: 'rack_number', label: '棚番号-位置', placeholder: '棚番号-位置' },
+  { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
+  { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
   { key: 'special_notes', label: '特記事項', placeholder: '特記事項' },
   { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: 'ピック時アドバイス' },
-  { key: 'order_url_1', label: '発注URL1', placeholder: 'https://...' },
-  { key: 'order_url_2', label: '発注URL2', placeholder: 'https://...' },
-  { key: 'order_url_3', label: '発注URL3', placeholder: 'https://...' },
-  { key: 'order_size', label: 'サイズ', placeholder: 'M' },
-  { key: 'order_color', label: 'カラー', placeholder: 'ブラック' },
-  { key: 'order_simple_instruction', label: '■簡潔指示', placeholder: '●商品コード▲mmdd-数量' },
-  { key: 'order_detail_instruction', label: '▲具体指示', placeholder: '具体指示' },
+  { key: 'order_url_1', label: '発注URL1', placeholder: '発注URL1' },
+  { key: 'order_url_2', label: '発注URL2', placeholder: '発注URL2' },
+  { key: 'order_url_3', label: '発注URL3', placeholder: '発注URL3' },
+  { key: 'order_size', label: 'サイズ', placeholder: 'サイズ' },
+  { key: 'order_color', label: 'カラー', placeholder: 'カラー' },
+  { key: 'order_simple_instruction', label: '■簡潔指示', placeholder: '■簡潔指示' },
+  { key: 'order_detail_instruction', label: '▲具体指示', placeholder: '▲具体指示' },
   { key: 'order_quantity_condition', label: '数量条件指定', placeholder: '数量条件指定' },
   { key: 'order_note', label: '補足情報', placeholder: '補足情報' },
 ]
@@ -2029,7 +2029,7 @@ function App() {
                               updateBulkRow(row.id, 'product_code', e.target.value)
                             }
                             onPaste={(e) => handleBulkPaste(e, index)}
-                            placeholder="mus-04"
+                            placeholder="商品コード"
                           />
                         </td>
 
