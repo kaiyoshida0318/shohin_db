@@ -152,6 +152,35 @@ const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
   (column) => column.key,
 )
 
+const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
+  product_name: '商品名',
+  floor: '階数',
+  special_notes: '特記事項',
+  picking_advice: 'ピック時アドバイス',
+  rack_number: '棚番号-位置',
+  rack_level: '棚番号-段',
+  sticker_color: 'シールカラー',
+  order_url_1: '発注URL1',
+  order_url_2: '発注URL2',
+  order_url_3: '発注URL3',
+  order_size: 'サイズ',
+  order_color: 'カラー',
+  order_simple_instruction: '■簡潔指示',
+  order_detail_instruction: '▲具体指示',
+  order_quantity_condition: '数量条件指定',
+  order_note: '補足情報',
+  order_memo_1: 'オーダー1',
+  rakumart_url_1: 'RM1',
+  order_memo_2: 'オーダー2',
+  rakumart_url_2: 'RM2',
+  order_memo_3: 'オーダー3',
+  rakumart_url_3: 'RM3',
+  order_memo_4: 'オーダー4',
+  rakumart_url_4: 'RM4',
+  order_memo_5: 'オーダー5',
+  rakumart_url_5: 'RM5',
+}
+
 
 type CsvImportResult = {
   rows: CleanBulkProductRow[]
@@ -746,9 +775,11 @@ function isDraftDirty(product: Product, draft: EditableProduct) {
 function UrlEditCell({
   value,
   onChange,
+  placeholder = 'URL',
 }: {
   value: string
   onChange: (value: string) => void
+  placeholder?: string
 }) {
   return (
     <div className="url-edit-cell">
@@ -756,7 +787,7 @@ function UrlEditCell({
         className="table-input url-input"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder="URL"
+        placeholder={placeholder}
       />
 
       {value.trim() ? (
@@ -1384,6 +1415,7 @@ function App() {
     } = {},
   ) {
     const isEditing = editingCode === product.product_code
+    const placeholder = options.placeholder ?? EDIT_FIELD_PLACEHOLDERS[key]
 
     if (isEditing) {
       if (options.multiline) {
@@ -1392,7 +1424,7 @@ function App() {
             className={`table-input table-textarea ${options.inputClassName ?? ''}`}
             value={draft[key]}
             onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
-            placeholder={options.placeholder}
+            placeholder={placeholder}
           />
         )
       }
@@ -1402,7 +1434,7 @@ function App() {
           className={`table-input ${options.inputClassName ?? ''}`}
           value={draft[key]}
           onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
-          placeholder={options.placeholder}
+          placeholder={placeholder}
         />
       )
     }
@@ -1422,6 +1454,7 @@ function App() {
         <UrlEditCell
           value={draft[key]}
           onChange={(value) => updateDraft(product.product_code, key, value)}
+          placeholder={EDIT_FIELD_PLACEHOLDERS[key]}
         />
       )
     }
@@ -1446,6 +1479,8 @@ function App() {
     urlKey: EditableProductKey,
   ) {
     const isEditing = editingCode === product.product_code
+    const orderLabel = EDIT_FIELD_PLACEHOLDERS[orderKey]
+    const rmLabel = EDIT_FIELD_PLACEHOLDERS[urlKey]
 
     if (isEditing) {
       return (
@@ -1456,14 +1491,15 @@ function App() {
             onChange={(event) =>
               updateDraft(product.product_code, orderKey, event.target.value)
             }
-            placeholder="0513-100"
+            placeholder={orderLabel}
           />
 
           <div className="order-rm-edit-row">
-            <span>RM</span>
+            <span>{rmLabel}</span>
             <UrlEditCell
               value={draft[urlKey]}
               onChange={(value) => updateDraft(product.product_code, urlKey, value)}
+              placeholder={rmLabel}
             />
           </div>
         </div>
