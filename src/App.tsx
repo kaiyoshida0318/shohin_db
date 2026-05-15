@@ -2,6 +2,10 @@ import { type ChangeEvent, type ClipboardEvent, type DragEvent, useEffect, useMe
 import { supabase } from './lib/supabase'
 import './App.css'
 
+const PRODUCT_IMAGE_BUCKET = 'product-images'
+const PRODUCT_IMAGE_EXTENSION = '.webp'
+const IMAGE_UPLOAD_CONCURRENCY = 5
+
 type Product = {
   product_code: string
   product_name: string | null
@@ -38,6 +42,12 @@ type Product = {
   order_status_synced_at: string | null
   created_at: string | null
   updated_at: string | null
+}
+
+type ProductImagePreview = {
+  productCode: string
+  productName: string | null
+  url: string
 }
 
 type EditableProduct = {
@@ -772,6 +782,97 @@ function isDraftDirty(product: Product, draft: EditableProduct) {
   )
 }
 
+
+function getProductImagePath(productCode: string) {
+  return `${productCode.trim()}${PRODUCT_IMAGE_EXTENSION}`
+}
+
+function getProductImageUrl(productCode: string, version: number) {
+  if (!productCode.trim()) {
+    return ''
+  }
+
+  const { data } = supabase.storage
+    .from(PRODUCT_IMAGE_BUCKET)
+    .getPublicUrl(getProductImagePath(productCode))
+
+  if (!data.publicUrl) {
+    return ''
+  }
+
+  return version ? `${data.publicUrl}?v=${version}` : data.publicUrl
+}
+
+function getProductCodeFromImageFile(file: File) {
+  return file.name.replace(/\.[^.]+$/, '').trim()
+}
+
+function isWebpFile(file: File) {
+  return file.name.toLowerCase().endsWith(PRODUCT_IMAGE_EXTENSION) || file.type === 'image/webp'
+}
+
+async function runWithConcurrency<T>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<void>,
+) {
+  const queue = [...items]
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const item = queue.shift()
+      if (item) {
+        await worker(item)
+      }
+    }
+  })
+
+  await Promise.all(workers)
+}
+
+function ProductImageCell({
+  product,
+  version,
+  onPreview,
+}: {
+  product: Product
+  version: number
+  onPreview: (preview: ProductImagePreview) => void
+}) {
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    setHasError(false)
+  }, [product.product_code, version])
+
+  const imageUrl = getProductImageUrl(product.product_code, version)
+
+  if (!imageUrl || hasError) {
+    return <span className="product-image-placeholder">画像なし</span>
+  }
+
+  return (
+    <button
+      type="button"
+      className="product-image-button"
+      onClick={() =>
+        onPreview({
+          productCode: product.product_code,
+          productName: product.product_name,
+          url: imageUrl,
+        })
+      }
+      title="画像を拡大"
+    >
+      <img
+        src={imageUrl}
+        alt={product.product_name || product.product_code}
+        loading="lazy"
+        onError={() => setHasError(true)}
+      />
+    </button>
+  )
+}
+
 function UrlEditCell({
   value,
   onChange,
@@ -852,6 +953,14 @@ function App() {
   const [isCsvDragOver, setIsCsvDragOver] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
 
+  const [isImageImportModalOpen, setIsImageImportModalOpen] = useState(false)
+  const [imageFiles, setImageFiles] = useState<File[]>([])
+  const [isImageDragOver, setIsImageDragOver] = useState(false)
+  const [imageImporting, setImageImporting] = useState(false)
+  const [imageImportMessage, setImageImportMessage] = useState('')
+  const [imageCacheVersion, setImageCacheVersion] = useState(() => Date.now())
+  const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null)
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUser(data.session?.user ?? null)
@@ -901,6 +1010,12 @@ function App() {
 
   const existingProductCodes = useMemo(() => {
     return new Set(products.map((product) => product.product_code))
+  }, [products])
+
+  const productCodeLookup = useMemo(() => {
+    return new Map(
+      products.map((product) => [product.product_code.toLowerCase(), product.product_code]),
+    )
   }, [products])
 
   const bulkSummary = useMemo(() => {
@@ -1037,6 +1152,131 @@ function App() {
     setCsvColumnMapping(null)
     setIsCsvDragOver(false)
     setModalMessage('')
+  }
+
+
+  function openImageImportModal() {
+    setImageFiles([])
+    setIsImageDragOver(false)
+    setImageImportMessage('')
+    setIsImageImportModalOpen(true)
+  }
+
+  function closeImageImportModal() {
+    if (imageImporting) {
+      return
+    }
+
+    setIsImageImportModalOpen(false)
+    setImageFiles([])
+    setIsImageDragOver(false)
+    setImageImportMessage('')
+  }
+
+  function setProductImageFiles(files: File[]) {
+    const webpFiles = files.filter(isWebpFile)
+    const skippedCount = files.length - webpFiles.length
+
+    setImageFiles(webpFiles)
+
+    if (webpFiles.length === 0) {
+      setImageImportMessage('商品コード.webp 形式のWebP画像を選択してください。')
+      return
+    }
+
+    setImageImportMessage(
+      skippedCount > 0
+        ? `${webpFiles.length}件のWebP画像を選択しました。WebP以外は${skippedCount}件スキップします。`
+        : `${webpFiles.length}件のWebP画像を選択しました。`,
+    )
+  }
+
+  function handleImageFileSelect(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.currentTarget.files ?? [])
+    event.currentTarget.value = ''
+
+    if (files.length > 0) {
+      setProductImageFiles(files)
+    }
+  }
+
+  function handleImageDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsImageDragOver(true)
+  }
+
+  function handleImageDragLeave(event: DragEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget as Node | null
+
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      setIsImageDragOver(false)
+    }
+  }
+
+  function handleImageDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    setIsImageDragOver(false)
+
+    const files = Array.from(event.dataTransfer.files ?? [])
+
+    if (files.length === 0) {
+      setImageImportMessage('商品コード.webp 形式の画像をドロップしてください。')
+      return
+    }
+
+    setProductImageFiles(files)
+  }
+
+  async function uploadProductImages() {
+    if (imageFiles.length === 0) {
+      setImageImportMessage('アップロードする画像を選択してください。')
+      return
+    }
+
+    setImageImporting(true)
+    setImageImportMessage('画像をアップロードしています...')
+
+    let uploadedCount = 0
+    let skippedCount = 0
+    let failedCount = 0
+    const failedNames: string[] = []
+
+    await runWithConcurrency(imageFiles, IMAGE_UPLOAD_CONCURRENCY, async (file) => {
+      const rawProductCode = getProductCodeFromImageFile(file)
+      const productCode = productCodeLookup.get(rawProductCode.toLowerCase())
+
+      if (!productCode) {
+        skippedCount += 1
+        return
+      }
+
+      const { error } = await supabase.storage
+        .from(PRODUCT_IMAGE_BUCKET)
+        .upload(getProductImagePath(productCode), file, {
+          cacheControl: '3600',
+          contentType: 'image/webp',
+          upsert: true,
+        })
+
+      if (error) {
+        failedCount += 1
+        failedNames.push(file.name)
+      } else {
+        uploadedCount += 1
+      }
+    })
+
+    setImageImporting(false)
+    setImageCacheVersion(Date.now())
+
+    const resultMessage = `画像アップロード完了：${uploadedCount}件 / 未登録スキップ：${skippedCount}件 / 失敗：${failedCount}件`
+    setImageImportMessage(
+      failedNames.length > 0
+        ? `${resultMessage}（例：${failedNames.slice(0, 3).join('、')}）`
+        : resultMessage,
+    )
+    setMessage(resultMessage)
   }
 
   function toggleBulkField(fieldKey: BulkFieldKey) {
@@ -1645,7 +1885,7 @@ function App() {
     )
   }
 
-  const tableColSpan = tableView === 'all' ? 17 : tableView === 'pick' ? 9 : tableView === 'order' ? 8 : tableView === 'purchase' ? 12 : 11
+  const tableColSpan = tableView === 'all' ? 18 : tableView === 'pick' ? 10 : tableView === 'order' ? 9 : tableView === 'purchase' ? 13 : 12
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -1725,6 +1965,8 @@ function App() {
           再読み込み
         </button>
 
+        <button className="secondary" onClick={openImageImportModal}>画像インポート</button>
+
         <button onClick={openCreateModal}>商品追加/更新</button>
       </section>
 
@@ -1766,6 +2008,7 @@ function App() {
               <thead>
                 <tr>
                   <th>商品コード</th>
+                  <th>画像</th>
 
                   {tableView === 'all' && (
                     <>
@@ -1865,6 +2108,14 @@ function App() {
                         </button>
                       </td>
 
+                      <td className="image-cell">
+                        <ProductImageCell
+                          product={product}
+                          version={imageCacheVersion}
+                          onPreview={setImagePreview}
+                        />
+                      </td>
+
                       {tableView === 'all' && renderAllColumns(product, draft)}
                       {tableView === 'pick' && renderPickColumns(product, draft)}
                       {tableView === 'order' && renderOrderColumns(product, draft)}
@@ -1888,6 +2139,97 @@ function App() {
           </div>
         </div>
       </section>
+
+
+      {isImageImportModalOpen && (
+        <div className="modal-backdrop" onClick={closeImageImportModal}>
+          <section
+            className="modal-card image-import-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="商品画像インポート"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head">
+              <div>
+                <p className="eyebrow">Product Images</p>
+                <h2>商品画像インポート</h2>
+              </div>
+
+              <button className="secondary small" onClick={closeImageImportModal} disabled={imageImporting}>
+                閉じる
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div
+                className={isImageDragOver ? 'image-import-drop is-drag-over' : 'image-import-drop'}
+                onDragOver={handleImageDragOver}
+                onDragLeave={handleImageDragLeave}
+                onDrop={handleImageDrop}
+              >
+                <div>
+                  <strong>商品コード.webp をまとめて取り込み</strong>
+                  <span>ファイル名から商品コードを判定し、Supabase Storage の product-images に上書きアップロードします。</span>
+                </div>
+
+                <label className="csv-upload-button">
+                  画像を選択
+                  <input
+                    type="file"
+                    accept=".webp,image/webp"
+                    multiple
+                    onChange={handleImageFileSelect}
+                  />
+                </label>
+              </div>
+
+              <div className="image-import-summary">
+                <span>選択中：{imageFiles.length}件</span>
+                <span>保存先：{PRODUCT_IMAGE_BUCKET}</span>
+                <span>形式：商品コード.webp</span>
+              </div>
+
+              {imageImportMessage && <p className="modal-message">{imageImportMessage}</p>}
+
+              <div className="modal-actions">
+                <button onClick={uploadProductImages} disabled={imageImporting || imageFiles.length === 0}>
+                  {imageImporting ? 'アップロード中...' : `${imageFiles.length}件をアップロード`}
+                </button>
+
+                <button className="secondary" onClick={closeImageImportModal} disabled={imageImporting}>
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {imagePreview && (
+        <div className="modal-backdrop" onClick={() => setImagePreview(null)}>
+          <section
+            className="image-preview-card"
+            role="dialog"
+            aria-modal="true"
+            aria-label="商品画像プレビュー"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="image-preview-head">
+              <div>
+                <strong>{imagePreview.productCode}</strong>
+                <span>{imagePreview.productName || '商品名なし'}</span>
+              </div>
+
+              <button className="secondary small" onClick={() => setImagePreview(null)}>
+                閉じる
+              </button>
+            </div>
+
+            <img src={imagePreview.url} alt={imagePreview.productName || imagePreview.productCode} />
+          </section>
+        </div>
+      )}
 
       {isCreateModalOpen && (
         <div className="modal-backdrop" onClick={closeCreateModal}>
