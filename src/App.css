@@ -268,18 +268,19 @@ select {
 }
 
 .table-header {
-  padding: 18px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid #edf1f6;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(420px, 1fr);
   align-items: center;
   gap: 14px;
 }
 
-.table-header > div:first-child {
+.table-title {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .table-header span {
@@ -287,7 +288,59 @@ select {
   font-size: 13px;
 }
 
+.table-pager {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.pager-button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pager-button:hover:not(:disabled) {
+  background: #e8f1ff;
+  color: #1d4ed8;
+  opacity: 1;
+}
+
+.pager-button:disabled {
+  color: #b6c2d0;
+  opacity: 1;
+}
+
+.pager-status {
+  min-width: 52px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff !important;
+  text-align: center;
+  font-size: 12px !important;
+  font-weight: 900;
+}
+
+.pager-range {
+  padding: 0 6px;
+  color: #64748b !important;
+  font-size: 12px !important;
+  font-weight: 800;
+}
+
 .view-switch {
+  justify-self: end;
   display: inline-flex;
   gap: 6px;
   padding: 6px;

@@ -5,6 +5,8 @@ import './App.css'
 const PRODUCT_IMAGE_BUCKET = 'product-images'
 const PRODUCT_IMAGE_EXTENSION = '.webp'
 const IMAGE_UPLOAD_CONCURRENCY = 5
+const PRODUCT_FETCH_BATCH_SIZE = 1000
+const PRODUCT_PAGE_SIZE = 200
 
 type Product = {
   product_code: string
@@ -936,6 +938,7 @@ function App() {
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const [tableView, setTableView] = useState<TableView>('all')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [loading, setLoading] = useState(false)
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -992,6 +995,11 @@ function App() {
 
     return () => window.clearTimeout(timer)
   }, [message, user])
+
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [keyword])
 
   useEffect(() => {
     setRowDrafts((prev) => {
@@ -1083,6 +1091,22 @@ function App() {
     })
   }, [products, rowDrafts, editingCode, keyword])
 
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PAGE_SIZE))
+  const currentPageNumber = Math.min(currentPage, totalPages)
+  const pageStartIndex = (currentPageNumber - 1) * PRODUCT_PAGE_SIZE
+  const pageEndIndex = Math.min(pageStartIndex + PRODUCT_PAGE_SIZE, filteredProducts.length)
+
+  const pagedProducts = useMemo(() => {
+    return filteredProducts.slice(pageStartIndex, pageEndIndex)
+  }, [filteredProducts, pageStartIndex, pageEndIndex])
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   async function login() {
     setLoading(true)
     setMessage('')
@@ -1111,17 +1135,35 @@ function App() {
     setLoading(true)
     setMessage('')
 
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('product_code', { ascending: true })
+    const allProducts: Product[] = []
+    let from = 0
 
-    if (error) {
-      setMessage(`取得失敗: ${error.message}`)
-    } else {
-      setProducts((data ?? []) as Product[])
+    while (true) {
+      const to = from + PRODUCT_FETCH_BATCH_SIZE - 1
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('product_code', { ascending: true })
+        .range(from, to)
+
+      if (error) {
+        setMessage(`取得失敗: ${error.message}`)
+        setLoading(false)
+        return
+      }
+
+      const batch = (data ?? []) as Product[]
+      allProducts.push(...batch)
+
+      if (batch.length < PRODUCT_FETCH_BATCH_SIZE) {
+        break
+      }
+
+      from += PRODUCT_FETCH_BATCH_SIZE
     }
 
+    setProducts(allProducts)
+    setCurrentPage(1)
     setLoading(false)
   }
 
@@ -1979,9 +2021,50 @@ function App() {
       <section className="layout layout--full">
         <div className="table-card">
           <div className="table-header">
-            <div>
+            <div className="table-title">
               <strong>商品一覧</strong>
               <span>{filteredProducts.length}件</span>
+            </div>
+
+            <div className="table-pager" aria-label="商品一覧ページ送り">
+              <button
+                type="button"
+                className="pager-button"
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPageNumber <= 1}
+              >
+                最初
+              </button>
+              <button
+                type="button"
+                className="pager-button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPageNumber <= 1}
+              >
+                前へ
+              </button>
+              <span className="pager-status">
+                {currentPageNumber} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="pager-button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPageNumber >= totalPages}
+              >
+                次へ
+              </button>
+              <button
+                type="button"
+                className="pager-button"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPageNumber >= totalPages}
+              >
+                最後
+              </button>
+              <span className="pager-range">
+                {filteredProducts.length === 0 ? '0件' : `${pageStartIndex + 1}〜${pageEndIndex}件表示`}
+              </span>
             </div>
 
             <div className="view-switch" aria-label="表示用途切り替え">
@@ -2087,7 +2170,7 @@ function App() {
               </thead>
 
               <tbody>
-                {filteredProducts.map((product) => {
+                {pagedProducts.map((product) => {
                   const draft = rowDrafts[product.product_code] ?? productToDraft(product)
                   const isEditing = editingCode === product.product_code
                   const dirty = isEditing && isDraftDirty(product, draft)
