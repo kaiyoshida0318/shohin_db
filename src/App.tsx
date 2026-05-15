@@ -1705,11 +1705,21 @@ function App() {
       </header>
 
       <section className="toolbar">
-        <input
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-          placeholder="商品コード・商品名・特記事項・ピック時アドバイス・棚番号で検索"
-        />
+        <div className="search-box">
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="商品コード・商品名・特記事項・ピック時アドバイス・棚番号で検索"
+          />
+          <button
+            type="button"
+            className="search-clear-button"
+            onClick={() => setKeyword("")}
+            disabled={!keyword}
+          >
+            クリア
+          </button>
+        </div>
 
         <button onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
           再読み込み

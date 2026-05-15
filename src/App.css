@@ -200,8 +200,42 @@ h2 {
   background: #fff;
   box-shadow: 0 12px 36px rgba(24, 39, 75, 0.06);
   display: grid;
-  grid-template-columns: 1fr 150px auto auto;
+  grid-template-columns: 1fr 150px auto;
   gap: 12px;
+}
+
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-box input {
+  padding-right: 82px;
+}
+
+.search-clear-button {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: #edf2f7;
+  color: #475569;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.search-clear-button:hover {
+  background: #e2e8f0;
+  opacity: 1;
+}
+
+.search-clear-button:disabled {
+  opacity: 0;
+  pointer-events: none;
 }
 
 select {
