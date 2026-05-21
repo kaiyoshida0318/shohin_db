@@ -1574,3 +1574,55 @@ body.is-column-resizing * {
 .products-table textarea {
   overflow: auto;
 }
+
+.ne-sync-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(236, 253, 245, 0.92), rgba(240, 253, 250, 0.72));
+}
+
+.ne-sync-token {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 280px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #047857;
+}
+
+.ne-sync-token input {
+  min-width: 220px;
+  height: 34px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+  padding: 0 10px;
+  background: #fff;
+}
+
+.ne-sync-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ne-sync-status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 260px;
+  color: #065f46;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ne-sync-status strong {
+  color: #064e3b;
+}

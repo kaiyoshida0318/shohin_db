@@ -10,6 +10,8 @@ const PRODUCT_PAGE_SIZE = 200
 const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v1'
 const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
+const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
+const NE_ADMIN_TOKEN_STORAGE_KEY = 'shohin-db-ne-admin-token-v1'
 
 
 type Product = {
@@ -62,6 +64,30 @@ type ProductImagePreview = {
   productCode: string
   productName: string | null
   url: string
+}
+
+type NeUsageResult = {
+  ok: boolean
+  month?: string
+  callCount?: number
+  estimatedGb?: number
+  remainingCalls?: number
+  callLimit?: number
+  byEndpoint?: Array<{ endpoint: string; calls: number; estimatedBytes: number; success: number; errors: number }>
+  error?: string
+}
+
+type NeOperationalSyncResult = {
+  ok: boolean
+  dryRun?: boolean
+  stockFetched?: number
+  goodsFetched?: number
+  merged?: number
+  matched?: number
+  unmatched?: number
+  updated?: number
+  message?: string
+  error?: string
 }
 
 type EditableProduct = {
@@ -1376,6 +1402,14 @@ function App() {
   const [savingCode, setSavingCode] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
+  const [neAdminToken, setNeAdminToken] = useState(() =>
+    window.localStorage.getItem(NE_ADMIN_TOKEN_STORAGE_KEY) ?? '',
+  )
+  const [neSyncLoading, setNeSyncLoading] = useState(false)
+  const [neSyncMessage, setNeSyncMessage] = useState('')
+  const [neUsage, setNeUsage] = useState<NeUsageResult | null>(null)
+  const [neSyncResult, setNeSyncResult] = useState<NeOperationalSyncResult | null>(null)
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
     createBulkRows(),
@@ -1431,6 +1465,15 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, JSON.stringify(columnWidths))
   }, [columnWidths])
+
+
+  useEffect(() => {
+    if (neAdminToken.trim()) {
+      window.localStorage.setItem(NE_ADMIN_TOKEN_STORAGE_KEY, neAdminToken.trim())
+    } else {
+      window.localStorage.removeItem(NE_ADMIN_TOKEN_STORAGE_KEY)
+    }
+  }, [neAdminToken])
 
 
   useEffect(() => {
@@ -1606,6 +1649,73 @@ function App() {
     setProducts(allProducts)
     setCurrentPage(1)
     setLoading(false)
+  }
+
+  async function callNeWorker<T>(path: string, params: Record<string, string> = {}) {
+    const token = neAdminToken.trim()
+
+    if (!token) {
+      throw new Error('ADMIN_TOKENを入力してください。')
+    }
+
+    const url = new URL(path, NE_SYNC_WORKER_URL)
+    Object.entries(params).forEach(([key, value]) => {
+      if (value) {
+        url.searchParams.set(key, value)
+      }
+    })
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'x-admin-token': token },
+    })
+
+    const data = (await response.json().catch(() => null)) as T | null
+
+    if (!response.ok || !data) {
+      const detail = data && typeof data === 'object' && 'error' in data ? String((data as { error?: unknown }).error ?? '') : response.statusText
+      throw new Error(detail || `NE連携Workerでエラーが発生しました。status=${response.status}`)
+    }
+
+    return data
+  }
+
+  async function fetchNeUsage() {
+    setNeSyncLoading(true)
+    setNeSyncMessage('NE API利用状況を取得しています...')
+
+    try {
+      const usage = await callNeWorker<NeUsageResult>('/api/ne/usage')
+      setNeUsage(usage)
+      setNeSyncMessage(`今月のNE API利用回数：${usage.callCount ?? 0}回 / 残り${usage.remainingCalls ?? '-'}回`)
+    } catch (error) {
+      setNeSyncMessage(`利用状況取得失敗：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setNeSyncLoading(false)
+    }
+  }
+
+  async function syncNeOperationalFields(dryRun: boolean) {
+    setNeSyncLoading(true)
+    setNeSyncMessage(dryRun ? 'NE最新化のdry-runを実行しています...' : 'NEから最新情報を取得してSupabaseへ反映しています...')
+
+    try {
+      const result = await callNeWorker<NeOperationalSyncResult>('/api/ne/sync-operational-fields', dryRun ? { dryRun: '1' } : {})
+      setNeSyncResult(result)
+      setNeSyncMessage(
+        dryRun
+          ? `dry-run完了：NE ${result.merged ?? 0}件 / 一致 ${result.matched ?? 0}件 / 未一致 ${result.unmatched ?? 0}件`
+          : `NE最新化完了：更新 ${result.updated ?? 0}件 / 一致 ${result.matched ?? 0}件`,
+      )
+
+      if (!dryRun && result.ok) {
+        await fetchProducts()
+      }
+    } catch (error) {
+      setNeSyncMessage(`NE最新化失敗：${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setNeSyncLoading(false)
+    }
   }
 
   async function copyProductCode(productCode: string) {
@@ -2539,6 +2649,45 @@ function App() {
               <strong>商品一覧</strong>
               <span>{filteredProducts.length}件</span>
             </div>
+
+            {tableView === 'ne' && (
+              <div className="ne-sync-panel" aria-label="NE最新化">
+                <div className="ne-sync-token">
+                  <span>ADMIN_TOKEN</span>
+                  <input
+                    type="password"
+                    value={neAdminToken}
+                    onChange={(event) => setNeAdminToken(event.target.value)}
+                    placeholder="WorkerのADMIN_TOKEN"
+                    autoComplete="off"
+                  />
+                </div>
+
+                <div className="ne-sync-actions">
+                  <button type="button" className="secondary small" onClick={fetchNeUsage} disabled={neSyncLoading}>
+                    利用回数
+                  </button>
+                  <button type="button" className="secondary small" onClick={() => syncNeOperationalFields(true)} disabled={neSyncLoading}>
+                    dry-run
+                  </button>
+                  <button type="button" className="small" onClick={() => syncNeOperationalFields(false)} disabled={neSyncLoading}>
+                    NE最新化
+                  </button>
+                </div>
+
+                {(neSyncMessage || neUsage || neSyncResult) && (
+                  <div className="ne-sync-status">
+                    {neSyncMessage && <strong>{neSyncMessage}</strong>}
+                    {neUsage && (
+                      <span>利用：{neUsage.callCount ?? 0}回 / 残り{neUsage.remainingCalls ?? '-'}回 / {neUsage.estimatedGb ?? 0}GB</span>
+                    )}
+                    {neSyncResult && (
+                      <span>取得：在庫{neSyncResult.stockFetched ?? 0}件・商品{neSyncResult.goodsFetched ?? 0}件 / 一致{neSyncResult.matched ?? 0}件 / 更新{neSyncResult.updated ?? 0}件</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="table-pager" aria-label="商品一覧ページ送り">
               <button
