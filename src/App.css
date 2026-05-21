@@ -375,23 +375,23 @@ table {
 }
 
 .products-table--all {
-  min-width: 2140px;
+  min-width: 2750px;
 }
 
 .products-table--pick {
-  min-width: 1470px;
+  min-width: 2050px;
 }
 
 .products-table--order {
-  min-width: 1270px;
+  min-width: 1850px;
 }
 
 .products-table--purchase {
-  min-width: 2070px;
+  min-width: 2670px;
 }
 
 .products-table--custom {
-  min-width: 1640px;
+  min-width: 2220px;
 }
 
 th,
@@ -1343,4 +1343,29 @@ tr:hover td:last-child {
   object-fit: contain;
   border-radius: 20px;
   background: #f8fafc;
+}
+
+.classification-text {
+  min-width: 64px;
+  max-width: 84px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
+  text-align: center;
+  font-weight: 900;
+}
+
+.number-text {
+  min-width: 76px;
+  max-width: 96px;
+  text-align: right;
+}
+
+.monthly-sales-text {
+  min-width: 260px;
+  max-width: 420px;
+  white-space: normal;
+  line-height: 1.5;
+  color: #334155;
 }

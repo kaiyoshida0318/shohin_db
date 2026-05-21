@@ -7,11 +7,18 @@ const PRODUCT_IMAGE_EXTENSION = '.webp'
 const IMAGE_UPLOAD_CONCURRENCY = 5
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
+const NE_INFO_COLUMN_COUNT = 5
 
 type Product = {
   product_code: string
   product_name: string | null
   floor: string | null
+
+  free_stock: number | null
+  reorder_point: number | null
+  stock_constant: number | null
+  monthly_sales: unknown | null
+  orderboard_classification: string | null
 
   special_notes: string | null
   picking_advice: string | null
@@ -702,6 +709,126 @@ function buildBulkSummary(
   }
 }
 
+
+function formatNumericValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+
+  const numericValue = typeof value === 'number' ? value : Number(value)
+
+  if (Number.isFinite(numericValue)) {
+    return numericValue.toLocaleString('ja-JP')
+  }
+
+  return String(value)
+}
+
+function formatClassification(value: string | null | undefined) {
+  return value?.trim() || 'NOR'
+}
+
+type MonthlySalesEntry = {
+  key: string
+  label: string
+  value: number
+}
+
+function normalizeMonthLabel(year: string, month: string) {
+  const normalizedYear = year.replace(/[^0-9]/g, '')
+  const normalizedMonth = month.replace(/[^0-9]/g, '').padStart(2, '0')
+
+  if (normalizedYear.length < 4 || !normalizedMonth) {
+    return `${year}/${month}`
+  }
+
+  return `${normalizedYear.slice(-2)}/${normalizedMonth}`
+}
+
+function pushMonthlySalesEntry(
+  entries: MonthlySalesEntry[],
+  key: string,
+  label: string,
+  rawValue: unknown,
+) {
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    return
+  }
+
+  const numericValue = typeof rawValue === 'number' ? rawValue : Number(rawValue)
+
+  if (!Number.isFinite(numericValue)) {
+    return
+  }
+
+  entries.push({ key, label, value: numericValue })
+}
+
+function getMonthlySalesEntries(monthlySales: unknown): MonthlySalesEntry[] {
+  if (!monthlySales) {
+    return []
+  }
+
+  let source = monthlySales
+
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source)
+    } catch {
+      return []
+    }
+  }
+
+  if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    return []
+  }
+
+  const entries: MonthlySalesEntry[] = []
+  const record = source as Record<string, unknown>
+
+  Object.entries(record).forEach(([yearOrMonthKey, value]) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.entries(value as Record<string, unknown>).forEach(([monthKey, monthValue]) => {
+        const year = yearOrMonthKey.replace(/[^0-9]/g, '')
+        const month = monthKey.replace(/[^0-9]/g, '').padStart(2, '0')
+        const sortKey = `${year}${month}`
+        pushMonthlySalesEntry(
+          entries,
+          sortKey,
+          normalizeMonthLabel(yearOrMonthKey, monthKey),
+          monthValue,
+        )
+      })
+      return
+    }
+
+    const normalizedKey = yearOrMonthKey.replace(/[^0-9]/g, '')
+    if (normalizedKey.length >= 6) {
+      const year = normalizedKey.slice(0, 4)
+      const month = normalizedKey.slice(4, 6)
+      pushMonthlySalesEntry(entries, `${year}${month}`, `${year.slice(-2)}/${month}`, value)
+      return
+    }
+
+    pushMonthlySalesEntry(entries, yearOrMonthKey, yearOrMonthKey, value)
+  })
+
+  return entries.sort((a, b) => a.key.localeCompare(b.key, 'ja-JP', { numeric: true }))
+}
+
+function formatMonthlySales(monthlySales: unknown) {
+  const entries = getMonthlySalesEntries(monthlySales)
+
+  if (entries.length === 0) {
+    return '-'
+  }
+
+  return entries
+    .slice(-6)
+    .map((entry) => `${entry.label}:${entry.value.toLocaleString('ja-JP')}`)
+    .join(' / ')
+}
+
 function formatDateTime(value: string | null) {
   if (!value) return ''
 
@@ -1059,6 +1186,11 @@ function App() {
           product.product_code,
           draft.product_name,
           draft.floor,
+          formatClassification(product.orderboard_classification),
+          formatNumericValue(product.free_stock),
+          formatNumericValue(product.reorder_point),
+          formatNumericValue(product.stock_constant),
+          formatMonthlySales(product.monthly_sales),
           draft.special_notes,
           draft.picking_advice,
           draft.rack_number,
@@ -1845,10 +1977,23 @@ function App() {
     )
   }
 
+  function renderNeInfoColumns(product: Product) {
+    return (
+      <>
+        <td><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text" /></td>
+        <td><DisplayText value={formatNumericValue(product.free_stock)} className="mono-text number-text" /></td>
+        <td><DisplayText value={formatNumericValue(product.reorder_point)} className="mono-text number-text" /></td>
+        <td><DisplayText value={formatNumericValue(product.stock_constant)} className="mono-text number-text" /></td>
+        <td><DisplayText value={formatMonthlySales(product.monthly_sales)} className="monthly-sales-text" /></td>
+      </>
+    )
+  }
+
   function renderAllColumns(product: Product, draft: EditableProduct) {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        {renderNeInfoColumns(product)}
         <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
@@ -1871,6 +2016,7 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        {renderNeInfoColumns(product)}
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
         <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
@@ -1885,6 +2031,7 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        {renderNeInfoColumns(product)}
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_3', 'rakumart_url_3')}</td>
@@ -1898,6 +2045,7 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        {renderNeInfoColumns(product)}
         <td>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
@@ -1915,6 +2063,7 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        {renderNeInfoColumns(product)}
         <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
@@ -1927,7 +2076,15 @@ function App() {
     )
   }
 
-  const tableColSpan = tableView === 'all' ? 18 : tableView === 'pick' ? 10 : tableView === 'order' ? 9 : tableView === 'purchase' ? 13 : 12
+  const tableColSpan = tableView === 'all'
+    ? 18 + NE_INFO_COLUMN_COUNT
+    : tableView === 'pick'
+      ? 10 + NE_INFO_COLUMN_COUNT
+      : tableView === 'order'
+        ? 9 + NE_INFO_COLUMN_COUNT
+        : tableView === 'purchase'
+          ? 13 + NE_INFO_COLUMN_COUNT
+          : 12 + NE_INFO_COLUMN_COUNT
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -2096,6 +2253,11 @@ function App() {
                   {tableView === 'all' && (
                     <>
                       <th>商品名</th>
+                      <th>分類</th>
+                      <th>フリー在庫</th>
+                      <th>発注点</th>
+                      <th>在庫定数</th>
+                      <th>月別受注数</th>
                       <th>階数</th>
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
@@ -2116,6 +2278,11 @@ function App() {
                   {tableView === 'pick' && (
                     <>
                       <th>商品名</th>
+                      <th>分類</th>
+                      <th>フリー在庫</th>
+                      <th>発注点</th>
+                      <th>在庫定数</th>
+                      <th>月別受注数</th>
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
                       <th>階数</th>
@@ -2128,6 +2295,11 @@ function App() {
                   {tableView === 'order' && (
                     <>
                       <th>商品名</th>
+                      <th>分類</th>
+                      <th>フリー在庫</th>
+                      <th>発注点</th>
+                      <th>在庫定数</th>
+                      <th>月別受注数</th>
                       <th>オーダー1</th>
                       <th>オーダー2</th>
                       <th>オーダー3</th>
@@ -2139,6 +2311,11 @@ function App() {
                   {tableView === 'purchase' && (
                     <>
                       <th>商品名</th>
+                      <th>分類</th>
+                      <th>フリー在庫</th>
+                      <th>発注点</th>
+                      <th>在庫定数</th>
+                      <th>月別受注数</th>
                       <th>発注URL1</th>
                       <th>発注URL2</th>
                       <th>発注URL3</th>
@@ -2154,6 +2331,11 @@ function App() {
                   {tableView === 'custom' && (
                     <>
                       <th>商品名</th>
+                      <th>分類</th>
+                      <th>フリー在庫</th>
+                      <th>発注点</th>
+                      <th>在庫定数</th>
+                      <th>月別受注数</th>
                       <th>階数</th>
                       <th>棚番号-位置</th>
                       <th>棚番号-段</th>
