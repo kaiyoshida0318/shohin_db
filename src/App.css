@@ -1438,3 +1438,78 @@ tr:hover td:last-child {
 .products-table--ne {
   min-width: 1180px;
 }
+
+/* Column resize */
+.products-table {
+  table-layout: fixed;
+}
+
+.resizable-header {
+  position: sticky;
+  overflow: visible;
+  padding-right: 22px;
+  user-select: none;
+}
+
+.header-label {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.column-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 9px;
+  height: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: col-resize;
+  z-index: 20;
+}
+
+.column-resizer::after {
+  content: '';
+  position: absolute;
+  top: 18%;
+  right: 4px;
+  width: 1px;
+  height: 64%;
+  border-radius: 999px;
+  background: transparent;
+}
+
+.resizable-header:hover .column-resizer::after,
+.column-resizer:hover::after {
+  background: #94a3b8;
+}
+
+.column-resizer:hover {
+  background: rgba(37, 99, 235, 0.06);
+  opacity: 1;
+}
+
+body.is-column-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.is-column-resizing * {
+  cursor: col-resize !important;
+}
+
+.column-width-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sticky-code-cell {
+  left: var(--image-column-width, 86px);
+}

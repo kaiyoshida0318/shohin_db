@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent, type DragEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -7,7 +7,10 @@ const PRODUCT_IMAGE_EXTENSION = '.webp'
 const IMAGE_UPLOAD_CONCURRENCY = 5
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
-const NE_INFO_COLUMN_COUNT = 5
+const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v1'
+const MIN_COLUMN_WIDTH = 64
+const MAX_COLUMN_WIDTH = 720
+
 
 type Product = {
   product_code: string
@@ -100,6 +103,22 @@ type SessionUser = {
 }
 
 type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'ne' | 'custom'
+
+type ColumnSpec = {
+  key: string
+  label: string
+  width: number
+  className?: string
+}
+
+type ColumnWidthMap = Record<string, number>
+
+type ColumnResizeMouseEvent = {
+  clientX: number
+  preventDefault: () => void
+  stopPropagation: () => void
+}
+
 
 type BulkProductRow = {
   id: string
@@ -1208,6 +1227,116 @@ function DisplayText({ value, className = '' }: { value: string | null; classNam
   return <span className={`cell-text ${className}`}>{value || '-'}</span>
 }
 
+
+function safeParseColumnWidths(raw: string | null): ColumnWidthMap {
+  if (!raw) {
+    return {}
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {}
+    }
+
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>)
+        .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
+        .map(([key, value]) => [key, clampColumnWidth(value as number)]),
+    )
+  } catch {
+    return {}
+  }
+}
+
+function clampColumnWidth(width: number) {
+  return Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(width)))
+}
+
+function getNeColumnSpecs(): ColumnSpec[] {
+  return [
+    { key: 'free_stock', label: 'フリー在庫', width: 96 },
+    { key: 'reorder_point', label: '発注点', width: 92 },
+    { key: 'stock_constant', label: '在庫定数', width: 96 },
+    { key: 'monthly_sales', label: '月別受注数', width: 280 },
+    { key: 'orderboard_classification', label: '分類', width: 92 },
+  ]
+}
+
+function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
+  const baseColumns: ColumnSpec[] = [
+    { key: 'image', label: '画像', width: 86, className: 'image-cell sticky-image-cell' },
+    { key: 'product_code', label: '商品コード', width: 190, className: 'sticky-code-cell' },
+  ]
+  const actionColumn: ColumnSpec = { key: 'actions', label: '操作', width: 122 }
+  const neColumns = getNeColumnSpecs()
+
+  const viewColumns: Record<TableView, ColumnSpec[]> = {
+    all: [
+      { key: 'product_name', label: '商品名', width: 280 },
+      ...neColumns,
+      { key: 'floor', label: '階数', width: 84 },
+      { key: 'special_notes', label: '特記事項', width: 240 },
+      { key: 'picking_advice', label: 'ピック時アドバイス', width: 260 },
+      { key: 'rack_number', label: '棚番号-位置', width: 118 },
+      { key: 'rack_level', label: '棚番号-段', width: 108 },
+      { key: 'sticker_color', label: 'シールカラー', width: 118 },
+      { key: 'order_memo_1', label: 'オーダー1', width: 150 },
+      { key: 'order_memo_2', label: 'オーダー2', width: 150 },
+      { key: 'order_memo_3', label: 'オーダー3', width: 150 },
+      { key: 'order_memo_4', label: 'オーダー4', width: 150 },
+      { key: 'order_memo_5', label: 'オーダー5', width: 150 },
+      { key: 'product_info_synced_at', label: '商品同期', width: 160 },
+      { key: 'order_status_synced_at', label: 'オーダー同期', width: 160 },
+      { key: 'updated_at', label: '更新日', width: 160 },
+    ],
+    pick: [
+      { key: 'product_name', label: '商品名', width: 280 },
+      { key: 'special_notes', label: '特記事項', width: 260 },
+      { key: 'picking_advice', label: 'ピック時アドバイス', width: 300 },
+      { key: 'floor', label: '階数', width: 84 },
+      { key: 'rack_number', label: '棚番号-位置', width: 120 },
+      { key: 'rack_level', label: '棚番号-段', width: 108 },
+      { key: 'sticker_color', label: 'シールカラー', width: 118 },
+    ],
+    order: [
+      { key: 'product_name', label: '商品名', width: 280 },
+      { key: 'order_memo_1', label: 'オーダー1', width: 170 },
+      { key: 'order_memo_2', label: 'オーダー2', width: 170 },
+      { key: 'order_memo_3', label: 'オーダー3', width: 170 },
+      { key: 'order_memo_4', label: 'オーダー4', width: 170 },
+      { key: 'order_memo_5', label: 'オーダー5', width: 170 },
+    ],
+    purchase: [
+      { key: 'product_name', label: '商品名', width: 280 },
+      { key: 'order_url_1', label: '発注URL1', width: 250 },
+      { key: 'order_url_2', label: '発注URL2', width: 250 },
+      { key: 'order_url_3', label: '発注URL3', width: 250 },
+      { key: 'order_size', label: 'サイズ', width: 96 },
+      { key: 'order_color', label: 'カラー', width: 110 },
+      { key: 'order_simple_instruction', label: '■簡潔指示', width: 260 },
+      { key: 'order_detail_instruction', label: '▲具体指示', width: 320 },
+      { key: 'order_quantity_condition', label: '数量条件指定', width: 220 },
+      { key: 'order_note', label: '補足情報', width: 260 },
+    ],
+    ne: [...neColumns],
+    custom: [
+      { key: 'product_name', label: '商品名', width: 280 },
+      ...neColumns,
+      { key: 'floor', label: '階数', width: 84 },
+      { key: 'rack_number', label: '棚番号-位置', width: 120 },
+      { key: 'rack_level', label: '棚番号-段', width: 108 },
+      { key: 'sticker_color', label: 'シールカラー', width: 118 },
+      { key: 'special_notes', label: '特記事項', width: 260 },
+      { key: 'picking_advice', label: 'ピック時アドバイス', width: 300 },
+      { key: 'order_memo_1', label: 'オーダー1', width: 170 },
+      { key: 'updated_at', label: '更新日', width: 160 },
+    ],
+  }
+
+  return [...baseColumns, ...viewColumns[tableView], actionColumn]
+}
+
 function ViewButton({
   active,
   children,
@@ -1239,6 +1368,9 @@ function App() {
   const [keyword, setKeyword] = useState('')
   const [tableView, setTableView] = useState<TableView>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [columnWidths, setColumnWidths] = useState<ColumnWidthMap>(() =>
+    safeParseColumnWidths(window.localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY)),
+  )
 
   const [loading, setLoading] = useState(false)
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -1295,6 +1427,10 @@ function App() {
 
     return () => window.clearTimeout(timer)
   }, [message, user])
+
+  useEffect(() => {
+    window.localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, JSON.stringify(columnWidths))
+  }, [columnWidths])
 
 
   useEffect(() => {
@@ -2150,6 +2286,59 @@ function App() {
     )
   }
 
+  const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView), [tableView])
+
+  function getColumnWidth(column: ColumnSpec) {
+    return columnWidths[column.key] ?? column.width
+  }
+
+  function resetColumnWidths() {
+    setColumnWidths({})
+  }
+
+  function startColumnResize(column: ColumnSpec, event: ColumnResizeMouseEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+
+    const startX = event.clientX
+    const startWidth = getColumnWidth(column)
+
+    document.body.classList.add('is-column-resizing')
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const nextWidth = clampColumnWidth(startWidth + moveEvent.clientX - startX)
+      setColumnWidths((prev) => ({ ...prev, [column.key]: nextWidth }))
+    }
+
+    const handleMouseUp = () => {
+      document.body.classList.remove('is-column-resizing')
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
+
+  function renderColumnHeader(column: ColumnSpec) {
+    return (
+      <th key={column.key} className={column.className ? `resizable-header ${column.className}` : 'resizable-header'}>
+        <span className="header-label">{column.label}</span>
+        <button
+          type="button"
+          className="column-resizer"
+          onMouseDown={(event) => startColumnResize(column, event)}
+          aria-label={`${column.label}の列幅を調整`}
+          title="ドラッグで列幅調整"
+        />
+      </th>
+    )
+  }
+
+  const tableStyle = {
+    '--image-column-width': `${getColumnWidth(currentColumnSpecs[0])}px`,
+  } as CSSProperties
+
   function renderNeInfoColumns(product: Product) {
     return (
       <>
@@ -2250,17 +2439,7 @@ function App() {
     )
   }
 
-  const tableColSpan = tableView === 'all'
-    ? 18 + NE_INFO_COLUMN_COUNT
-    : tableView === 'pick'
-      ? 10
-      : tableView === 'order'
-        ? 9
-        : tableView === 'purchase'
-          ? 13
-          : tableView === 'ne'
-            ? 3 + NE_INFO_COLUMN_COUNT
-            : 12 + NE_INFO_COLUMN_COUNT
+  const tableColSpan = currentColumnSpecs.length
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -2420,108 +2599,24 @@ function App() {
                 すべて
               </ViewButton>
             </div>
+
+            <div className="column-width-tools">
+              <button type="button" className="secondary small" onClick={resetColumnWidths}>
+                列幅リセット
+              </button>
+            </div>
           </div>
 
           <div className="table-wrap">
-            <table className={tableClassName}>
+            <table className={tableClassName} style={tableStyle}>
+              <colgroup>
+                {currentColumnSpecs.map((column) => (
+                  <col key={column.key} style={{ width: `${getColumnWidth(column)}px` }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
-                  <th className="image-cell sticky-image-cell">画像</th>
-                  <th className="sticky-code-cell">商品コード</th>
-
-                  {tableView === 'all' && (
-                    <>
-                      <th>商品名</th>
-                      <th>フリー在庫</th>
-                      <th>発注点</th>
-                      <th>在庫定数</th>
-                      <th>月別受注数</th>
-                      <th>分類</th>
-                      <th>階数</th>
-                      <th>特記事項</th>
-                      <th>ピック時アドバイス</th>
-                      <th>棚番号-位置</th>
-                      <th>棚番号-段</th>
-                      <th>シールカラー</th>
-                      <th>オーダー1</th>
-                      <th>オーダー2</th>
-                      <th>オーダー3</th>
-                      <th>オーダー4</th>
-                      <th>オーダー5</th>
-                      <th>商品同期</th>
-                      <th>オーダー同期</th>
-                      <th>更新日</th>
-                    </>
-                  )}
-
-                  {tableView === 'pick' && (
-                    <>
-                      <th>商品名</th>
-                      <th>特記事項</th>
-                      <th>ピック時アドバイス</th>
-                      <th>階数</th>
-                      <th>棚番号-位置</th>
-                      <th>棚番号-段</th>
-                      <th>シールカラー</th>
-                    </>
-                  )}
-
-                  {tableView === 'order' && (
-                    <>
-                      <th>商品名</th>
-                      <th>オーダー1</th>
-                      <th>オーダー2</th>
-                      <th>オーダー3</th>
-                      <th>オーダー4</th>
-                      <th>オーダー5</th>
-                    </>
-                  )}
-
-                  {tableView === 'purchase' && (
-                    <>
-                      <th>商品名</th>
-                      <th>発注URL1</th>
-                      <th>発注URL2</th>
-                      <th>発注URL3</th>
-                      <th>サイズ</th>
-                      <th>カラー</th>
-                      <th>■簡潔指示</th>
-                      <th>▲具体指示</th>
-                      <th>数量条件指定</th>
-                      <th>補足情報</th>
-                    </>
-                  )}
-
-                  {tableView === 'ne' && (
-                    <>
-                      <th>フリー在庫</th>
-                      <th>発注点</th>
-                      <th>在庫定数</th>
-                      <th>月別受注数</th>
-                      <th>分類</th>
-                    </>
-                  )}
-
-                  {tableView === 'custom' && (
-                    <>
-                      <th>商品名</th>
-                      <th>フリー在庫</th>
-                      <th>発注点</th>
-                      <th>在庫定数</th>
-                      <th>月別受注数</th>
-                      <th>分類</th>
-                      <th>階数</th>
-                      <th>棚番号-位置</th>
-                      <th>棚番号-段</th>
-                      <th>シールカラー</th>
-                      <th>特記事項</th>
-                      <th>ピック時アドバイス</th>
-                      <th>オーダー1</th>
-                      <th>更新日</th>
-                    </>
-                  )}
-
-                  <th>操作</th>
+                  {currentColumnSpecs.map((column) => renderColumnHeader(column))}
                 </tr>
               </thead>
 
