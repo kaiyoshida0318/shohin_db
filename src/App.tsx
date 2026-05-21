@@ -18,6 +18,8 @@ type Product = {
   reorder_point: number | null
   stock_constant: number | null
   monthly_sales: unknown | null
+  monthly_by_year?: unknown | null
+  monthlyByYear?: unknown | null
   orderboard_classification: string | null
 
   special_notes: string | null
@@ -776,20 +778,32 @@ function pushMonthlySalesEntry(
   entries.push({ key, label, value: numericValue })
 }
 
-function getMonthlySalesEntries(monthlySales: unknown): MonthlySalesEntry[] {
+function parseMonthlySalesSource(monthlySales: unknown) {
   if (!monthlySales) {
-    return []
+    return null
   }
 
-  let source = monthlySales
-
-  if (typeof source === 'string') {
+  if (typeof monthlySales === 'string') {
     try {
-      source = JSON.parse(source)
+      return JSON.parse(monthlySales) as unknown
     } catch {
-      return []
+      return null
     }
   }
+
+  return monthlySales
+}
+
+function getProductMonthlySales(product: Product) {
+  return product.monthly_sales ?? product.monthly_by_year ?? product.monthlyByYear ?? null
+}
+
+function getMonthLabelByArrayIndex(index: number) {
+  return String(index + 1).padStart(2, '0')
+}
+
+function getMonthlySalesEntries(monthlySales: unknown): MonthlySalesEntry[] {
+  const source = parseMonthlySalesSource(monthlySales)
 
   if (!source || typeof source !== 'object' || Array.isArray(source)) {
     return []
@@ -799,7 +813,16 @@ function getMonthlySalesEntries(monthlySales: unknown): MonthlySalesEntry[] {
   const record = source as Record<string, unknown>
 
   Object.entries(record).forEach(([yearOrMonthKey, value]) => {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (Array.isArray(value)) {
+      value.forEach((monthValue, index) => {
+        const year = normalizeYearKey(yearOrMonthKey)
+        const month = getMonthLabelByArrayIndex(index)
+        pushMonthlySalesEntry(entries, `${year}${month}`, `${year.slice(-2)}/${month}`, monthValue)
+      })
+      return
+    }
+
+    if (value && typeof value === 'object') {
       Object.entries(value as Record<string, unknown>).forEach(([monthKey, monthValue]) => {
         const year = yearOrMonthKey.replace(/[^0-9]/g, '')
         const month = monthKey.replace(/[^0-9]/g, '').padStart(2, '0')
@@ -887,19 +910,7 @@ function pushMonthlySalesMonth(
 }
 
 function getMonthlySalesYearGroups(monthlySales: unknown): MonthlySalesYearGroup[] {
-  if (!monthlySales) {
-    return []
-  }
-
-  let source = monthlySales
-
-  if (typeof source === 'string') {
-    try {
-      source = JSON.parse(source)
-    } catch {
-      return []
-    }
-  }
+  const source = parseMonthlySalesSource(monthlySales)
 
   if (!source || typeof source !== 'object' || Array.isArray(source)) {
     return []
@@ -909,7 +920,19 @@ function getMonthlySalesYearGroups(monthlySales: unknown): MonthlySalesYearGroup
   const record = source as Record<string, unknown>
 
   Object.entries(record).forEach(([yearOrMonthKey, value]) => {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (Array.isArray(value)) {
+      value.forEach((monthValue, index) => {
+        pushMonthlySalesMonth(
+          groupsByYear,
+          yearOrMonthKey,
+          getMonthLabelByArrayIndex(index),
+          monthValue,
+        )
+      })
+      return
+    }
+
+    if (value && typeof value === 'object') {
       Object.entries(value as Record<string, unknown>).forEach(([monthKey, monthValue]) => {
         pushMonthlySalesMonth(groupsByYear, yearOrMonthKey, monthKey, monthValue)
       })
@@ -1333,7 +1356,7 @@ function App() {
           formatNumericValue(product.free_stock),
           formatNumericValue(product.reorder_point),
           formatNumericValue(product.stock_constant),
-          formatMonthlySales(product.monthly_sales),
+          formatMonthlySales(getProductMonthlySales(product)),
           draft.special_notes,
           draft.picking_advice,
           draft.rack_number,
@@ -2126,7 +2149,7 @@ function App() {
         <td><DisplayText value={formatNumericValue(product.free_stock)} className="mono-text number-text" /></td>
         <td><DisplayText value={formatNumericValue(product.reorder_point)} className="mono-text number-text" /></td>
         <td><DisplayText value={formatNumericValue(product.stock_constant)} className="mono-text number-text" /></td>
-        <td><MonthlySalesByYear monthlySales={product.monthly_sales} /></td>
+        <td><MonthlySalesByYear monthlySales={getProductMonthlySales(product)} /></td>
         <td><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text" /></td>
       </>
     )
