@@ -97,7 +97,7 @@ type SessionUser = {
   email?: string
 }
 
-type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'custom'
+type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'ne' | 'custom'
 
 type BulkProductRow = {
   id: string
@@ -1989,6 +1989,18 @@ function App() {
     )
   }
 
+  function renderNeColumns(product: Product, draft: EditableProduct) {
+    return (
+      <>
+        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        {renderNeInfoColumns(product)}
+        <td>{formatDateTime(product.product_info_synced_at)}</td>
+        <td>{formatDateTime(product.order_status_synced_at)}</td>
+        <td>{formatDateTime(product.updated_at)}</td>
+      </>
+    )
+  }
+
   function renderAllColumns(product: Product, draft: EditableProduct) {
     return (
       <>
@@ -2084,7 +2096,9 @@ function App() {
         ? 9 + NE_INFO_COLUMN_COUNT
         : tableView === 'purchase'
           ? 13 + NE_INFO_COLUMN_COUNT
-          : 12 + NE_INFO_COLUMN_COUNT
+          : tableView === 'ne'
+            ? 7 + NE_INFO_COLUMN_COUNT
+            : 12 + NE_INFO_COLUMN_COUNT
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -2225,20 +2239,23 @@ function App() {
             </div>
 
             <div className="view-switch" aria-label="表示用途切り替え">
-              <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
-                すべて
-              </ViewButton>
               <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
                 オーダー状況
               </ViewButton>
               <ViewButton active={tableView === 'purchase'} onClick={() => setTableView('purchase')}>
                 オーダー用
               </ViewButton>
+              <ViewButton active={tableView === 'ne'} onClick={() => setTableView('ne')}>
+                NE情報
+              </ViewButton>
               <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
-                ピック用
+                紙出し用
               </ViewButton>
               <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
                 カスタム
+              </ViewButton>
+              <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
+                すべて
               </ViewButton>
             </div>
           </div>
@@ -2328,6 +2345,20 @@ function App() {
                     </>
                   )}
 
+                  {tableView === 'ne' && (
+                    <>
+                      <th>商品名</th>
+                      <th>分類</th>
+                      <th>フリー在庫</th>
+                      <th>発注点</th>
+                      <th>在庫定数</th>
+                      <th>月別受注数</th>
+                      <th>商品同期</th>
+                      <th>オーダー同期</th>
+                      <th>更新日</th>
+                    </>
+                  )}
+
                   {tableView === 'custom' && (
                     <>
                       <th>商品名</th>
@@ -2385,6 +2416,7 @@ function App() {
                       {tableView === 'pick' && renderPickColumns(product, draft)}
                       {tableView === 'order' && renderOrderColumns(product, draft)}
                       {tableView === 'purchase' && renderPurchaseColumns(product, draft)}
+                      {tableView === 'ne' && renderNeColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
                       <td>{renderActions(product, draft)}</td>

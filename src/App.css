@@ -390,6 +390,10 @@ table {
   min-width: 2670px;
 }
 
+.products-table--ne {
+  min-width: 1850px;
+}
+
 .products-table--custom {
   min-width: 2220px;
 }
