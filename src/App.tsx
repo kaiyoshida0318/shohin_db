@@ -734,6 +734,18 @@ type MonthlySalesEntry = {
   value: number
 }
 
+type MonthlySalesMonth = {
+  key: string
+  label: string
+  value: number
+}
+
+type MonthlySalesYearGroup = {
+  yearKey: string
+  yearLabel: string
+  months: MonthlySalesMonth[]
+}
+
 function normalizeMonthLabel(year: string, month: string) {
   const normalizedYear = year.replace(/[^0-9]/g, '')
   const normalizedMonth = month.replace(/[^0-9]/g, '').padStart(2, '0')
@@ -827,6 +839,137 @@ function formatMonthlySales(monthlySales: unknown) {
     .slice(-6)
     .map((entry) => `${entry.label}:${entry.value.toLocaleString('ja-JP')}`)
     .join(' / ')
+}
+
+function normalizeYearKey(year: string) {
+  const normalized = year.replace(/[^0-9]/g, '')
+  if (normalized.length >= 4) {
+    return normalized.slice(0, 4)
+  }
+  return normalized || year
+}
+
+function normalizeMonthKey(month: string) {
+  const normalized = month.replace(/[^0-9]/g, '')
+  return normalized ? normalized.padStart(2, '0') : month
+}
+
+function pushMonthlySalesMonth(
+  groupsByYear: Map<string, MonthlySalesYearGroup>,
+  year: string,
+  month: string,
+  rawValue: unknown,
+) {
+  if (rawValue === null || rawValue === undefined || rawValue === '') {
+    return
+  }
+
+  const value = typeof rawValue === 'number' ? rawValue : Number(rawValue)
+
+  if (!Number.isFinite(value)) {
+    return
+  }
+
+  const yearKey = normalizeYearKey(year)
+  const monthKey = normalizeMonthKey(month)
+  const yearLabel = yearKey.length === 4 ? `${yearKey}年` : `${year}年`
+  const monthLabel = monthKey.length === 2 ? `${monthKey}月` : month
+
+  if (!groupsByYear.has(yearKey)) {
+    groupsByYear.set(yearKey, { yearKey, yearLabel, months: [] })
+  }
+
+  groupsByYear.get(yearKey)?.months.push({
+    key: `${yearKey}${monthKey}`,
+    label: monthLabel,
+    value,
+  })
+}
+
+function getMonthlySalesYearGroups(monthlySales: unknown): MonthlySalesYearGroup[] {
+  if (!monthlySales) {
+    return []
+  }
+
+  let source = monthlySales
+
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source)
+    } catch {
+      return []
+    }
+  }
+
+  if (!source || typeof source !== 'object' || Array.isArray(source)) {
+    return []
+  }
+
+  const groupsByYear = new Map<string, MonthlySalesYearGroup>()
+  const record = source as Record<string, unknown>
+
+  Object.entries(record).forEach(([yearOrMonthKey, value]) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      Object.entries(value as Record<string, unknown>).forEach(([monthKey, monthValue]) => {
+        pushMonthlySalesMonth(groupsByYear, yearOrMonthKey, monthKey, monthValue)
+      })
+      return
+    }
+
+    const normalizedKey = yearOrMonthKey.replace(/[^0-9]/g, '')
+    if (normalizedKey.length >= 6) {
+      pushMonthlySalesMonth(
+        groupsByYear,
+        normalizedKey.slice(0, 4),
+        normalizedKey.slice(4, 6),
+        value,
+      )
+    }
+  })
+
+  return Array.from(groupsByYear.values())
+    .map((group) => ({
+      ...group,
+      months: group.months.sort((a, b) => a.key.localeCompare(b.key, 'ja-JP', { numeric: true })),
+    }))
+    .sort((a, b) => a.yearKey.localeCompare(b.yearKey, 'ja-JP', { numeric: true }))
+}
+
+function MonthlySalesByYear({ monthlySales }: { monthlySales: unknown }) {
+  const groups = useMemo(() => getMonthlySalesYearGroups(monthlySales), [monthlySales])
+  const [selectedYearKey, setSelectedYearKey] = useState<string | null>(null)
+
+  if (groups.length === 0) {
+    return <DisplayText value="-" className="monthly-sales-empty" />
+  }
+
+  const activeGroup =
+    groups.find((group) => group.yearKey === selectedYearKey) ?? groups[groups.length - 1]
+
+  return (
+    <div className="monthly-sales-panel">
+      <div className="monthly-sales-year-buttons">
+        {groups.map((group) => (
+          <button
+            key={group.yearKey}
+            type="button"
+            className={`monthly-sales-year-button${group.yearKey === activeGroup.yearKey ? ' is-active' : ''}`}
+            onClick={() => setSelectedYearKey(group.yearKey)}
+          >
+            {group.yearLabel}
+          </button>
+        ))}
+      </div>
+      <div className="monthly-sales-month-grid">
+        {activeGroup.months.map((month) => (
+          <span key={month.key} className="monthly-sales-month-chip">
+            <span>{month.label}</span>
+            <strong>{month.value.toLocaleString('ja-JP')}</strong>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function formatDateTime(value: string | null) {
@@ -1980,25 +2123,17 @@ function App() {
   function renderNeInfoColumns(product: Product) {
     return (
       <>
-        <td><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text" /></td>
         <td><DisplayText value={formatNumericValue(product.free_stock)} className="mono-text number-text" /></td>
         <td><DisplayText value={formatNumericValue(product.reorder_point)} className="mono-text number-text" /></td>
         <td><DisplayText value={formatNumericValue(product.stock_constant)} className="mono-text number-text" /></td>
-        <td><DisplayText value={formatMonthlySales(product.monthly_sales)} className="monthly-sales-text" /></td>
+        <td><MonthlySalesByYear monthlySales={product.monthly_sales} /></td>
+        <td><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text" /></td>
       </>
     )
   }
 
-  function renderNeColumns(product: Product, draft: EditableProduct) {
-    return (
-      <>
-        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        {renderNeInfoColumns(product)}
-        <td>{formatDateTime(product.product_info_synced_at)}</td>
-        <td>{formatDateTime(product.order_status_synced_at)}</td>
-        <td>{formatDateTime(product.updated_at)}</td>
-      </>
-    )
+  function renderNeColumns(product: Product) {
+    return <>{renderNeInfoColumns(product)}</>
   }
 
   function renderAllColumns(product: Product, draft: EditableProduct) {
@@ -2097,7 +2232,7 @@ function App() {
         : tableView === 'purchase'
           ? 13 + NE_INFO_COLUMN_COUNT
           : tableView === 'ne'
-            ? 7 + NE_INFO_COLUMN_COUNT
+            ? 3 + NE_INFO_COLUMN_COUNT
             : 12 + NE_INFO_COLUMN_COUNT
   const tableClassName = `products-table products-table--${tableView}`
 
@@ -2270,11 +2405,11 @@ function App() {
                   {tableView === 'all' && (
                     <>
                       <th>商品名</th>
-                      <th>分類</th>
                       <th>フリー在庫</th>
                       <th>発注点</th>
                       <th>在庫定数</th>
                       <th>月別受注数</th>
+                      <th>分類</th>
                       <th>階数</th>
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
@@ -2295,11 +2430,11 @@ function App() {
                   {tableView === 'pick' && (
                     <>
                       <th>商品名</th>
-                      <th>分類</th>
                       <th>フリー在庫</th>
                       <th>発注点</th>
                       <th>在庫定数</th>
                       <th>月別受注数</th>
+                      <th>分類</th>
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
                       <th>階数</th>
@@ -2312,11 +2447,11 @@ function App() {
                   {tableView === 'order' && (
                     <>
                       <th>商品名</th>
-                      <th>分類</th>
                       <th>フリー在庫</th>
                       <th>発注点</th>
                       <th>在庫定数</th>
                       <th>月別受注数</th>
+                      <th>分類</th>
                       <th>オーダー1</th>
                       <th>オーダー2</th>
                       <th>オーダー3</th>
@@ -2328,11 +2463,11 @@ function App() {
                   {tableView === 'purchase' && (
                     <>
                       <th>商品名</th>
-                      <th>分類</th>
                       <th>フリー在庫</th>
                       <th>発注点</th>
                       <th>在庫定数</th>
                       <th>月別受注数</th>
+                      <th>分類</th>
                       <th>発注URL1</th>
                       <th>発注URL2</th>
                       <th>発注URL3</th>
@@ -2347,26 +2482,22 @@ function App() {
 
                   {tableView === 'ne' && (
                     <>
-                      <th>商品名</th>
-                      <th>分類</th>
                       <th>フリー在庫</th>
                       <th>発注点</th>
                       <th>在庫定数</th>
                       <th>月別受注数</th>
-                      <th>商品同期</th>
-                      <th>オーダー同期</th>
-                      <th>更新日</th>
+                      <th>分類</th>
                     </>
                   )}
 
                   {tableView === 'custom' && (
                     <>
                       <th>商品名</th>
-                      <th>分類</th>
                       <th>フリー在庫</th>
                       <th>発注点</th>
                       <th>在庫定数</th>
                       <th>月別受注数</th>
+                      <th>分類</th>
                       <th>階数</th>
                       <th>棚番号-位置</th>
                       <th>棚番号-段</th>
@@ -2416,7 +2547,7 @@ function App() {
                       {tableView === 'pick' && renderPickColumns(product, draft)}
                       {tableView === 'order' && renderOrderColumns(product, draft)}
                       {tableView === 'purchase' && renderPurchaseColumns(product, draft)}
-                      {tableView === 'ne' && renderNeColumns(product, draft)}
+                      {tableView === 'ne' && renderNeColumns(product)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
                       <td>{renderActions(product, draft)}</td>

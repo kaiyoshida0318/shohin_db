@@ -1373,3 +1373,68 @@ tr:hover td:last-child {
   line-height: 1.5;
   color: #334155;
 }
+
+.monthly-sales-panel {
+  min-width: 340px;
+  max-width: 520px;
+  white-space: normal;
+}
+
+.monthly-sales-year-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.monthly-sales-year-button {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #047857;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.monthly-sales-year-button.is-active {
+  background: #10b981;
+  border-color: #10b981;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.18);
+}
+
+.monthly-sales-month-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 1fr));
+  gap: 6px;
+}
+
+.monthly-sales-month-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #334155;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.monthly-sales-month-chip strong {
+  color: #0f172a;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-sales-empty {
+  color: #94a3b8;
+}
+
+.products-table--ne {
+  min-width: 1180px;
+}
