@@ -2335,8 +2335,10 @@ function App() {
     )
   }
 
+  const tableWidth = currentColumnSpecs.reduce((sum, column) => sum + getColumnWidth(column), 0)
   const tableStyle = {
     '--image-column-width': `${getColumnWidth(currentColumnSpecs[0])}px`,
+    '--products-table-width': `${tableWidth}px`,
   } as CSSProperties
 
   function renderNeInfoColumns(product: Product) {

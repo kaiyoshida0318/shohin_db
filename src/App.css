@@ -1513,3 +1513,64 @@ body.is-column-resizing * {
 .sticky-code-cell {
   left: var(--image-column-width, 86px);
 }
+
+/* Column width fix: keep resized columns strict and hide overflowed values. */
+.products-table {
+  width: var(--products-table-width);
+  min-width: var(--products-table-width);
+  table-layout: fixed;
+}
+
+.products-table th,
+.products-table td {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 0;
+}
+
+.products-table .cell-text,
+.products-table .note-text,
+.products-table .product-name-text,
+.products-table .mono-text,
+.products-table .classification-text,
+.products-table .empty-url {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.products-table .monthly-sales-view,
+.products-table .monthly-sales-panel,
+.products-table .monthly-sales-years,
+.products-table .order-edit-stack,
+.products-table .url-edit-cell,
+.products-table .row-actions {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.products-table input,
+.products-table textarea,
+.products-table select,
+.products-table .table-input,
+.products-table .table-textarea,
+.products-table .product-name-input,
+.products-table .floor-input,
+.products-table .rack-input,
+.products-table .rack-level-input,
+.products-table .sticker-input,
+.products-table .order-input,
+.products-table .url-input,
+.products-table .small-text-input {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.products-table textarea {
+  overflow: auto;
+}
