@@ -966,8 +966,9 @@ function MonthlySalesByYear({ monthlySales }: { monthlySales: unknown }) {
     return <DisplayText value="-" className="monthly-sales-empty" />
   }
 
-  const activeGroup =
-    groups.find((group) => group.yearKey === selectedYearKey) ?? groups[groups.length - 1]
+  const activeGroup = selectedYearKey
+    ? groups.find((group) => group.yearKey === selectedYearKey) ?? null
+    : null
 
   return (
     <div className="monthly-sales-panel">
@@ -976,21 +977,27 @@ function MonthlySalesByYear({ monthlySales }: { monthlySales: unknown }) {
           <button
             key={group.yearKey}
             type="button"
-            className={`monthly-sales-year-button${group.yearKey === activeGroup.yearKey ? ' is-active' : ''}`}
-            onClick={() => setSelectedYearKey(group.yearKey)}
+            className={`monthly-sales-year-button${group.yearKey === selectedYearKey ? ' is-active' : ''}`}
+            onClick={() =>
+              setSelectedYearKey((currentYearKey) =>
+                currentYearKey === group.yearKey ? null : group.yearKey,
+              )
+            }
           >
             {group.yearLabel}
           </button>
         ))}
       </div>
-      <div className="monthly-sales-month-grid">
-        {activeGroup.months.map((month) => (
-          <span key={month.key} className="monthly-sales-month-chip">
-            <span>{month.label}</span>
-            <strong>{month.value.toLocaleString('ja-JP')}</strong>
-          </span>
-        ))}
-      </div>
+      {activeGroup && (
+        <div className="monthly-sales-month-grid">
+          {activeGroup.months.map((month) => (
+            <span key={month.key} className="monthly-sales-month-chip">
+              <span>{month.label}</span>
+              <strong>{month.value.toLocaleString('ja-JP')}</strong>
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -2186,7 +2193,6 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        {renderNeInfoColumns(product)}
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
         <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
@@ -2201,7 +2207,6 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        {renderNeInfoColumns(product)}
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_3', 'rakumart_url_3')}</td>
@@ -2215,7 +2220,6 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        {renderNeInfoColumns(product)}
         <td>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
@@ -2249,11 +2253,11 @@ function App() {
   const tableColSpan = tableView === 'all'
     ? 18 + NE_INFO_COLUMN_COUNT
     : tableView === 'pick'
-      ? 10 + NE_INFO_COLUMN_COUNT
+      ? 10
       : tableView === 'order'
-        ? 9 + NE_INFO_COLUMN_COUNT
+        ? 9
         : tableView === 'purchase'
-          ? 13 + NE_INFO_COLUMN_COUNT
+          ? 13
           : tableView === 'ne'
             ? 3 + NE_INFO_COLUMN_COUNT
             : 12 + NE_INFO_COLUMN_COUNT
@@ -2453,11 +2457,6 @@ function App() {
                   {tableView === 'pick' && (
                     <>
                       <th>商品名</th>
-                      <th>フリー在庫</th>
-                      <th>発注点</th>
-                      <th>在庫定数</th>
-                      <th>月別受注数</th>
-                      <th>分類</th>
                       <th>特記事項</th>
                       <th>ピック時アドバイス</th>
                       <th>階数</th>
@@ -2470,11 +2469,6 @@ function App() {
                   {tableView === 'order' && (
                     <>
                       <th>商品名</th>
-                      <th>フリー在庫</th>
-                      <th>発注点</th>
-                      <th>在庫定数</th>
-                      <th>月別受注数</th>
-                      <th>分類</th>
                       <th>オーダー1</th>
                       <th>オーダー2</th>
                       <th>オーダー3</th>
@@ -2486,11 +2480,6 @@ function App() {
                   {tableView === 'purchase' && (
                     <>
                       <th>商品名</th>
-                      <th>フリー在庫</th>
-                      <th>発注点</th>
-                      <th>在庫定数</th>
-                      <th>月別受注数</th>
-                      <th>分類</th>
                       <th>発注URL1</th>
                       <th>発注URL2</th>
                       <th>発注URL3</th>
