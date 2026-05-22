@@ -181,6 +181,24 @@ h2 {
   font-size: 14px;
 }
 
+
+.topbar-ne-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 82px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(5, 150, 105, 0.22);
+  font-size: 13px;
+}
+
+.topbar-ne-button:hover {
+  opacity: 0.94;
+}
+
 .topbar-brand {
   display: flex;
   align-items: center;
@@ -1791,6 +1809,32 @@ body.is-column-resizing * {
   font-size: 12px;
   font-weight: 700;
 }
+.ne-sync-modal-body {
+  display: grid;
+  gap: 12px;
+}
+
+.ne-sync-token--modal {
+  min-width: 0;
+}
+
+.ne-sync-token--modal input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ne-sync-actions--modal {
+  justify-content: flex-end;
+}
+
+.ne-sync-status--modal {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 185, 129, 0.14);
+  border-radius: 12px;
+  background: rgba(236, 253, 245, 0.72);
+}
+
 
 @media (max-width: 760px) {
   .ne-sync-dock {

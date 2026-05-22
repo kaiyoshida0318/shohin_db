@@ -1909,13 +1909,13 @@ function App() {
         messageParts.push(`月別：${monthlyResult.months?.join('・') || '-'} / 一致 ${monthlyResult.matched ?? 0}件 / 更新 ${monthlyResult.updated ?? 0}件`)
       }
 
-      setNeSyncMessage(`${dryRun ? 'dry-run完了' : 'NE最新化完了'}：${messageParts.join(' / ')}`)
+      setNeSyncMessage(`${dryRun ? 'dry-run完了' : 'NE取得完了'}：${messageParts.join(' / ')}`)
 
       if (!dryRun && ((operationalResult && operationalResult.ok) || (monthlyResult && monthlyResult.ok))) {
         await fetchProducts()
       }
     } catch (error) {
-      setNeSyncMessage(`NE最新化失敗：${error instanceof Error ? error.message : String(error)}`)
+      setNeSyncMessage(`NE取得失敗：${error instanceof Error ? error.message : String(error)}`)
     } finally {
       setNeSyncLoading(false)
     }
@@ -2807,6 +2807,15 @@ function App() {
         </div>
 
         <div className="topbar-actions">
+          <button
+            type="button"
+            className="topbar-ne-button"
+            onClick={() => setIsNeSyncPanelOpen(true)}
+            aria-haspopup="dialog"
+            aria-expanded={isNeSyncPanelOpen}
+          >
+            NE取得
+          </button>
           <span>{user.email}</span>
           <button className="secondary" onClick={logout}>
             ログアウト
@@ -2840,61 +2849,6 @@ function App() {
         <button onClick={openCreateModal}>商品追加/更新</button>
       </section>
 
-      <section className="ne-sync-dock" aria-label="NE最新化">
-        <div className="ne-sync-dock-main">
-          <div className="ne-sync-dock-title">
-            <strong>NE最新化</strong>
-          </div>
-
-          <label className="ne-sync-token compact-token">
-            <span>ADMIN_TOKEN</span>
-            <input
-              type="password"
-              value={neAdminToken}
-              onChange={(event) => setNeAdminToken(event.target.value)}
-              placeholder="WorkerのADMIN_TOKEN"
-              autoComplete="off"
-            />
-          </label>
-
-          <div className="ne-sync-actions">
-            <button type="button" className="secondary small" onClick={fetchNeUsage} disabled={neSyncLoading}>
-              利用回数
-            </button>
-            <button type="button" className="secondary small" onClick={() => syncNeOperationalFields(true)} disabled={neSyncLoading}>
-              dry-run
-            </button>
-            <button type="button" className="small" onClick={() => syncNeOperationalFields(false)} disabled={neSyncLoading}>
-              NE最新化
-            </button>
-            <button
-              type="button"
-              className="secondary small"
-              onClick={() => setIsNeSyncPanelOpen(true)}
-              aria-haspopup="dialog"
-              aria-expanded={isNeSyncPanelOpen}
-            >
-              取得設定
-            </button>
-          </div>
-        </div>
-
-        {(neSyncMessage || neUsage || neSyncResult || neMonthlyResult) && (
-          <div className="ne-sync-status compact-status">
-            {neSyncMessage && <strong>{neSyncMessage}</strong>}
-            {neUsage && (
-              <span>利用：{neUsage.callCount ?? 0}回 / 残り{neUsage.remainingCalls ?? '-'}回 / {neUsage.estimatedGb ?? 0}GB</span>
-            )}
-            {neSyncResult && (
-              <span>NE情報：在庫{neSyncResult.stockFetched ?? 0}件・商品{neSyncResult.goodsFetched ?? 0}件 / 一致{neSyncResult.matched ?? 0}件 / 更新{neSyncResult.updated ?? 0}件</span>
-            )}
-            {neMonthlyResult && (
-              <span>月別受注数：{neMonthlyResult.months?.join('・') || '-'} / 明細{neMonthlyResult.rowFetched ?? 0}行 / 一致{neMonthlyResult.matched ?? 0}件 / 更新{neMonthlyResult.updated ?? 0}件</span>
-            )}
-          </div>
-        )}
-      </section>
-
       {isNeSyncPanelOpen && (
         <div
           className="ne-sync-modal-backdrop"
@@ -2905,96 +2859,136 @@ function App() {
             }
           }}
         >
-          <aside className="ne-sync-modal" role="dialog" aria-modal="true" aria-label="NE取得設定">
+          <aside className="ne-sync-modal" role="dialog" aria-modal="true" aria-label="NE取得">
             <div className="ne-sync-modal-header">
               <div>
-                <strong>NE取得設定</strong>
-                <span>取得する項目と対象年月を選択</span>
+                <strong>NE取得</strong>
+                <span>取得項目・対象年月を選んでNEからSupabaseへ反映</span>
               </div>
               <button type="button" className="secondary small" onClick={() => setIsNeSyncPanelOpen(false)}>
                 閉じる
               </button>
             </div>
 
-            <div className="ne-sync-detail-grid">
-              <div className="ne-sync-field-box">
-                <strong>取得項目</strong>
-                <div className="ne-sync-checks">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={neSyncFields.freeStock}
-                      onChange={(event) => updateNeSyncField('freeStock', event.target.checked)}
-                    />
-                    フリー在庫
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={neSyncFields.reorderPoint}
-                      onChange={(event) => updateNeSyncField('reorderPoint', event.target.checked)}
-                    />
-                    発注点
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={neSyncFields.stockConstant}
-                      onChange={(event) => updateNeSyncField('stockConstant', event.target.checked)}
-                    />
-                    在庫定数
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={neSyncFields.monthlySales}
-                      onChange={(event) => updateNeSyncField('monthlySales', event.target.checked)}
-                    />
-                    月別受注数
-                  </label>
-                </div>
+            <div className="ne-sync-modal-body">
+              <label className="ne-sync-token ne-sync-token--modal">
+                <span>ADMIN_TOKEN</span>
+                <input
+                  type="password"
+                  value={neAdminToken}
+                  onChange={(event) => setNeAdminToken(event.target.value)}
+                  placeholder="WorkerのADMIN_TOKEN"
+                  autoComplete="off"
+                />
+              </label>
+
+              <div className="ne-sync-actions ne-sync-actions--modal">
+                <button type="button" className="secondary small" onClick={fetchNeUsage} disabled={neSyncLoading}>
+                  利用回数
+                </button>
+                <button type="button" className="secondary small" onClick={() => syncNeOperationalFields(true)} disabled={neSyncLoading}>
+                  dry-run
+                </button>
+                <button type="button" className="small" onClick={() => syncNeOperationalFields(false)} disabled={neSyncLoading}>
+                  NE取得
+                </button>
               </div>
 
-              {neSyncFields.monthlySales && (
-                <div className="ne-sync-month-box">
-                  <div className="ne-sync-month-toolbar">
-                    <strong>月別受注数の対象年月</strong>
-                    <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(1)} disabled={neSyncLoading}>
-                      今月
-                    </button>
-                    <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(3)} disabled={neSyncLoading}>
-                      直近3か月
-                    </button>
-                    <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(12)} disabled={neSyncLoading}>
-                      直近12か月
-                    </button>
-                    <button type="button" className="secondary small" onClick={() => setSelectedNeMonths([])} disabled={neSyncLoading}>
-                      クリア
-                    </button>
-                  </div>
-
-                  <div className="ne-sync-month-groups">
-                    {neMonthGroups.map((group) => (
-                      <div key={group.year} className="ne-sync-month-group">
-                        <span>{group.year}</span>
-                        {group.months.map((key) => {
-                          const month = key.slice(5, 7)
-                          return (
-                            <label key={key}>
-                              <input
-                                type="checkbox"
-                                checked={selectedNeMonths.includes(key)}
-                                onChange={(event) => toggleNeSyncMonth(key, event.target.checked)}
-                              />
-                              {month}月
-                            </label>
-                          )
-                        })}
-                      </div>
-                    ))}
-                  </div>
+              {(neSyncMessage || neUsage || neSyncResult || neMonthlyResult) && (
+                <div className="ne-sync-status ne-sync-status--modal">
+                  {neSyncMessage && <strong>{neSyncMessage}</strong>}
+                  {neUsage && (
+                    <span>利用：{neUsage.callCount ?? 0}回 / 残り{neUsage.remainingCalls ?? '-'}回 / {neUsage.estimatedGb ?? 0}GB</span>
+                  )}
+                  {neSyncResult && (
+                    <span>NE情報：在庫{neSyncResult.stockFetched ?? 0}件・商品{neSyncResult.goodsFetched ?? 0}件 / 一致{neSyncResult.matched ?? 0}件 / 更新{neSyncResult.updated ?? 0}件</span>
+                  )}
+                  {neMonthlyResult && (
+                    <span>月別受注数：{neMonthlyResult.months?.join('・') || '-'} / 明細{neMonthlyResult.rowFetched ?? 0}行 / 一致{neMonthlyResult.matched ?? 0}件 / 更新{neMonthlyResult.updated ?? 0}件</span>
+                  )}
                 </div>
               )}
+
+              <div className="ne-sync-detail-grid">
+                <div className="ne-sync-field-box">
+                  <strong>取得項目</strong>
+                  <div className="ne-sync-checks">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.freeStock}
+                        onChange={(event) => updateNeSyncField('freeStock', event.target.checked)}
+                      />
+                      フリー在庫
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.reorderPoint}
+                        onChange={(event) => updateNeSyncField('reorderPoint', event.target.checked)}
+                      />
+                      発注点
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.stockConstant}
+                        onChange={(event) => updateNeSyncField('stockConstant', event.target.checked)}
+                      />
+                      在庫定数
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.monthlySales}
+                        onChange={(event) => updateNeSyncField('monthlySales', event.target.checked)}
+                      />
+                      月別受注数
+                    </label>
+                  </div>
+                </div>
+
+                {neSyncFields.monthlySales && (
+                  <div className="ne-sync-month-box">
+                    <div className="ne-sync-month-toolbar">
+                      <strong>月別受注数の対象年月</strong>
+                      <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(1)} disabled={neSyncLoading}>
+                        今月
+                      </button>
+                      <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(3)} disabled={neSyncLoading}>
+                        直近3か月
+                      </button>
+                      <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(12)} disabled={neSyncLoading}>
+                        直近12か月
+                      </button>
+                      <button type="button" className="secondary small" onClick={() => setSelectedNeMonths([])} disabled={neSyncLoading}>
+                        クリア
+                      </button>
+                    </div>
+
+                    <div className="ne-sync-month-groups">
+                      {neMonthGroups.map((group) => (
+                        <div key={group.year} className="ne-sync-month-group">
+                          <span>{group.year}</span>
+                          {group.months.map((key) => {
+                            const month = key.slice(5, 7)
+                            return (
+                              <label key={key}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNeMonths.includes(key)}
+                                  onChange={(event) => toggleNeSyncMonth(key, event.target.checked)}
+                                />
+                                {month}月
+                              </label>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </aside>
         </div>
