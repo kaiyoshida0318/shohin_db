@@ -1860,3 +1860,134 @@ body.is-column-resizing * {
     max-height: calc(100vh - 76px);
   }
 }
+
+/* NE取得モーダル: 取得項目・年月チェックの視認性調整 */
+.ne-sync-modal {
+  width: min(740px, calc(100vw - 56px));
+  padding: 16px;
+}
+
+.ne-sync-modal-body {
+  gap: 14px;
+}
+
+.ne-sync-detail-grid {
+  gap: 12px;
+}
+
+.ne-sync-field-box,
+.ne-sync-month-box {
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+}
+
+.ne-sync-field-box strong,
+.ne-sync-month-box strong,
+.ne-sync-month-toolbar strong {
+  display: inline-flex;
+  align-items: center;
+  min-width: fit-content;
+  white-space: nowrap;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+  letter-spacing: 0.01em;
+}
+
+.ne-sync-checks {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.ne-sync-checks label {
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+  line-height: 1;
+}
+
+.ne-sync-checks label input,
+.ne-sync-month-group label input {
+  flex: 0 0 auto;
+}
+
+.ne-sync-month-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.ne-sync-month-toolbar strong {
+  margin-right: 4px;
+}
+
+.ne-sync-month-groups {
+  gap: 12px;
+}
+
+.ne-sync-month-group {
+  display: grid;
+  grid-template-columns: 52px repeat(6, minmax(62px, 1fr));
+  align-items: center;
+  gap: 8px 10px;
+  padding: 10px 0 0;
+  border-top: 1px dashed rgba(16, 185, 129, 0.16);
+}
+
+.ne-sync-month-group:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.ne-sync-month-group > span {
+  align-self: center;
+  min-width: 0;
+  width: 52px;
+  white-space: nowrap;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+}
+
+.ne-sync-month-group label {
+  min-width: 0;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(248, 250, 252, 0.72);
+  white-space: nowrap;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+  line-height: 1;
+}
+
+.ne-sync-month-group label:hover,
+.ne-sync-checks label:hover {
+  background: rgba(236, 253, 245, 0.95);
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+@media (max-width: 760px) {
+  .ne-sync-checks {
+    grid-template-columns: repeat(2, minmax(126px, 1fr));
+  }
+
+  .ne-sync-month-group {
+    grid-template-columns: 48px repeat(3, minmax(62px, 1fr));
+  }
+
+  .ne-sync-month-group > span {
+    width: 48px;
+  }
+}
+
