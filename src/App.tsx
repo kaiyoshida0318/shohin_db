@@ -11,7 +11,6 @@ const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v1'
 const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
-const NE_ADMIN_TOKEN_STORAGE_KEY = 'shohin-db-ne-admin-token-v1'
 const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
 const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
 const NE_SYNC_MONTH_MIN_YEAR = 2025
@@ -1519,9 +1518,6 @@ function App() {
   const [savingCode, setSavingCode] = useState<string | null>(null)
   const [message, setMessage] = useState('')
 
-  const [neAdminToken, setNeAdminToken] = useState(() =>
-    window.localStorage.getItem(NE_ADMIN_TOKEN_STORAGE_KEY) ?? '',
-  )
   const [neSyncLoading, setNeSyncLoading] = useState(false)
   const [neSyncMessage, setNeSyncMessage] = useState('')
   const [neUsage, setNeUsage] = useState<NeUsageResult | null>(null)
@@ -1597,15 +1593,6 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, JSON.stringify(columnWidths))
   }, [columnWidths])
-
-
-  useEffect(() => {
-    if (neAdminToken.trim()) {
-      window.localStorage.setItem(NE_ADMIN_TOKEN_STORAGE_KEY, neAdminToken.trim())
-    } else {
-      window.localStorage.removeItem(NE_ADMIN_TOKEN_STORAGE_KEY)
-    }
-  }, [neAdminToken])
 
   useEffect(() => {
     window.localStorage.setItem(NE_SYNC_FIELDS_STORAGE_KEY, JSON.stringify(neSyncFields))
@@ -1802,10 +1789,11 @@ function App() {
   }
 
   async function callNeWorker<T>(path: string, params: Record<string, string> = {}) {
-    const token = neAdminToken.trim()
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+    const accessToken = sessionData.session?.access_token
 
-    if (!token) {
-      throw new Error('ADMIN_TOKENを入力してください。')
+    if (sessionError || !accessToken) {
+      throw new Error('ログインセッションが切れています。再ログインしてください。')
     }
 
     const url = new URL(path, NE_SYNC_WORKER_URL)
@@ -1817,7 +1805,7 @@ function App() {
 
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: { 'x-admin-token': token },
+      headers: { Authorization: `Bearer ${accessToken}` },
     })
 
     const data = (await response.json().catch(() => null)) as T | null
@@ -2874,16 +2862,9 @@ function App() {
             </div>
 
             <div className="ne-sync-modal-body">
-              <label className="ne-sync-token ne-sync-token--modal">
-                <span>ADMIN_TOKEN</span>
-                <input
-                  type="password"
-                  value={neAdminToken}
-                  onChange={(event) => setNeAdminToken(event.target.value)}
-                  placeholder="WorkerのADMIN_TOKEN"
-                  autoComplete="off"
-                />
-              </label>
+              <div className="ne-sync-auth-note ne-sync-auth-note--modal">
+                Supabase Authのログイン状態でNE取得します。ADMIN_TOKENの入力は不要です。
+              </div>
 
               <div className="ne-sync-actions ne-sync-actions--modal">
                 <button type="button" className="secondary small" onClick={fetchNeUsage} disabled={neSyncLoading}>
