@@ -2286,3 +2286,79 @@ body.is-column-resizing * {
     min-width: 720px;
   }
 }
+
+/* NE取得ボタン: Next Engine系の青に統一し、ロゴで判別しやすくする */
+.topbar-ne-button,
+.ne-sync-primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.96) 0%, rgba(14, 165, 233, 0.98) 44%, rgba(37, 99, 235, 1) 100%);
+  color: #fff;
+  box-shadow:
+    0 12px 26px rgba(14, 165, 233, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.topbar-ne-button {
+  min-width: 126px;
+  padding: 8px 16px 8px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+}
+
+.ne-sync-primary-button {
+  min-width: 112px;
+  padding: 7px 13px 7px 8px;
+  border-radius: 999px;
+}
+
+.topbar-ne-button:hover,
+.ne-sync-primary-button:hover {
+  opacity: 1;
+  filter: brightness(1.03);
+  transform: translateY(-1px);
+  box-shadow:
+    0 16px 30px rgba(14, 165, 233, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.topbar-ne-button:disabled,
+.ne-sync-primary-button:disabled {
+  filter: grayscale(0.15);
+  transform: none;
+}
+
+.ne-button-logo-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.18);
+  flex: 0 0 auto;
+}
+
+.ne-button-logo-badge img {
+  display: block;
+  width: 21px;
+  height: 21px;
+  object-fit: contain;
+}
+
+.ne-button-logo-badge--small {
+  width: 24px;
+  height: 24px;
+}
+
+.ne-button-logo-badge--small img {
+  width: 18px;
+  height: 18px;
+}

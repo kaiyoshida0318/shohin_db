@@ -2814,7 +2814,10 @@ function App() {
             aria-haspopup="dialog"
             aria-expanded={isNeSyncPanelOpen}
           >
-            NE取得
+            <span className="ne-button-logo-badge" aria-hidden="true">
+              <img src={`${import.meta.env.BASE_URL}ne-logo.png`} alt="" />
+            </span>
+            <span>NE取得</span>
           </button>
           <span>{user.email}</span>
           <button className="secondary" onClick={logout}>
@@ -2889,8 +2892,16 @@ function App() {
                 <button type="button" className="secondary small" onClick={() => syncNeOperationalFields(true)} disabled={neSyncLoading}>
                   dry-run
                 </button>
-                <button type="button" className="small" onClick={() => syncNeOperationalFields(false)} disabled={neSyncLoading}>
-                  NE取得
+                <button
+                  type="button"
+                  className="small ne-sync-primary-button"
+                  onClick={() => syncNeOperationalFields(false)}
+                  disabled={neSyncLoading}
+                >
+                  <span className="ne-button-logo-badge ne-button-logo-badge--small" aria-hidden="true">
+                    <img src={`${import.meta.env.BASE_URL}ne-logo.png`} alt="" />
+                  </span>
+                  <span>NE取得</span>
                 </button>
               </div>
 
