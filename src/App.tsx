@@ -12,6 +12,9 @@ const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
 const NE_ADMIN_TOKEN_STORAGE_KEY = 'shohin-db-ne-admin-token-v1'
+const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
+const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
+const NE_SYNC_MONTH_MIN_YEAR = 2025
 
 
 type Product = {
@@ -80,6 +83,7 @@ type NeUsageResult = {
 type NeOperationalSyncResult = {
   ok: boolean
   dryRun?: boolean
+  selectedFields?: string[]
   stockFetched?: number
   goodsFetched?: number
   merged?: number
@@ -88,6 +92,36 @@ type NeOperationalSyncResult = {
   updated?: number
   message?: string
   error?: string
+}
+
+type NeMonthlySalesSyncResult = {
+  ok: boolean
+  dryRun?: boolean
+  months?: string[]
+  rowFetched?: number
+  activeRows?: number
+  aggregatedProducts?: number
+  matched?: number
+  unmatched?: number
+  updated?: number
+  message?: string
+  error?: string
+}
+
+type NeOperationalFieldKey = 'free_stock' | 'reorder_point' | 'stock_constant'
+
+type NeSyncFieldState = {
+  freeStock: boolean
+  reorderPoint: boolean
+  stockConstant: boolean
+  monthlySales: boolean
+}
+
+const DEFAULT_NE_SYNC_FIELDS: NeSyncFieldState = {
+  freeStock: true,
+  reorderPoint: true,
+  stockConstant: true,
+  monthlySales: false,
 }
 
 type EditableProduct = {
@@ -1253,6 +1287,86 @@ function DisplayText({ value, className = '' }: { value: string | null; classNam
   return <span className={`cell-text ${className}`}>{value || '-'}</span>
 }
 
+function safeParseJson<T>(value: string | null, fallback: T): T {
+  if (!value) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    return fallback
+  }
+}
+
+function currentJstYearMonth(): { year: number; month: number } {
+  const [year, month] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric',
+    month: '2-digit',
+  })
+    .format(new Date())
+    .split('-')
+    .map(Number)
+
+  return { year, month }
+}
+
+function addMonths(year: number, month: number, delta: number): { year: number; month: number } {
+  const zeroBased = year * 12 + (month - 1) + delta
+  const normalizedMonth = ((zeroBased % 12) + 12) % 12
+
+  return { year: Math.floor(zeroBased / 12), month: normalizedMonth + 1 }
+}
+
+function makeYearMonthKey(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function buildSelectableNeMonths(range = 24) {
+  const end = currentJstYearMonth()
+  const result: string[] = []
+
+  for (let index = range - 1; index >= 0; index -= 1) {
+    const value = addMonths(end.year, end.month, -index)
+    if (value.year >= NE_SYNC_MONTH_MIN_YEAR) {
+      result.push(makeYearMonthKey(value.year, value.month))
+    }
+  }
+
+  return result
+}
+
+function groupYearMonths(yearMonths: string[]) {
+  const map = new Map<string, string[]>()
+
+  yearMonths.forEach((key) => {
+    const [year] = key.split('-')
+    if (!year) {
+      return
+    }
+    map.set(year, [...(map.get(year) ?? []), key])
+  })
+
+  return Array.from(map.entries()).map(([year, months]) => ({ year, months }))
+}
+
+function selectedNeOperationalFieldKeys(fields: NeSyncFieldState): NeOperationalFieldKey[] {
+  const result: NeOperationalFieldKey[] = []
+
+  if (fields.freeStock) {
+    result.push('free_stock')
+  }
+  if (fields.reorderPoint) {
+    result.push('reorder_point')
+  }
+  if (fields.stockConstant) {
+    result.push('stock_constant')
+  }
+
+  return result
+}
+
 
 function safeParseColumnWidths(raw: string | null): ColumnWidthMap {
   if (!raw) {
@@ -1409,6 +1523,20 @@ function App() {
   const [neSyncMessage, setNeSyncMessage] = useState('')
   const [neUsage, setNeUsage] = useState<NeUsageResult | null>(null)
   const [neSyncResult, setNeSyncResult] = useState<NeOperationalSyncResult | null>(null)
+  const [neMonthlyResult, setNeMonthlyResult] = useState<NeMonthlySalesSyncResult | null>(null)
+  const [neSyncFields, setNeSyncFields] = useState<NeSyncFieldState>(() =>
+    safeParseJson<NeSyncFieldState>(
+      window.localStorage.getItem(NE_SYNC_FIELDS_STORAGE_KEY),
+      DEFAULT_NE_SYNC_FIELDS,
+    ),
+  )
+  const [selectedNeMonths, setSelectedNeMonths] = useState<string[]>(() => {
+    const monthOptions = buildSelectableNeMonths(24)
+    const storedMonths = safeParseJson<string[]>(window.localStorage.getItem(NE_SYNC_MONTHS_STORAGE_KEY), [])
+      .filter((month) => monthOptions.includes(month))
+
+    return storedMonths.length ? storedMonths : monthOptions.slice(-1)
+  })
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
@@ -1474,6 +1602,24 @@ function App() {
       window.localStorage.removeItem(NE_ADMIN_TOKEN_STORAGE_KEY)
     }
   }, [neAdminToken])
+
+  useEffect(() => {
+    window.localStorage.setItem(NE_SYNC_FIELDS_STORAGE_KEY, JSON.stringify(neSyncFields))
+  }, [neSyncFields])
+
+
+  const neMonthOptions = useMemo(() => buildSelectableNeMonths(24), [])
+  const neMonthGroups = useMemo(() => groupYearMonths(neMonthOptions), [neMonthOptions])
+
+  useEffect(() => {
+    const validSelectedMonths = selectedNeMonths.filter((month) => neMonthOptions.includes(month))
+    if (validSelectedMonths.length !== selectedNeMonths.length) {
+      setSelectedNeMonths(validSelectedMonths.length ? validSelectedMonths : neMonthOptions.slice(-1))
+      return
+    }
+
+    window.localStorage.setItem(NE_SYNC_MONTHS_STORAGE_KEY, JSON.stringify(validSelectedMonths))
+  }, [neMonthOptions, selectedNeMonths])
 
 
   useEffect(() => {
@@ -1695,20 +1841,73 @@ function App() {
     }
   }
 
+  function updateNeSyncField(key: keyof NeSyncFieldState, checked: boolean) {
+    setNeSyncFields((current) => ({ ...current, [key]: checked }))
+  }
+
+  function toggleNeSyncMonth(key: string, checked: boolean) {
+    setSelectedNeMonths((current) => {
+      const next = checked ? Array.from(new Set([...current, key])) : current.filter((month) => month !== key)
+      return next.sort()
+    })
+  }
+
+  function selectRecentNeMonths(count: number) {
+    setSelectedNeMonths(neMonthOptions.slice(Math.max(0, neMonthOptions.length - count)))
+    setNeSyncFields((current) => ({ ...current, monthlySales: true }))
+  }
+
   async function syncNeOperationalFields(dryRun: boolean) {
+    const operationalFields = selectedNeOperationalFieldKeys(neSyncFields)
+    const shouldSyncOperational = operationalFields.length > 0
+    const shouldSyncMonthly = neSyncFields.monthlySales
+
+    if (!shouldSyncOperational && !shouldSyncMonthly) {
+      setNeSyncMessage('取得項目を1つ以上選択してください。')
+      return
+    }
+
+    if (shouldSyncMonthly && selectedNeMonths.length === 0) {
+      setNeSyncMessage('月別受注数を取得する年月を1つ以上選択してください。')
+      return
+    }
+
     setNeSyncLoading(true)
-    setNeSyncMessage(dryRun ? 'NE最新化のdry-runを実行しています...' : 'NEから最新情報を取得してSupabaseへ反映しています...')
+    setNeSyncMessage(dryRun ? 'NE取得のdry-runを実行しています...' : 'NEから選択項目を取得してSupabaseへ反映しています...')
+    setNeSyncResult(null)
+    setNeMonthlyResult(null)
 
     try {
-      const result = await callNeWorker<NeOperationalSyncResult>('/api/ne/sync-operational-fields', dryRun ? { dryRun: '1' } : {})
-      setNeSyncResult(result)
-      setNeSyncMessage(
-        dryRun
-          ? `dry-run完了：NE ${result.merged ?? 0}件 / 一致 ${result.matched ?? 0}件 / 未一致 ${result.unmatched ?? 0}件`
-          : `NE最新化完了：更新 ${result.updated ?? 0}件 / 一致 ${result.matched ?? 0}件`,
-      )
+      let operationalResult: NeOperationalSyncResult | null = null
+      let monthlyResult: NeMonthlySalesSyncResult | null = null
 
-      if (!dryRun && result.ok) {
+      if (shouldSyncOperational) {
+        operationalResult = await callNeWorker<NeOperationalSyncResult>('/api/ne/sync-operational-fields', {
+          ...(dryRun ? { dryRun: '1' } : {}),
+          fields: operationalFields.join(','),
+        })
+        setNeSyncResult(operationalResult)
+      }
+
+      if (shouldSyncMonthly) {
+        monthlyResult = await callNeWorker<NeMonthlySalesSyncResult>('/api/ne/sync-monthly-sales', {
+          ...(dryRun ? { dryRun: '1' } : {}),
+          yearMonths: selectedNeMonths.join(','),
+        })
+        setNeMonthlyResult(monthlyResult)
+      }
+
+      const messageParts: string[] = []
+      if (operationalResult) {
+        messageParts.push(`NE情報：一致 ${operationalResult.matched ?? 0}件 / 更新 ${operationalResult.updated ?? 0}件`)
+      }
+      if (monthlyResult) {
+        messageParts.push(`月別：${monthlyResult.months?.join('・') || '-'} / 一致 ${monthlyResult.matched ?? 0}件 / 更新 ${monthlyResult.updated ?? 0}件`)
+      }
+
+      setNeSyncMessage(`${dryRun ? 'dry-run完了' : 'NE最新化完了'}：${messageParts.join(' / ')}`)
+
+      if (!dryRun && ((operationalResult && operationalResult.ok) || (monthlyResult && monthlyResult.ok))) {
         await fetchProducts()
       }
     } catch (error) {
@@ -2652,37 +2851,121 @@ function App() {
 
             {tableView === 'ne' && (
               <div className="ne-sync-panel" aria-label="NE最新化">
-                <div className="ne-sync-token">
-                  <span>ADMIN_TOKEN</span>
-                  <input
-                    type="password"
-                    value={neAdminToken}
-                    onChange={(event) => setNeAdminToken(event.target.value)}
-                    placeholder="WorkerのADMIN_TOKEN"
-                    autoComplete="off"
-                  />
+                <div className="ne-sync-panel-top">
+                  <div className="ne-sync-token">
+                    <span>ADMIN_TOKEN</span>
+                    <input
+                      type="password"
+                      value={neAdminToken}
+                      onChange={(event) => setNeAdminToken(event.target.value)}
+                      placeholder="WorkerのADMIN_TOKEN"
+                      autoComplete="off"
+                    />
+                  </div>
+
+                  <div className="ne-sync-actions">
+                    <button type="button" className="secondary small" onClick={fetchNeUsage} disabled={neSyncLoading}>
+                      利用回数
+                    </button>
+                    <button type="button" className="secondary small" onClick={() => syncNeOperationalFields(true)} disabled={neSyncLoading}>
+                      dry-run
+                    </button>
+                    <button type="button" className="small" onClick={() => syncNeOperationalFields(false)} disabled={neSyncLoading}>
+                      NE最新化
+                    </button>
+                  </div>
                 </div>
 
-                <div className="ne-sync-actions">
-                  <button type="button" className="secondary small" onClick={fetchNeUsage} disabled={neSyncLoading}>
-                    利用回数
-                  </button>
-                  <button type="button" className="secondary small" onClick={() => syncNeOperationalFields(true)} disabled={neSyncLoading}>
-                    dry-run
-                  </button>
-                  <button type="button" className="small" onClick={() => syncNeOperationalFields(false)} disabled={neSyncLoading}>
-                    NE最新化
-                  </button>
+                <div className="ne-sync-field-box">
+                  <strong>取得項目</strong>
+                  <div className="ne-sync-checks">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.freeStock}
+                        onChange={(event) => updateNeSyncField('freeStock', event.target.checked)}
+                      />
+                      フリー在庫
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.reorderPoint}
+                        onChange={(event) => updateNeSyncField('reorderPoint', event.target.checked)}
+                      />
+                      発注点
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.stockConstant}
+                        onChange={(event) => updateNeSyncField('stockConstant', event.target.checked)}
+                      />
+                      在庫定数
+                    </label>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={neSyncFields.monthlySales}
+                        onChange={(event) => updateNeSyncField('monthlySales', event.target.checked)}
+                      />
+                      月別受注数
+                    </label>
+                  </div>
                 </div>
 
-                {(neSyncMessage || neUsage || neSyncResult) && (
+                {neSyncFields.monthlySales && (
+                  <div className="ne-sync-month-box">
+                    <div className="ne-sync-month-toolbar">
+                      <strong>月別受注数の対象年月</strong>
+                      <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(1)} disabled={neSyncLoading}>
+                        今月
+                      </button>
+                      <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(3)} disabled={neSyncLoading}>
+                        直近3か月
+                      </button>
+                      <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(12)} disabled={neSyncLoading}>
+                        直近12か月
+                      </button>
+                      <button type="button" className="secondary small" onClick={() => setSelectedNeMonths([])} disabled={neSyncLoading}>
+                        クリア
+                      </button>
+                    </div>
+
+                    <div className="ne-sync-month-groups">
+                      {neMonthGroups.map((group) => (
+                        <div key={group.year} className="ne-sync-month-group">
+                          <span>{group.year}</span>
+                          {group.months.map((key) => {
+                            const month = key.slice(5, 7)
+                            return (
+                              <label key={key}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedNeMonths.includes(key)}
+                                  onChange={(event) => toggleNeSyncMonth(key, event.target.checked)}
+                                />
+                                {month}月
+                              </label>
+                            )
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(neSyncMessage || neUsage || neSyncResult || neMonthlyResult) && (
                   <div className="ne-sync-status">
                     {neSyncMessage && <strong>{neSyncMessage}</strong>}
                     {neUsage && (
                       <span>利用：{neUsage.callCount ?? 0}回 / 残り{neUsage.remainingCalls ?? '-'}回 / {neUsage.estimatedGb ?? 0}GB</span>
                     )}
                     {neSyncResult && (
-                      <span>取得：在庫{neSyncResult.stockFetched ?? 0}件・商品{neSyncResult.goodsFetched ?? 0}件 / 一致{neSyncResult.matched ?? 0}件 / 更新{neSyncResult.updated ?? 0}件</span>
+                      <span>NE情報：在庫{neSyncResult.stockFetched ?? 0}件・商品{neSyncResult.goodsFetched ?? 0}件 / 一致{neSyncResult.matched ?? 0}件 / 更新{neSyncResult.updated ?? 0}件</span>
+                    )}
+                    {neMonthlyResult && (
+                      <span>月別受注数：{neMonthlyResult.months?.join('・') || '-'} / 明細{neMonthlyResult.rowFetched ?? 0}行 / 一致{neMonthlyResult.matched ?? 0}件 / 更新{neMonthlyResult.updated ?? 0}件</span>
                     )}
                   </div>
                 )}

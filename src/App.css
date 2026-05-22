@@ -1626,3 +1626,60 @@ body.is-column-resizing * {
 .ne-sync-status strong {
   color: #064e3b;
 }
+
+/* NE sync selectable fields */
+.ne-sync-panel-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.ne-sync-field-box,
+.ne-sync-month-box {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.ne-sync-field-box strong,
+.ne-sync-month-box strong {
+  color: #065f46;
+  font-size: 13px;
+}
+
+.ne-sync-checks,
+.ne-sync-month-toolbar,
+.ne-sync-month-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.ne-sync-checks label,
+.ne-sync-month-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #064e3b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ne-sync-month-groups {
+  display: grid;
+  gap: 8px;
+}
+
+.ne-sync-month-group > span {
+  min-width: 46px;
+  color: #047857;
+  font-size: 12px;
+  font-weight: 900;
+}
