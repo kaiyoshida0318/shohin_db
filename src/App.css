@@ -2195,3 +2195,94 @@ body.is-column-resizing * {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
 }
+
+/* NE取得モーダル微調整: 取得項目を短くし、対象年月12か月をスクロールなしで表示 */
+.ne-sync-modal {
+  width: min(1160px, calc(100vw - 64px));
+}
+
+.ne-sync-detail-grid {
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ne-sync-field-box {
+  padding: 12px;
+}
+
+.ne-sync-field-box strong {
+  font-size: 13px;
+}
+
+.ne-sync-checks {
+  gap: 7px;
+}
+
+.ne-sync-checks label {
+  height: 34px;
+  padding: 0 9px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
+.ne-sync-month-box {
+  padding: 12px 14px;
+}
+
+.ne-sync-month-toolbar {
+  gap: 7px;
+}
+
+.ne-sync-month-toolbar strong {
+  flex: 0 0 auto;
+  min-width: 170px;
+  font-size: 13px;
+}
+
+.ne-sync-month-groups {
+  overflow-x: visible;
+  padding-bottom: 0;
+}
+
+.ne-sync-month-group {
+  grid-template-columns: 52px repeat(12, minmax(42px, 1fr));
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+.ne-sync-month-group > span {
+  width: 52px;
+  min-width: 52px;
+  font-size: 12px;
+}
+
+.ne-sync-month-group label {
+  min-height: 32px;
+  padding: 5px 6px;
+  font-size: 12px;
+  gap: 5px;
+  justify-content: center;
+}
+
+.ne-sync-month-group input[type="checkbox"] {
+  width: 14px !important;
+  min-width: 14px;
+  max-width: 14px;
+  height: 14px;
+  flex-basis: 14px;
+}
+
+@media (max-width: 980px) {
+  .ne-sync-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ne-sync-month-groups {
+    overflow-x: auto;
+  }
+
+  .ne-sync-month-group {
+    min-width: 720px;
+  }
+}
