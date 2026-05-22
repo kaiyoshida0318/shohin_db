@@ -1459,7 +1459,10 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'order_quantity_condition', label: '数量条件指定', width: 220 },
       { key: 'order_note', label: '補足情報', width: 260 },
     ],
-    ne: [...neColumns],
+    ne: [
+      { key: 'product_name', label: '商品名', width: 280 },
+      ...neColumns,
+    ],
     custom: [
       { key: 'product_name', label: '商品名', width: 280 },
       ...neColumns,
@@ -2602,10 +2605,6 @@ function App() {
     return columnWidths[column.key] ?? column.width
   }
 
-  function resetColumnWidths() {
-    setColumnWidths({})
-  }
-
   function startColumnResize(column: ColumnSpec, event: ColumnResizeMouseEvent) {
     event.preventDefault()
     event.stopPropagation()
@@ -2664,7 +2663,12 @@ function App() {
   }
 
   function renderNeColumns(product: Product) {
-    return <>{renderNeInfoColumns(product)}</>
+    return (
+      <>
+        <td><DisplayText value={product.product_name} className="product-name-text" /></td>
+        {renderNeInfoColumns(product)}
+      </>
+    )
   }
 
   function renderAllColumns(product: Product, draft: EditableProduct) {
@@ -2840,7 +2844,6 @@ function App() {
         <div className="ne-sync-dock-main">
           <div className="ne-sync-dock-title">
             <strong>NE最新化</strong>
-            <span>全ビュー共通</span>
           </div>
 
           <label className="ne-sync-token compact-token">
@@ -2867,96 +2870,14 @@ function App() {
             <button
               type="button"
               className="secondary small"
-              onClick={() => setIsNeSyncPanelOpen((open) => !open)}
+              onClick={() => setIsNeSyncPanelOpen(true)}
+              aria-haspopup="dialog"
               aria-expanded={isNeSyncPanelOpen}
             >
-              {isNeSyncPanelOpen ? '取得条件を閉じる' : '取得条件を開く'}
+              取得設定
             </button>
           </div>
         </div>
-
-        {isNeSyncPanelOpen && (
-          <div className="ne-sync-detail-grid">
-            <div className="ne-sync-field-box">
-              <strong>取得項目</strong>
-              <div className="ne-sync-checks">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={neSyncFields.freeStock}
-                    onChange={(event) => updateNeSyncField('freeStock', event.target.checked)}
-                  />
-                  フリー在庫
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={neSyncFields.reorderPoint}
-                    onChange={(event) => updateNeSyncField('reorderPoint', event.target.checked)}
-                  />
-                  発注点
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={neSyncFields.stockConstant}
-                    onChange={(event) => updateNeSyncField('stockConstant', event.target.checked)}
-                  />
-                  在庫定数
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={neSyncFields.monthlySales}
-                    onChange={(event) => updateNeSyncField('monthlySales', event.target.checked)}
-                  />
-                  月別受注数
-                </label>
-              </div>
-            </div>
-
-            {neSyncFields.monthlySales && (
-              <div className="ne-sync-month-box">
-                <div className="ne-sync-month-toolbar">
-                  <strong>月別受注数の対象年月</strong>
-                  <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(1)} disabled={neSyncLoading}>
-                    今月
-                  </button>
-                  <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(3)} disabled={neSyncLoading}>
-                    直近3か月
-                  </button>
-                  <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(12)} disabled={neSyncLoading}>
-                    直近12か月
-                  </button>
-                  <button type="button" className="secondary small" onClick={() => setSelectedNeMonths([])} disabled={neSyncLoading}>
-                    クリア
-                  </button>
-                </div>
-
-                <div className="ne-sync-month-groups">
-                  {neMonthGroups.map((group) => (
-                    <div key={group.year} className="ne-sync-month-group">
-                      <span>{group.year}</span>
-                      {group.months.map((key) => {
-                        const month = key.slice(5, 7)
-                        return (
-                          <label key={key}>
-                            <input
-                              type="checkbox"
-                              checked={selectedNeMonths.includes(key)}
-                              onChange={(event) => toggleNeSyncMonth(key, event.target.checked)}
-                            />
-                            {month}月
-                          </label>
-                        )
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {(neSyncMessage || neUsage || neSyncResult || neMonthlyResult) && (
           <div className="ne-sync-status compact-status">
@@ -2973,6 +2894,111 @@ function App() {
           </div>
         )}
       </section>
+
+      {isNeSyncPanelOpen && (
+        <div
+          className="ne-sync-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setIsNeSyncPanelOpen(false)
+            }
+          }}
+        >
+          <aside className="ne-sync-modal" role="dialog" aria-modal="true" aria-label="NE取得設定">
+            <div className="ne-sync-modal-header">
+              <div>
+                <strong>NE取得設定</strong>
+                <span>取得する項目と対象年月を選択</span>
+              </div>
+              <button type="button" className="secondary small" onClick={() => setIsNeSyncPanelOpen(false)}>
+                閉じる
+              </button>
+            </div>
+
+            <div className="ne-sync-detail-grid">
+              <div className="ne-sync-field-box">
+                <strong>取得項目</strong>
+                <div className="ne-sync-checks">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={neSyncFields.freeStock}
+                      onChange={(event) => updateNeSyncField('freeStock', event.target.checked)}
+                    />
+                    フリー在庫
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={neSyncFields.reorderPoint}
+                      onChange={(event) => updateNeSyncField('reorderPoint', event.target.checked)}
+                    />
+                    発注点
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={neSyncFields.stockConstant}
+                      onChange={(event) => updateNeSyncField('stockConstant', event.target.checked)}
+                    />
+                    在庫定数
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={neSyncFields.monthlySales}
+                      onChange={(event) => updateNeSyncField('monthlySales', event.target.checked)}
+                    />
+                    月別受注数
+                  </label>
+                </div>
+              </div>
+
+              {neSyncFields.monthlySales && (
+                <div className="ne-sync-month-box">
+                  <div className="ne-sync-month-toolbar">
+                    <strong>月別受注数の対象年月</strong>
+                    <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(1)} disabled={neSyncLoading}>
+                      今月
+                    </button>
+                    <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(3)} disabled={neSyncLoading}>
+                      直近3か月
+                    </button>
+                    <button type="button" className="secondary small" onClick={() => selectRecentNeMonths(12)} disabled={neSyncLoading}>
+                      直近12か月
+                    </button>
+                    <button type="button" className="secondary small" onClick={() => setSelectedNeMonths([])} disabled={neSyncLoading}>
+                      クリア
+                    </button>
+                  </div>
+
+                  <div className="ne-sync-month-groups">
+                    {neMonthGroups.map((group) => (
+                      <div key={group.year} className="ne-sync-month-group">
+                        <span>{group.year}</span>
+                        {group.months.map((key) => {
+                          const month = key.slice(5, 7)
+                          return (
+                            <label key={key}>
+                              <input
+                                type="checkbox"
+                                checked={selectedNeMonths.includes(key)}
+                                onChange={(event) => toggleNeSyncMonth(key, event.target.checked)}
+                              />
+                              {month}月
+                            </label>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
 
       {message && (
         <div className="toast-message" role="status" aria-live="polite">
@@ -3051,11 +3077,6 @@ function App() {
               </ViewButton>
             </div>
 
-            <div className="column-width-tools">
-              <button type="button" className="secondary small" onClick={resetColumnWidths}>
-                列幅リセット
-              </button>
-            </div>
           </div>
 
           <div className="table-wrap">
