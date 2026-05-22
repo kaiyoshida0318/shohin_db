@@ -1991,3 +1991,207 @@ body.is-column-resizing * {
   }
 }
 
+
+/* NE取得モーダル最終調整: チェックボックス幅崩れ・縦書き化防止 */
+.ne-sync-modal-backdrop {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 76px 32px 32px;
+  overflow: auto;
+}
+
+.ne-sync-modal {
+  width: min(1080px, calc(100vw - 64px));
+  max-height: calc(100vh - 108px);
+  padding: 18px;
+  overflow: auto;
+}
+
+.ne-sync-modal-header {
+  align-items: center;
+}
+
+.ne-sync-modal-header > div {
+  min-width: 0;
+}
+
+.ne-sync-modal-header span {
+  display: block;
+  white-space: normal;
+}
+
+.ne-sync-modal-body {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) auto;
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.ne-sync-token--modal {
+  grid-column: 1 / 2;
+  display: grid;
+  grid-template-columns: 112px minmax(260px, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.78);
+}
+
+.ne-sync-token--modal span {
+  white-space: nowrap;
+}
+
+.ne-sync-token--modal input {
+  width: 100%;
+  min-width: 0;
+}
+
+.ne-sync-actions--modal {
+  grid-column: 2 / 3;
+  justify-content: flex-end;
+  align-self: stretch;
+  flex-wrap: nowrap;
+  min-width: max-content;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 185, 129, 0.16);
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.78);
+}
+
+.ne-sync-actions--modal button {
+  white-space: nowrap;
+}
+
+.ne-sync-status--modal,
+.ne-sync-detail-grid {
+  grid-column: 1 / -1;
+}
+
+.ne-sync-status--modal {
+  display: grid;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+.ne-sync-detail-grid {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.ne-sync-field-box,
+.ne-sync-month-box {
+  min-width: 0;
+}
+
+.ne-sync-checks {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.ne-sync-checks label,
+.ne-sync-month-group label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-width: 0;
+  white-space: nowrap;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+}
+
+.ne-sync-checks label {
+  width: 100%;
+  height: 40px;
+}
+
+.ne-sync-checks input[type="checkbox"],
+.ne-sync-month-group input[type="checkbox"] {
+  width: 16px !important;
+  min-width: 16px;
+  max-width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  margin: 0;
+  padding: 0;
+  border-radius: 4px;
+}
+
+.ne-sync-month-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ne-sync-month-toolbar strong {
+  flex: 1 1 auto;
+  min-width: 220px;
+}
+
+.ne-sync-month-toolbar button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.ne-sync-month-groups {
+  display: grid;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.ne-sync-month-group {
+  display: grid;
+  grid-template-columns: 58px repeat(12, minmax(54px, 1fr));
+  gap: 8px;
+  align-items: center;
+  min-width: 790px;
+  padding: 10px 0 0;
+}
+
+.ne-sync-month-group > span {
+  width: 58px;
+  min-width: 58px;
+  white-space: nowrap;
+  word-break: keep-all;
+  writing-mode: horizontal-tb;
+}
+
+.ne-sync-month-group label {
+  width: auto;
+  min-height: 34px;
+  padding: 6px 8px;
+  line-height: 1;
+}
+
+@media (max-width: 980px) {
+  .ne-sync-modal-body,
+  .ne-sync-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ne-sync-token--modal,
+  .ne-sync-actions--modal,
+  .ne-sync-status--modal,
+  .ne-sync-detail-grid {
+    grid-column: 1 / -1;
+  }
+
+  .ne-sync-actions--modal {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .ne-sync-checks {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
