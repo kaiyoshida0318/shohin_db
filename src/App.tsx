@@ -3192,16 +3192,7 @@ function App() {
             <div className="table-title">
               <strong>商品一覧</strong>
               <span>{filteredProducts.length}件</span>
-              <button
-                type="button"
-                className="secondary small bulk-edit-button"
-                onClick={startBulkEdit}
-                disabled={products.length === 0 || Boolean(savingCode)}
-              >
-                一括編集
-              </button>
             </div>
-
 
             <div className="view-switch" aria-label="表示用途切り替え">
               <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
@@ -3263,6 +3254,17 @@ function App() {
               <span className="pager-range">
                 {filteredProducts.length === 0 ? '0件' : `${pageStartIndex + 1}〜${pageEndIndex}件表示`}
               </span>
+            </div>
+
+            <div className="table-actions">
+              <button
+                type="button"
+                className="secondary small bulk-edit-button"
+                onClick={startBulkEdit}
+                disabled={products.length === 0 || Boolean(savingCode)}
+              >
+                一括編集
+              </button>
             </div>
 
           </div>
