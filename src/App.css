@@ -2470,9 +2470,12 @@ body.is-column-resizing * {
   justify-self: end;
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
-.bulk-edit-button {
+.bulk-edit-button,
+.save-all-button,
+.cancel-all-button {
   white-space: nowrap;
 }
 

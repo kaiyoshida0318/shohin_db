@@ -2472,6 +2472,98 @@ function App() {
     setMessage(`編集をキャンセルしました：${product.product_code}`)
   }
 
+  function cancelAllEdits() {
+    if (editingCodes.size === 0 || savingCode) {
+      return
+    }
+
+    const cancelCount = editingCodes.size
+
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+
+      products.forEach((product) => {
+        if (editingCodes.has(product.product_code)) {
+          next[product.product_code] = productToDraft(product)
+        }
+      })
+
+      return next
+    })
+    setEditingCodes(new Set())
+    setMessage(`${cancelCount}件の編集をキャンセルしました。`)
+  }
+
+  async function saveAllEdits() {
+    if (editingCodes.size === 0 || savingCode) {
+      return
+    }
+
+    const editingProducts = products.filter((product) =>
+      editingCodes.has(product.product_code),
+    )
+    const dirtyProducts = editingProducts.filter((product) =>
+      isDraftDirty(
+        product,
+        rowDrafts[product.product_code] ?? productToDraft(product),
+      ),
+    )
+    const cleanCount = editingProducts.length - dirtyProducts.length
+
+    if (dirtyProducts.length === 0) {
+      setRowDrafts((prev) => {
+        const next = { ...prev }
+
+        editingProducts.forEach((product) => {
+          next[product.product_code] = productToDraft(product)
+        })
+
+        return next
+      })
+      setEditingCodes(new Set())
+      setMessage(`${cleanCount}件の編集をキャンセルしました。変更はありません。`)
+      return
+    }
+
+    setSavingCode('__bulk_save__')
+    setMessage('')
+
+    const now = new Date().toISOString()
+    const payload = dirtyProducts.map((product) => ({
+      product_code: product.product_code,
+      ...normalizeDraft(rowDrafts[product.product_code] ?? productToDraft(product)),
+      updated_at: now,
+    }))
+
+    const { error } = await supabase
+      .from('products')
+      .upsert(payload, { onConflict: 'product_code' })
+
+    if (error) {
+      setMessage(`すべて保存失敗: ${error.message}`)
+      setSavingCode(null)
+      return
+    }
+
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+
+      editingProducts.forEach((product) => {
+        next[product.product_code] = productToDraft(product)
+      })
+
+      return next
+    })
+    setEditingCodes(new Set())
+    setMessage(
+      cleanCount > 0
+        ? `${dirtyProducts.length}件保存、${cleanCount}件キャンセルしました。`
+        : `${dirtyProducts.length}件保存しました。`,
+    )
+    await fetchProducts()
+    setSavingCode(null)
+  }
+
   async function createBulkProducts() {
     const targetRows = bulkShouldUpdateExisting
       ? bulkSummary.uniqueRows
@@ -3264,6 +3356,22 @@ function App() {
                 disabled={products.length === 0 || Boolean(savingCode)}
               >
                 一括編集
+              </button>
+              <button
+                type="button"
+                className="small save-all-button"
+                onClick={saveAllEdits}
+                disabled={editingCodes.size === 0 || Boolean(savingCode)}
+              >
+                {savingCode === '__bulk_save__' ? '保存中' : 'すべて保存'}
+              </button>
+              <button
+                type="button"
+                className="secondary small cancel-all-button"
+                onClick={cancelAllEdits}
+                disabled={editingCodes.size === 0 || Boolean(savingCode)}
+              >
+                すべてキャンセル
               </button>
             </div>
 
