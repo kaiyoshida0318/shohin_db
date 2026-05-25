@@ -3166,6 +3166,27 @@ function App() {
             </div>
 
 
+            <div className="view-switch" aria-label="表示用途切り替え">
+              <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
+                オーダー状況
+              </ViewButton>
+              <ViewButton active={tableView === 'purchase'} onClick={() => setTableView('purchase')}>
+                オーダー用
+              </ViewButton>
+              <ViewButton active={tableView === 'ne'} onClick={() => setTableView('ne')}>
+                NE情報
+              </ViewButton>
+              <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
+                紙出し用
+              </ViewButton>
+              <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
+                カスタム
+              </ViewButton>
+              <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
+                すべて
+              </ViewButton>
+            </div>
+
             <div className="table-pager" aria-label="商品一覧ページ送り">
               <button
                 type="button"
@@ -3205,27 +3226,6 @@ function App() {
               <span className="pager-range">
                 {filteredProducts.length === 0 ? '0件' : `${pageStartIndex + 1}〜${pageEndIndex}件表示`}
               </span>
-            </div>
-
-            <div className="view-switch" aria-label="表示用途切り替え">
-              <ViewButton active={tableView === 'order'} onClick={() => setTableView('order')}>
-                オーダー状況
-              </ViewButton>
-              <ViewButton active={tableView === 'purchase'} onClick={() => setTableView('purchase')}>
-                オーダー用
-              </ViewButton>
-              <ViewButton active={tableView === 'ne'} onClick={() => setTableView('ne')}>
-                NE情報
-              </ViewButton>
-              <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
-                紙出し用
-              </ViewButton>
-              <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
-                カスタム
-              </ViewButton>
-              <ViewButton active={tableView === 'all'} onClick={() => setTableView('all')}>
-                すべて
-              </ViewButton>
             </div>
 
           </div>

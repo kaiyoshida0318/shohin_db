@@ -307,7 +307,7 @@ select {
 }
 
 .table-pager {
-  justify-self: center;
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -358,7 +358,7 @@ select {
 }
 
 .view-switch {
-  justify-self: end;
+  justify-self: center;
   display: inline-flex;
   gap: 6px;
   padding: 6px;
