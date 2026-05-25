@@ -1605,6 +1605,7 @@ function App() {
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
   const [editingCodes, setEditingCodes] = useState<Set<string>>(() => new Set())
   const [keyword, setKeyword] = useState('')
+  const [debouncedKeyword, setDebouncedKeyword] = useState('')
   const [tableView, setTableView] = useState<TableView>('order')
   const [currentPage, setCurrentPage] = useState(1)
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
@@ -1712,8 +1713,16 @@ function App() {
 
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedKeyword(keyword)
+    }, 220)
+
+    return () => window.clearTimeout(timer)
+  }, [keyword])
+
+  useEffect(() => {
     setCurrentPage(1)
-  }, [keyword, tableView, sortConfig])
+  }, [debouncedKeyword, tableView, sortConfig])
 
   useEffect(() => {
     setRowDrafts((prev) => {
@@ -1759,7 +1768,7 @@ function App() {
     : bulkInsertableCount
 
   const filteredProducts = useMemo(() => {
-    const q = keyword.trim().toLowerCase()
+    const q = debouncedKeyword.trim().toLowerCase()
 
     return products.filter((product) => {
       const draft =
@@ -1808,7 +1817,7 @@ function App() {
 
       return matchesKeyword
     })
-  }, [products, rowDrafts, editingCodes, keyword])
+  }, [products, rowDrafts, editingCodes, debouncedKeyword])
 
 
   const sortedProducts = useMemo(() => {
@@ -3110,7 +3119,10 @@ function App() {
           <button
             type="button"
             className="search-clear-button"
-            onClick={() => setKeyword("")}
+            onClick={() => {
+              setKeyword('')
+              setDebouncedKeyword('')
+            }}
             disabled={!keyword}
           >
             クリア
