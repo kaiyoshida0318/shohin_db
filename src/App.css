@@ -423,7 +423,11 @@ td {
   text-align: left;
   white-space: nowrap;
   font-size: 14px;
-  vertical-align: top;
+  vertical-align: middle;
+}
+
+th {
+  text-align: center;
 }
 
 th {
@@ -1012,6 +1016,11 @@ tr:hover td:last-child {
   border-bottom: 1px solid #edf1f6;
   white-space: nowrap;
   font-size: 13px;
+  vertical-align: middle;
+}
+
+.bulk-input-table th {
+  text-align: center;
 }
 
 .bulk-input-table th {
