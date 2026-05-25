@@ -795,6 +795,20 @@ tr:hover td:last-child {
   background: #f8fbff;
 }
 
+.products-table tbody tr {
+  cursor: default;
+}
+
+.products-table tbody tr:not(.is-editing):hover td {
+  background: #f8fbff;
+}
+
+.products-table tbody tr:not(.is-editing):hover .sticky-image-cell,
+.products-table tbody tr:not(.is-editing):hover .sticky-code-cell,
+.products-table tbody tr:not(.is-editing):hover td:last-child {
+  background: #eef6ff;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1484,6 +1498,42 @@ tr:hover td:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+.header-sort-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  font: inherit;
+  font-weight: 900;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.header-sort-button:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  opacity: 1;
+}
+
+.sort-indicator {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.resizable-header.is-sorted .sort-indicator {
+  color: #1d4ed8;
 }
 
 .column-resizer {

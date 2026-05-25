@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -169,6 +169,30 @@ type ColumnSpec = {
   width: number
   className?: string
 }
+
+const SORTABLE_COLUMN_KEYS = [
+  'product_code',
+  'product_name',
+  'free_stock',
+  'reorder_point',
+  'stock_constant',
+  'orderboard_classification',
+  'floor',
+  'rack_number',
+  'rack_level',
+  'sticker_color',
+  'order_memo_1',
+  'order_memo_2',
+  'order_memo_3',
+  'order_memo_4',
+  'order_memo_5',
+] as const
+
+type SortableColumnKey = (typeof SORTABLE_COLUMN_KEYS)[number]
+type SortDirection = 'asc' | 'desc'
+type SortConfig = { key: SortableColumnKey; direction: SortDirection } | null
+
+const SORTABLE_COLUMN_SET = new Set<string>(SORTABLE_COLUMN_KEYS)
 
 type ColumnWidthMap = Record<string, number>
 
@@ -1392,6 +1416,79 @@ function clampColumnWidth(width: number) {
   return Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(width)))
 }
 
+function isSortableColumn(key: string): key is SortableColumnKey {
+  return SORTABLE_COLUMN_SET.has(key)
+}
+
+function getProductSortValue(product: Product, key: SortableColumnKey): string | number | null {
+  switch (key) {
+    case 'free_stock':
+    case 'reorder_point':
+    case 'stock_constant':
+      return product[key]
+    case 'orderboard_classification':
+      return formatClassification(product.orderboard_classification)
+    case 'product_code':
+      return product.product_code
+    case 'product_name':
+      return product.product_name
+    case 'floor':
+      return product.floor
+    case 'rack_number':
+      return product.rack_number
+    case 'rack_level':
+      return product.rack_level
+    case 'sticker_color':
+      return product.sticker_color
+    case 'order_memo_1':
+      return product.order_memo_1
+    case 'order_memo_2':
+      return product.order_memo_2
+    case 'order_memo_3':
+      return product.order_memo_3
+    case 'order_memo_4':
+      return product.order_memo_4
+    case 'order_memo_5':
+      return product.order_memo_5
+    default:
+      return null
+  }
+}
+
+function isBlankSortValue(value: string | number | null) {
+  return value === null || value === undefined || String(value).trim() === ''
+}
+
+function compareProductsBySort(productA: Product, productB: Product, config: Exclude<SortConfig, null>) {
+  const valueA = getProductSortValue(productA, config.key)
+  const valueB = getProductSortValue(productB, config.key)
+  const isBlankA = isBlankSortValue(valueA)
+  const isBlankB = isBlankSortValue(valueB)
+
+  if (isBlankA && isBlankB) {
+    return productA.product_code.localeCompare(productB.product_code, 'ja', { numeric: true, sensitivity: 'base' })
+  }
+
+  if (isBlankA) {
+    return 1
+  }
+
+  if (isBlankB) {
+    return -1
+  }
+
+  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant']
+  const baseResult = numericColumns.includes(config.key)
+    ? Number(valueA) - Number(valueB)
+    : String(valueA).localeCompare(String(valueB), 'ja', { numeric: true, sensitivity: 'base' })
+
+  const result = baseResult === 0
+    ? productA.product_code.localeCompare(productB.product_code, 'ja', { numeric: true, sensitivity: 'base' })
+    : baseResult
+
+  return config.direction === 'asc' ? result : -result
+}
+
 function getNeColumnSpecs(): ColumnSpec[] {
   return [
     { key: 'free_stock', label: 'フリー在庫', width: 96 },
@@ -1510,6 +1607,7 @@ function App() {
   const [keyword, setKeyword] = useState('')
   const [tableView, setTableView] = useState<TableView>('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null)
   const [columnWidths, setColumnWidths] = useState<ColumnWidthMap>(() =>
     safeParseColumnWidths(window.localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY)),
   )
@@ -1615,7 +1713,7 @@ function App() {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [keyword])
+  }, [keyword, tableView, sortConfig])
 
   useEffect(() => {
     setRowDrafts((prev) => {
@@ -1713,14 +1811,24 @@ function App() {
   }, [products, rowDrafts, editingCode, keyword])
 
 
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCT_PAGE_SIZE))
+  const sortedProducts = useMemo(() => {
+    if (!sortConfig) {
+      return filteredProducts
+    }
+
+    return [...filteredProducts].sort((productA, productB) =>
+      compareProductsBySort(productA, productB, sortConfig),
+    )
+  }, [filteredProducts, sortConfig])
+
+  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PRODUCT_PAGE_SIZE))
   const currentPageNumber = Math.min(currentPage, totalPages)
   const pageStartIndex = (currentPageNumber - 1) * PRODUCT_PAGE_SIZE
-  const pageEndIndex = Math.min(pageStartIndex + PRODUCT_PAGE_SIZE, filteredProducts.length)
+  const pageEndIndex = Math.min(pageStartIndex + PRODUCT_PAGE_SIZE, sortedProducts.length)
 
   const pagedProducts = useMemo(() => {
-    return filteredProducts.slice(pageStartIndex, pageEndIndex)
-  }, [filteredProducts, pageStartIndex, pageEndIndex])
+    return sortedProducts.slice(pageStartIndex, pageEndIndex)
+  }, [sortedProducts, pageStartIndex, pageEndIndex])
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -2548,6 +2656,33 @@ function App() {
     )
   }
 
+  function handleRowDoubleClick(product: Product, event: ReactMouseEvent<HTMLTableRowElement>) {
+    const target = event.target instanceof HTMLElement ? event.target : null
+    const isInteractiveTarget = Boolean(target?.closest('button, a, input, textarea, select'))
+
+    if (isInteractiveTarget || savingCode || (editingCode && editingCode !== product.product_code)) {
+      return
+    }
+
+    startEdit(product)
+  }
+
+  function toggleSort(column: ColumnSpec) {
+    if (!isSortableColumn(column.key)) {
+      return
+    }
+
+    const sortKey = column.key
+
+    setSortConfig((prev) => {
+      if (!prev || prev.key !== sortKey) {
+        return { key: sortKey, direction: 'asc' }
+      }
+
+      return { key: sortKey, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+    })
+  }
+
   function renderActions(product: Product, draft: EditableProduct) {
     const isEditing = editingCode === product.product_code
     const dirty = isEditing && isDraftDirty(product, draft)
@@ -2618,9 +2753,39 @@ function App() {
   }
 
   function renderColumnHeader(column: ColumnSpec) {
+    const sortable = isSortableColumn(column.key)
+    const sorted = sortConfig?.key === column.key
+    const sortLabel = sorted ? (sortConfig.direction === 'asc' ? '昇順' : '降順') : '未並び替え'
+    const className = [
+      'resizable-header',
+      column.className,
+      sortable ? 'is-sortable' : '',
+      sorted ? 'is-sorted' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
+
     return (
-      <th key={column.key} className={column.className ? `resizable-header ${column.className}` : 'resizable-header'}>
-        <span className="header-label">{column.label}</span>
+      <th
+        key={column.key}
+        className={className}
+        aria-sort={sorted ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : undefined}
+      >
+        {sortable ? (
+          <button
+            type="button"
+            className="header-sort-button"
+            onClick={() => toggleSort(column)}
+            title={`${column.label}を${sorted && sortConfig.direction === 'asc' ? '降順' : '昇順'}に並び替え`}
+          >
+            <span className="header-label">{column.label}</span>
+            <span className="sort-indicator" aria-label={sortLabel}>
+              {sorted ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+            </span>
+          </button>
+        ) : (
+          <span className="header-label">{column.label}</span>
+        )}
         <button
           type="button"
           className="column-resizer"
@@ -3088,6 +3253,7 @@ function App() {
                     <tr
                       key={product.product_code}
                       className={`${isEditing ? 'is-editing' : ''} ${dirty ? 'is-dirty' : ''}`}
+                      onDoubleClick={(event) => handleRowDoubleClick(product, event)}
                     >
                       <td className="image-cell sticky-image-cell">
                         <ProductImageCell
