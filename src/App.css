@@ -1455,7 +1455,7 @@ tr:hover td:last-child {
   min-width: 340px;
   max-width: 520px;
   white-space: normal;
-  padding: 2px;
+  padding: 4px 6px;
 }
 
 .monthly-sales-year-buttons {
@@ -1480,7 +1480,9 @@ tr:hover td:last-child {
   background: #2563eb;
   border-color: #2563eb;
   color: #ffffff;
-  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.16);
+  box-shadow:
+    0 1px 2px rgba(37, 99, 235, 0.10),
+    0 8px 18px rgba(37, 99, 235, 0.12);
 }
 
 .monthly-sales-month-grid {
@@ -1502,7 +1504,9 @@ tr:hover td:last-child {
   padding: 5px 8px;
   font-size: 12px;
   line-height: 1.2;
-  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.055);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
 .monthly-sales-month-chip strong {
@@ -1663,7 +1667,23 @@ body.is-column-resizing * {
 .products-table .row-actions {
   max-width: 100%;
   min-width: 0;
+}
+
+.products-table .order-edit-stack,
+.products-table .url-edit-cell,
+.products-table .row-actions {
   overflow: hidden;
+}
+
+.products-table td:has(.monthly-sales-panel) {
+  overflow: visible;
+}
+
+.products-table td:has(.monthly-sales-panel),
+.products-table td:has(.monthly-sales-panel) .monthly-sales-panel,
+.products-table td:has(.monthly-sales-panel) .monthly-sales-year-buttons,
+.products-table td:has(.monthly-sales-panel) .monthly-sales-month-grid {
+  overflow: visible;
 }
 
 .products-table input,
