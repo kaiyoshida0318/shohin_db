@@ -1605,7 +1605,7 @@ function App() {
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
   const [editingCodes, setEditingCodes] = useState<Set<string>>(() => new Set())
   const [keyword, setKeyword] = useState('')
-  const [tableView, setTableView] = useState<TableView>('all')
+  const [tableView, setTableView] = useState<TableView>('order')
   const [currentPage, setCurrentPage] = useState(1)
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
   const [columnWidths, setColumnWidths] = useState<ColumnWidthMap>(() =>
