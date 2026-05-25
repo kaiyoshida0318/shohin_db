@@ -2502,3 +2502,79 @@ body.is-column-resizing * {
     justify-self: stretch;
   }
 }
+
+/* Button role colors: 色数は抑えつつ、操作の意味が分かるように整理 */
+button.primary-action-button,
+button.utility-button:not(.secondary) {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
+}
+
+button.secondary.utility-button {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: none;
+}
+
+button.edit-button {
+  border: 1px solid rgba(79, 70, 229, 0.18);
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(79, 70, 229, 0.18);
+}
+
+button.save-button {
+  border: 1px solid rgba(22, 163, 74, 0.18);
+  background: #16a34a;
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.18);
+}
+
+button.secondary.cancel-button {
+  border: 1px solid #d8e0ea;
+  background: #f8fafc;
+  color: #475569;
+  box-shadow: none;
+}
+
+button.secondary.danger-button,
+button.danger-button {
+  border: 1px solid #fecdd3;
+  background: #fff1f2;
+  color: #be123c;
+  box-shadow: none;
+}
+
+button.primary-action-button:hover,
+button.utility-button:hover,
+button.edit-button:hover,
+button.save-button:hover,
+button.cancel-button:hover,
+button.danger-button:hover {
+  opacity: 1;
+  filter: brightness(0.98);
+}
+
+button.secondary.utility-button:hover {
+  background: #dbeafe;
+}
+
+button.secondary.cancel-button:hover {
+  background: #eef2f7;
+}
+
+button.secondary.danger-button:hover,
+button.danger-button:hover {
+  background: #ffe4e6;
+}
+
+button.primary-action-button:disabled,
+button.utility-button:disabled,
+button.edit-button:disabled,
+button.save-button:disabled,
+button.cancel-button:disabled,
+button.danger-button:disabled {
+  filter: grayscale(0.12);
+}

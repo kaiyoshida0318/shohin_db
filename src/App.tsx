@@ -2814,7 +2814,7 @@ function App() {
       return (
         <div className="row-actions">
           <button
-            className="small"
+            className="small save-button"
             onClick={() => saveRow(product)}
             disabled={!dirty || isSaving || Boolean(savingCode)}
           >
@@ -2822,7 +2822,7 @@ function App() {
           </button>
 
           <button
-            className="secondary small"
+            className="secondary small cancel-button"
             onClick={() => cancelEdit(product)}
             disabled={isSaving}
           >
@@ -2834,7 +2834,7 @@ function App() {
 
     return (
       <button
-        className="small"
+        className="small edit-button"
         onClick={() => startEdit(product)}
         disabled={Boolean(savingCode)}
       >
@@ -3117,13 +3117,13 @@ function App() {
           </button>
         </div>
 
-        <button onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
+        <button className="utility-button" onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
           再読み込み
         </button>
 
-        <button className="secondary" onClick={openImageImportModal}>画像インポート</button>
+        <button className="secondary utility-button" onClick={openImageImportModal}>画像インポート</button>
 
-        <button onClick={openCreateModal}>商品追加/更新</button>
+        <button className="primary-action-button" onClick={openCreateModal}>商品追加/更新</button>
       </section>
 
       {isNeSyncPanelOpen && (
@@ -3351,7 +3351,7 @@ function App() {
             <div className="table-actions">
               <button
                 type="button"
-                className="secondary small bulk-edit-button"
+                className="small edit-button bulk-edit-button"
                 onClick={startBulkEdit}
                 disabled={products.length === 0 || Boolean(savingCode)}
               >
@@ -3359,7 +3359,7 @@ function App() {
               </button>
               <button
                 type="button"
-                className="small save-all-button"
+                className="small save-button save-all-button"
                 onClick={saveAllEdits}
                 disabled={editingCodes.size === 0 || Boolean(savingCode)}
               >
@@ -3367,7 +3367,7 @@ function App() {
               </button>
               <button
                 type="button"
-                className="secondary small cancel-all-button"
+                className="secondary small cancel-button cancel-all-button"
                 onClick={cancelAllEdits}
                 disabled={editingCodes.size === 0 || Boolean(savingCode)}
               >
@@ -3499,7 +3499,7 @@ function App() {
               {imageImportMessage && <p className="modal-message">{imageImportMessage}</p>}
 
               <div className="modal-actions">
-                <button onClick={uploadProductImages} disabled={imageImporting || imageFiles.length === 0}>
+                <button className="save-button" onClick={uploadProductImages} disabled={imageImporting || imageFiles.length === 0}>
                   {imageImporting ? 'アップロード中...' : `${imageFiles.length}件をアップロード`}
                 </button>
 
@@ -3665,7 +3665,7 @@ function App() {
                   </div>
 
                   <div className="csv-mapping-actions">
-                    <button type="button" onClick={applyManualCsvMapping}>
+                    <button type="button" className="save-button" onClick={applyManualCsvMapping}>
                       この割り当てでCSVを反映
                     </button>
                   </div>
@@ -3692,7 +3692,7 @@ function App() {
                     5行追加
                   </button>
 
-                  <button className="secondary small" onClick={clearBulkRows}>
+                  <button className="secondary small danger-button" onClick={clearBulkRows}>
                     クリア
                   </button>
                 </div>
@@ -3741,7 +3741,7 @@ function App() {
 
                         <td>
                           <button
-                            className="secondary small"
+                            className="secondary small danger-button"
                             onClick={() => removeBulkRow(row.id)}
                           >
                             削除
@@ -3767,6 +3767,7 @@ function App() {
 
               <div className="modal-actions">
                 <button
+                  className="save-button"
                   onClick={createBulkProducts}
                   disabled={loading || bulkActionableCount === 0}
                 >
