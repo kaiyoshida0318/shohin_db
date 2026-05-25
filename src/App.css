@@ -2443,3 +2443,7 @@ body.is-column-resizing * {
     grid-column: 1 / -1;
   }
 }
+
+.bulk-edit-button {
+  white-space: nowrap;
+}

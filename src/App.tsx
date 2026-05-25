@@ -1603,7 +1603,7 @@ function App() {
 
   const [products, setProducts] = useState<Product[]>([])
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
-  const [editingCode, setEditingCode] = useState<string | null>(null)
+  const [editingCodes, setEditingCodes] = useState<Set<string>>(() => new Set())
   const [keyword, setKeyword] = useState('')
   const [tableView, setTableView] = useState<TableView>('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -1721,14 +1721,14 @@ function App() {
 
       products.forEach((product) => {
         nextDrafts[product.product_code] =
-          editingCode === product.product_code && prev[product.product_code]
+          editingCodes.has(product.product_code) && prev[product.product_code]
             ? prev[product.product_code]
             : productToDraft(product)
       })
 
       return nextDrafts
     })
-  }, [products, editingCode])
+  }, [products, editingCodes])
 
   const existingProductCodes = useMemo(() => {
     return new Set(products.map((product) => product.product_code))
@@ -1763,7 +1763,7 @@ function App() {
 
     return products.filter((product) => {
       const draft =
-        editingCode === product.product_code
+        editingCodes.has(product.product_code)
           ? rowDrafts[product.product_code] ?? productToDraft(product)
           : productToDraft(product)
 
@@ -1808,7 +1808,7 @@ function App() {
 
       return matchesKeyword
     })
-  }, [products, rowDrafts, editingCode, keyword])
+  }, [products, rowDrafts, editingCodes, keyword])
 
 
   const sortedProducts = useMemo(() => {
@@ -1856,7 +1856,7 @@ function App() {
     await supabase.auth.signOut()
     setProducts([])
     setRowDrafts({})
-    setEditingCode(null)
+    setEditingCodes(new Set())
     setUser(null)
   }
 
@@ -2409,12 +2409,34 @@ function App() {
 
 
   function startEdit(product: Product) {
-    setEditingCode(product.product_code)
+    setEditingCodes((prev) => {
+      const next = new Set(prev)
+      next.add(product.product_code)
+      return next
+    })
     setRowDrafts((prev) => ({
       ...prev,
-      [product.product_code]: productToDraft(product),
+      [product.product_code]: prev[product.product_code] ?? productToDraft(product),
     }))
     setMessage('')
+  }
+
+  function startBulkEdit() {
+    if (products.length === 0) {
+      return
+    }
+
+    setEditingCodes(new Set(products.map((product) => product.product_code)))
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+
+      products.forEach((product) => {
+        next[product.product_code] = next[product.product_code] ?? productToDraft(product)
+      })
+
+      return next
+    })
+    setMessage(`${products.length}件を編集モードにしました。`)
   }
 
   function updateDraft(
@@ -2442,7 +2464,11 @@ function App() {
       ...prev,
       [product.product_code]: productToDraft(product),
     }))
-    setEditingCode(null)
+    setEditingCodes((prev) => {
+      const next = new Set(prev)
+      next.delete(product.product_code)
+      return next
+    })
     setMessage(`編集をキャンセルしました：${product.product_code}`)
   }
 
@@ -2528,7 +2554,11 @@ function App() {
       setMessage(`保存失敗: ${error.message}`)
     } else {
       setMessage(`保存しました：${product.product_code}`)
-      setEditingCode(null)
+      setEditingCodes((prev) => {
+        const next = new Set(prev)
+        next.delete(product.product_code)
+        return next
+      })
       await fetchProducts()
     }
 
@@ -2546,7 +2576,7 @@ function App() {
       placeholder?: string
     } = {},
   ) {
-    const isEditing = editingCode === product.product_code
+    const isEditing = editingCodes.has(product.product_code)
     const placeholder = options.placeholder ?? EDIT_FIELD_PLACEHOLDERS[key]
 
     if (isEditing) {
@@ -2579,7 +2609,7 @@ function App() {
     draft: EditableProduct,
     key: EditableProductKey,
   ) {
-    const isEditing = editingCode === product.product_code
+    const isEditing = editingCodes.has(product.product_code)
 
     if (isEditing) {
       return (
@@ -2610,7 +2640,7 @@ function App() {
     orderKey: EditableProductKey,
     urlKey: EditableProductKey,
   ) {
-    const isEditing = editingCode === product.product_code
+    const isEditing = editingCodes.has(product.product_code)
     const orderLabel = EDIT_FIELD_PLACEHOLDERS[orderKey]
     const rmLabel = EDIT_FIELD_PLACEHOLDERS[urlKey]
 
@@ -2660,7 +2690,7 @@ function App() {
     const target = event.target instanceof HTMLElement ? event.target : null
     const isInteractiveTarget = Boolean(target?.closest('button, a, input, textarea, select'))
 
-    if (isInteractiveTarget || savingCode || (editingCode && editingCode !== product.product_code)) {
+    if (isInteractiveTarget || savingCode) {
       return
     }
 
@@ -2684,10 +2714,9 @@ function App() {
   }
 
   function renderActions(product: Product, draft: EditableProduct) {
-    const isEditing = editingCode === product.product_code
+    const isEditing = editingCodes.has(product.product_code)
     const dirty = isEditing && isDraftDirty(product, draft)
     const isSaving = savingCode === product.product_code
-    const editLocked = Boolean(editingCode) && !isEditing
 
     if (isEditing) {
       return (
@@ -2715,7 +2744,7 @@ function App() {
       <button
         className="small"
         onClick={() => startEdit(product)}
-        disabled={editLocked || Boolean(savingCode)}
+        disabled={Boolean(savingCode)}
       >
         編集
       </button>
@@ -3163,6 +3192,14 @@ function App() {
             <div className="table-title">
               <strong>商品一覧</strong>
               <span>{filteredProducts.length}件</span>
+              <button
+                type="button"
+                className="secondary small bulk-edit-button"
+                onClick={startBulkEdit}
+                disabled={products.length === 0 || Boolean(savingCode)}
+              >
+                一括編集
+              </button>
             </div>
 
 
@@ -3246,7 +3283,7 @@ function App() {
               <tbody>
                 {pagedProducts.map((product) => {
                   const draft = rowDrafts[product.product_code] ?? productToDraft(product)
-                  const isEditing = editingCode === product.product_code
+                  const isEditing = editingCodes.has(product.product_code)
                   const dirty = isEditing && isDraftDirty(product, draft)
 
                   return (
