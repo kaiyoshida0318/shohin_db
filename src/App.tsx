@@ -15,7 +15,9 @@ const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
 const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
 const NE_SYNC_MONTH_MIN_YEAR = 2025
 const EDIT_INPUT_DEBOUNCE_MS = 260
-
+const ACCESS_SESSION_STORAGE_KEY = 'shohin-db-secret-login-v1'
+const ACCESS_PHRASE_HASH = (import.meta.env.VITE_SHOHIN_DB_SECRET_HASH ?? '').trim().toLowerCase()
+const ACCESS_PHRASE_PLAIN = import.meta.env.VITE_SHOHIN_DB_SECRET_WORD ?? ''
 
 type Product = {
   product_code: string
@@ -159,7 +161,7 @@ type EditableProduct = {
 type EditableProductKey = keyof EditableProduct
 
 type SessionUser = {
-  email?: string
+  label: string
 }
 
 type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'ne' | 'custom'
@@ -1402,6 +1404,49 @@ function safeParseJson<T>(value: string | null, fallback: T): T {
   }
 }
 
+function hasStoredAccessSession() {
+  return window.localStorage.getItem(ACCESS_SESSION_STORAGE_KEY) === 'authenticated'
+}
+
+function rememberAccessSession() {
+  window.localStorage.setItem(ACCESS_SESSION_STORAGE_KEY, 'authenticated')
+}
+
+function clearAccessSession() {
+  window.localStorage.removeItem(ACCESS_SESSION_STORAGE_KEY)
+}
+
+function createSecretLoginUser(): SessionUser {
+  return { label: '秘密の言葉ログイン中' }
+}
+
+async function sha256Hex(value: string) {
+  const bytes = new TextEncoder().encode(value)
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+async function isSecretPhraseValid(secretPhrase: string) {
+  const normalizedSecretPhrase = secretPhrase.trim()
+
+  if (!normalizedSecretPhrase) {
+    return false
+  }
+
+  if (ACCESS_PHRASE_HASH) {
+    const inputHash = await sha256Hex(normalizedSecretPhrase)
+    return inputHash === ACCESS_PHRASE_HASH
+  }
+
+  if (ACCESS_PHRASE_PLAIN) {
+    return normalizedSecretPhrase === ACCESS_PHRASE_PLAIN
+  }
+
+  throw new Error('秘密の言葉が未設定です。VITE_SHOHIN_DB_SECRET_HASH を設定してください。')
+}
+
 function currentJstYearMonth(): { year: number; month: number } {
   const [year, month] = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Tokyo',
@@ -1677,9 +1722,10 @@ function ViewButton({
 }
 
 function App() {
-  const [user, setUser] = useState<SessionUser | null>(null)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [user, setUser] = useState<SessionUser | null>(() =>
+    hasStoredAccessSession() ? createSecretLoginUser() : null,
+  )
+  const [secretPhrase, setSecretPhrase] = useState('')
 
   const [products, setProducts] = useState<Product[]>([])
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
@@ -1736,20 +1782,6 @@ function App() {
   const [imageImportMessage, setImageImportMessage] = useState('')
   const [imageCacheVersion, setImageCacheVersion] = useState(() => Date.now())
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
-    })
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
 
   useEffect(() => {
     if (user) {
@@ -1929,20 +1961,28 @@ function App() {
     setLoading(true)
     setMessage('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    try {
+      const isValid = await isSecretPhraseValid(secretPhrase)
 
-    if (error) {
-      setMessage(`ログイン失敗: ${error.message}`)
+      if (!isValid) {
+        setMessage('秘密の言葉が違います。')
+        setLoading(false)
+        return
+      }
+
+      rememberAccessSession()
+      setUser(createSecretLoginUser())
+      setSecretPhrase('')
+    } catch (error) {
+      setMessage(error instanceof Error ? `ログイン失敗: ${error.message}` : 'ログインに失敗しました。')
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   async function logout() {
-    await supabase.auth.signOut()
+    clearAccessSession()
+    await supabase.auth.signOut().catch(() => undefined)
     setProducts([])
     setRowDrafts({})
     setEditingCodes(new Set())
@@ -3120,27 +3160,28 @@ function App() {
 
           <div className="form-stack login-form-stack">
             <label>
-              メールアドレス
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-              />
-            </label>
-
-            <label>
-              パスワード
+              秘密の言葉
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="password"
+                value={secretPhrase}
+                onChange={(e) => setSecretPhrase(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !loading) {
+                    void login()
+                  }
+                }}
+                placeholder="秘密の言葉を入力"
+                autoFocus
               />
             </label>
 
             <button onClick={login} disabled={loading}>
-              {loading ? 'ログイン中...' : 'ログイン'}
+              {loading ? '確認中...' : '入室する'}
             </button>
+
+            <p className="login-help-text">
+              一度入室すると、このブラウザではログアウトするまでログイン状態を保持します。
+            </p>
 
             {message && <p className="message">{message}</p>}
           </div>
@@ -3173,7 +3214,7 @@ function App() {
             </span>
             <span>NE取得</span>
           </button>
-          <span>{user.email}</span>
+          <span>{user.label}</span>
           <button className="secondary" onClick={logout}>
             ログアウト
           </button>

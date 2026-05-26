@@ -124,6 +124,13 @@ label {
   gap: 14px;
 }
 
+.login-help-text {
+  margin: -2px 0 0;
+  color: #68758a;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #2563eb;
