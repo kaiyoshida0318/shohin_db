@@ -14,6 +14,9 @@ const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
 const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
 const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
 const NE_SYNC_MONTH_MIN_YEAR = 2025
+const AUTH_API_BASE_URL = String(import.meta.env.VITE_AUTH_API_BASE_URL ?? '').replace(/\/+$/, '')
+const DEFAULT_AUTH_QUESTION = '秘密の質問'
+
 
 
 type Product = {
@@ -104,6 +107,29 @@ type NeMonthlySalesSyncResult = {
   unmatched?: number
   updated?: number
   message?: string
+  error?: string
+}
+
+
+type SecretQuestionResponse = {
+  ok?: boolean
+  question?: string
+  displayName?: string
+  error?: string
+}
+
+type SecretLoginResponse = {
+  ok?: boolean
+  email?: string
+  sub?: string
+  user?: {
+    id?: string
+    email?: string
+  }
+  session?: {
+    access_token?: string
+    refresh_token?: string
+  }
   error?: string
 }
 
@@ -1598,8 +1624,9 @@ function ViewButton({
 
 function App() {
   const [user, setUser] = useState<SessionUser | null>(null)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [secretAnswer, setSecretAnswer] = useState('')
+  const [authQuestion, setAuthQuestion] = useState(DEFAULT_AUTH_QUESTION)
+  const [authDisplayName, setAuthDisplayName] = useState('秘密の質問ログイン')
 
   const [products, setProducts] = useState<Product[]>([])
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
@@ -1669,6 +1696,38 @@ function App() {
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function fetchAuthQuestion() {
+      if (!AUTH_API_BASE_URL) {
+        setAuthQuestion(DEFAULT_AUTH_QUESTION)
+        return
+      }
+
+      try {
+        const response = await fetch(`${AUTH_API_BASE_URL}/api/auth/question`, {
+          method: 'GET',
+          cache: 'no-store',
+        })
+        const payload = (await response.json().catch(() => ({}))) as SecretQuestionResponse
+        if (!isMounted) return
+        if (response.ok && payload.ok) {
+          setAuthQuestion(payload.question || DEFAULT_AUTH_QUESTION)
+          setAuthDisplayName(payload.displayName || '秘密の質問ログイン')
+        }
+      } catch {
+        if (isMounted) setAuthQuestion(DEFAULT_AUTH_QUESTION)
+      }
+    }
+
+    fetchAuthQuestion()
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   useEffect(() => {
@@ -1849,16 +1908,44 @@ function App() {
     setLoading(true)
     setMessage('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setMessage(`ログイン失敗: ${error.message}`)
+    if (!AUTH_API_BASE_URL) {
+      setMessage('ログインAPIが未設定です。VITE_AUTH_API_BASE_URLを設定してください。')
+      setLoading(false)
+      return
     }
 
-    setLoading(false)
+    if (!secretAnswer.trim()) {
+      setMessage('回答を入力してください。')
+      setLoading(false)
+      return
+    }
+
+    try {
+      const response = await fetch(`${AUTH_API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answer: secretAnswer.trim() }),
+      })
+      const payload = (await response.json().catch(() => ({}))) as SecretLoginResponse
+
+      if (!response.ok || !payload.ok || !payload.session?.access_token || !payload.session.refresh_token) {
+        throw new Error(payload.error || 'ログインに失敗しました。')
+      }
+
+      const { error } = await supabase.auth.setSession({
+        access_token: payload.session.access_token,
+        refresh_token: payload.session.refresh_token,
+      })
+
+      if (error) throw error
+
+      setSecretAnswer('')
+      setUser({ email: payload.email || payload.user?.email || authDisplayName })
+    } catch (error) {
+      setMessage(`ログイン失敗: ${error instanceof Error ? error.message : 'ログインに失敗しました。'}`)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function logout() {
@@ -3049,21 +3136,16 @@ function App() {
 
           <div className="form-stack login-form-stack">
             <label>
-              メールアドレス
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-              />
-            </label>
-
-            <label>
-              パスワード
+              {authQuestion}
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="password"
+                value={secretAnswer}
+                onChange={(e) => setSecretAnswer(e.target.value)}
+                placeholder="回答を入力"
+                autoComplete="current-password"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') login()
+                }}
               />
             </label>
 
