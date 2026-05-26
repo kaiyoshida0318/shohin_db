@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -14,6 +14,7 @@ const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
 const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
 const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
 const NE_SYNC_MONTH_MIN_YEAR = 2025
+const EDIT_INPUT_DEBOUNCE_MS = 260
 
 
 type Product = {
@@ -1277,6 +1278,85 @@ function ProductImageCell({
   )
 }
 
+function DebouncedTextInput({
+  value,
+  onChange,
+  className,
+  placeholder,
+  multiline = false,
+}: {
+  value: string
+  onChange: (value: string) => void
+  className?: string
+  placeholder?: string
+  multiline?: boolean
+}) {
+  const [localValue, setLocalValue] = useState(value)
+  const timerRef = useRef<number | null>(null)
+
+  function clearCommitTimer() {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  function commitValue(nextValue: string) {
+    clearCommitTimer()
+    if (nextValue !== value) {
+      onChange(nextValue)
+    }
+  }
+
+  function scheduleCommit(nextValue: string) {
+    clearCommitTimer()
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null
+      if (nextValue !== value) {
+        onChange(nextValue)
+      }
+    }, EDIT_INPUT_DEBOUNCE_MS)
+  }
+
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  useEffect(() => {
+    return () => clearCommitTimer()
+  }, [])
+
+  if (multiline) {
+    return (
+      <textarea
+        className={className}
+        value={localValue}
+        onChange={(event) => {
+          const nextValue = event.target.value
+          setLocalValue(nextValue)
+          scheduleCommit(nextValue)
+        }}
+        onBlur={() => commitValue(localValue)}
+        placeholder={placeholder}
+      />
+    )
+  }
+
+  return (
+    <input
+      className={className}
+      value={localValue}
+      onChange={(event) => {
+        const nextValue = event.target.value
+        setLocalValue(nextValue)
+        scheduleCommit(nextValue)
+      }}
+      onBlur={() => commitValue(localValue)}
+      placeholder={placeholder}
+    />
+  )
+}
+
 function UrlEditCell({
   value,
   onChange,
@@ -1288,10 +1368,10 @@ function UrlEditCell({
 }) {
   return (
     <div className="url-edit-cell">
-      <input
+      <DebouncedTextInput
         className="table-input url-input"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={onChange}
         placeholder={placeholder}
       />
 
@@ -2681,23 +2761,17 @@ function App() {
     const placeholder = options.placeholder ?? EDIT_FIELD_PLACEHOLDERS[key]
 
     if (isEditing) {
-      if (options.multiline) {
-        return (
-          <textarea
-            className={`table-input table-textarea ${options.inputClassName ?? ''}`}
-            value={draft[key]}
-            onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
-            placeholder={placeholder}
-          />
-        )
-      }
-
       return (
-        <input
-          className={`table-input ${options.inputClassName ?? ''}`}
+        <DebouncedTextInput
+          className={
+            options.multiline
+              ? `table-input table-textarea ${options.inputClassName ?? ''}`
+              : `table-input ${options.inputClassName ?? ''}`
+          }
           value={draft[key]}
-          onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
+          onChange={(value) => updateDraft(product.product_code, key, value)}
           placeholder={placeholder}
+          multiline={options.multiline}
         />
       )
     }
@@ -2748,12 +2822,10 @@ function App() {
     if (isEditing) {
       return (
         <div className="order-edit-stack">
-          <input
+          <DebouncedTextInput
             className="table-input order-input"
             value={draft[orderKey]}
-            onChange={(event) =>
-              updateDraft(product.product_code, orderKey, event.target.value)
-            }
+            onChange={(value) => updateDraft(product.product_code, orderKey, value)}
             placeholder={orderLabel}
           />
 
@@ -2814,9 +2886,8 @@ function App() {
     })
   }
 
-  function renderActions(product: Product, draft: EditableProduct) {
+  function renderActions(product: Product, _draft: EditableProduct) {
     const isEditing = editingCodes.has(product.product_code)
-    const dirty = isEditing && isDraftDirty(product, draft)
     const isSaving = savingCode === product.product_code
 
     if (isEditing) {
@@ -2825,7 +2896,7 @@ function App() {
           <button
             className="small save-button"
             onClick={() => saveRow(product)}
-            disabled={!dirty || isSaving || Boolean(savingCode)}
+            disabled={isSaving || Boolean(savingCode)}
           >
             {isSaving ? '保存中' : '保存'}
           </button>
