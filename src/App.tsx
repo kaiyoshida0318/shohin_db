@@ -1,4 +1,4 @@
-import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
@@ -14,10 +14,7 @@ const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
 const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
 const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
 const NE_SYNC_MONTH_MIN_YEAR = 2025
-const EDIT_INPUT_DEBOUNCE_MS = 260
-const ACCESS_SESSION_STORAGE_KEY = 'shohin-db-secret-login-v1'
-const ACCESS_PHRASE_HASH = (import.meta.env.VITE_SHOHIN_DB_SECRET_HASH ?? '').trim().toLowerCase()
-const ACCESS_PHRASE_PLAIN = import.meta.env.VITE_SHOHIN_DB_SECRET_WORD ?? ''
+
 
 type Product = {
   product_code: string
@@ -161,7 +158,7 @@ type EditableProduct = {
 type EditableProductKey = keyof EditableProduct
 
 type SessionUser = {
-  label: string
+  email?: string
 }
 
 type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'ne' | 'custom'
@@ -1280,85 +1277,6 @@ function ProductImageCell({
   )
 }
 
-function DebouncedTextInput({
-  value,
-  onChange,
-  className,
-  placeholder,
-  multiline = false,
-}: {
-  value: string
-  onChange: (value: string) => void
-  className?: string
-  placeholder?: string
-  multiline?: boolean
-}) {
-  const [localValue, setLocalValue] = useState(value)
-  const timerRef = useRef<number | null>(null)
-
-  function clearCommitTimer() {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }
-
-  function commitValue(nextValue: string) {
-    clearCommitTimer()
-    if (nextValue !== value) {
-      onChange(nextValue)
-    }
-  }
-
-  function scheduleCommit(nextValue: string) {
-    clearCommitTimer()
-    timerRef.current = window.setTimeout(() => {
-      timerRef.current = null
-      if (nextValue !== value) {
-        onChange(nextValue)
-      }
-    }, EDIT_INPUT_DEBOUNCE_MS)
-  }
-
-  useEffect(() => {
-    setLocalValue(value)
-  }, [value])
-
-  useEffect(() => {
-    return () => clearCommitTimer()
-  }, [])
-
-  if (multiline) {
-    return (
-      <textarea
-        className={className}
-        value={localValue}
-        onChange={(event) => {
-          const nextValue = event.target.value
-          setLocalValue(nextValue)
-          scheduleCommit(nextValue)
-        }}
-        onBlur={() => commitValue(localValue)}
-        placeholder={placeholder}
-      />
-    )
-  }
-
-  return (
-    <input
-      className={className}
-      value={localValue}
-      onChange={(event) => {
-        const nextValue = event.target.value
-        setLocalValue(nextValue)
-        scheduleCommit(nextValue)
-      }}
-      onBlur={() => commitValue(localValue)}
-      placeholder={placeholder}
-    />
-  )
-}
-
 function UrlEditCell({
   value,
   onChange,
@@ -1370,10 +1288,10 @@ function UrlEditCell({
 }) {
   return (
     <div className="url-edit-cell">
-      <DebouncedTextInput
+      <input
         className="table-input url-input"
         value={value}
-        onChange={onChange}
+        onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
       />
 
@@ -1402,49 +1320,6 @@ function safeParseJson<T>(value: string | null, fallback: T): T {
   } catch {
     return fallback
   }
-}
-
-function hasStoredAccessSession() {
-  return window.localStorage.getItem(ACCESS_SESSION_STORAGE_KEY) === 'authenticated'
-}
-
-function rememberAccessSession() {
-  window.localStorage.setItem(ACCESS_SESSION_STORAGE_KEY, 'authenticated')
-}
-
-function clearAccessSession() {
-  window.localStorage.removeItem(ACCESS_SESSION_STORAGE_KEY)
-}
-
-function createSecretLoginUser(): SessionUser {
-  return { label: '秘密の言葉ログイン中' }
-}
-
-async function sha256Hex(value: string) {
-  const bytes = new TextEncoder().encode(value)
-  const hashBuffer = await window.crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-async function isSecretPhraseValid(secretPhrase: string) {
-  const normalizedSecretPhrase = secretPhrase.trim()
-
-  if (!normalizedSecretPhrase) {
-    return false
-  }
-
-  if (ACCESS_PHRASE_HASH) {
-    const inputHash = await sha256Hex(normalizedSecretPhrase)
-    return inputHash === ACCESS_PHRASE_HASH
-  }
-
-  if (ACCESS_PHRASE_PLAIN) {
-    return normalizedSecretPhrase === ACCESS_PHRASE_PLAIN
-  }
-
-  throw new Error('秘密の言葉が未設定です。VITE_SHOHIN_DB_SECRET_HASH を設定してください。')
 }
 
 function currentJstYearMonth(): { year: number; month: number } {
@@ -1722,10 +1597,9 @@ function ViewButton({
 }
 
 function App() {
-  const [user, setUser] = useState<SessionUser | null>(() =>
-    hasStoredAccessSession() ? createSecretLoginUser() : null,
-  )
-  const [secretPhrase, setSecretPhrase] = useState('')
+  const [user, setUser] = useState<SessionUser | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
   const [products, setProducts] = useState<Product[]>([])
   const [rowDrafts, setRowDrafts] = useState<Record<string, EditableProduct>>({})
@@ -1782,6 +1656,20 @@ function App() {
   const [imageImportMessage, setImageImportMessage] = useState('')
   const [imageCacheVersion, setImageCacheVersion] = useState(() => Date.now())
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null)
+    })
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   useEffect(() => {
     if (user) {
@@ -1961,28 +1849,20 @@ function App() {
     setLoading(true)
     setMessage('')
 
-    try {
-      const isValid = await isSecretPhraseValid(secretPhrase)
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-      if (!isValid) {
-        setMessage('秘密の言葉が違います。')
-        setLoading(false)
-        return
-      }
-
-      rememberAccessSession()
-      setUser(createSecretLoginUser())
-      setSecretPhrase('')
-    } catch (error) {
-      setMessage(error instanceof Error ? `ログイン失敗: ${error.message}` : 'ログインに失敗しました。')
-    } finally {
-      setLoading(false)
+    if (error) {
+      setMessage(`ログイン失敗: ${error.message}`)
     }
+
+    setLoading(false)
   }
 
   async function logout() {
-    clearAccessSession()
-    await supabase.auth.signOut().catch(() => undefined)
+    await supabase.auth.signOut()
     setProducts([])
     setRowDrafts({})
     setEditingCodes(new Set())
@@ -2801,17 +2681,23 @@ function App() {
     const placeholder = options.placeholder ?? EDIT_FIELD_PLACEHOLDERS[key]
 
     if (isEditing) {
+      if (options.multiline) {
+        return (
+          <textarea
+            className={`table-input table-textarea ${options.inputClassName ?? ''}`}
+            value={draft[key]}
+            onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
+            placeholder={placeholder}
+          />
+        )
+      }
+
       return (
-        <DebouncedTextInput
-          className={
-            options.multiline
-              ? `table-input table-textarea ${options.inputClassName ?? ''}`
-              : `table-input ${options.inputClassName ?? ''}`
-          }
+        <input
+          className={`table-input ${options.inputClassName ?? ''}`}
           value={draft[key]}
-          onChange={(value) => updateDraft(product.product_code, key, value)}
+          onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
           placeholder={placeholder}
-          multiline={options.multiline}
         />
       )
     }
@@ -2862,10 +2748,12 @@ function App() {
     if (isEditing) {
       return (
         <div className="order-edit-stack">
-          <DebouncedTextInput
+          <input
             className="table-input order-input"
             value={draft[orderKey]}
-            onChange={(value) => updateDraft(product.product_code, orderKey, value)}
+            onChange={(event) =>
+              updateDraft(product.product_code, orderKey, event.target.value)
+            }
             placeholder={orderLabel}
           />
 
@@ -2926,8 +2814,9 @@ function App() {
     })
   }
 
-  function renderActions(product: Product, _draft: EditableProduct) {
+  function renderActions(product: Product, draft: EditableProduct) {
     const isEditing = editingCodes.has(product.product_code)
+    const dirty = isEditing && isDraftDirty(product, draft)
     const isSaving = savingCode === product.product_code
 
     if (isEditing) {
@@ -2936,7 +2825,7 @@ function App() {
           <button
             className="small save-button"
             onClick={() => saveRow(product)}
-            disabled={isSaving || Boolean(savingCode)}
+            disabled={!dirty || isSaving || Boolean(savingCode)}
           >
             {isSaving ? '保存中' : '保存'}
           </button>
@@ -3160,28 +3049,27 @@ function App() {
 
           <div className="form-stack login-form-stack">
             <label>
-              秘密の言葉
+              メールアドレス
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+              />
+            </label>
+
+            <label>
+              パスワード
               <input
                 type="password"
-                value={secretPhrase}
-                onChange={(e) => setSecretPhrase(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !loading) {
-                    void login()
-                  }
-                }}
-                placeholder="秘密の言葉を入力"
-                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="password"
               />
             </label>
 
             <button onClick={login} disabled={loading}>
-              {loading ? '確認中...' : '入室する'}
+              {loading ? 'ログイン中...' : 'ログイン'}
             </button>
-
-            <p className="login-help-text">
-              一度入室すると、このブラウザではログアウトするまでログイン状態を保持します。
-            </p>
 
             {message && <p className="message">{message}</p>}
           </div>
@@ -3214,7 +3102,7 @@ function App() {
             </span>
             <span>NE取得</span>
           </button>
-          <span>{user.label}</span>
+          <span>{user.email}</span>
           <button className="secondary" onClick={logout}>
             ログアウト
           </button>
