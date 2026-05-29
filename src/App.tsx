@@ -76,6 +76,8 @@ type ProductImagePreview = {
 type DeliverySlipPreviewData = {
   productCode: string
   productName: string
+  specialNotes: string
+  pickingAdvice: string
   floor: string
   rackNumber: string
   rackLevel: string
@@ -1176,8 +1178,122 @@ function renderPreviewValue(value: string, className?: string) {
   return <span className={className}>{text}</span>
 }
 
+const DELIVERY_PREVIEW_NAME_CONTENT_WIDTH = 300
+const DELIVERY_PREVIEW_CODE_CONTENT_WIDTH = 274
+const DELIVERY_PREVIEW_FONT_FAMILY = '"Yu Gothic", YuGothic, Meiryo, sans-serif'
+let deliveryPreviewMeasureCanvas: HTMLCanvasElement | null = null
+
+function normalizePreviewLineBreaks(value: string) {
+  return String(value ?? '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/\\n/g, '\n')
+}
+
+function measurePreviewText(value: string, fontSizePx: number, fontWeight = 700) {
+  const text = String(value ?? '')
+
+  if (typeof document !== 'undefined') {
+    deliveryPreviewMeasureCanvas ??= document.createElement('canvas')
+    const context = deliveryPreviewMeasureCanvas.getContext('2d')
+
+    if (context) {
+      context.font = `${fontWeight} ${fontSizePx}px ${DELIVERY_PREVIEW_FONT_FAMILY}`
+      return context.measureText(text).width
+    }
+  }
+
+  return Array.from(text).reduce((sum, ch) => {
+    const code = ch.codePointAt(0) ?? 0
+    const isWide = code > 0x3000 || /[ぁ-んァ-ン一-龥]/.test(ch)
+    return sum + (isWide ? fontSizePx : fontSizePx * 0.58)
+  }, 0)
+}
+
+function wrapPreviewText(value: string, maxWidthPx: number, fontSizePx: number, fontWeight = 700) {
+  const normalized = normalizePreviewLineBreaks(value)
+  const output: string[] = []
+
+  for (const raw of normalized.split('\n')) {
+    const line = raw.trim()
+
+    if (!line) {
+      if (output.length > 0) output.push('')
+      continue
+    }
+
+    let current = ''
+    for (const ch of Array.from(line)) {
+      const candidate = current + ch
+
+      if (!current || measurePreviewText(candidate, fontSizePx, fontWeight) <= maxWidthPx) {
+        current = candidate
+      } else {
+        output.push(current)
+        current = ch
+      }
+    }
+
+    if (current) output.push(current)
+  }
+
+  while (output.length > 0 && output[0] === '') {
+    output.shift()
+  }
+
+  return output
+}
+
+function wrapPreviewCode(value: string) {
+  const code = String(value ?? '').trim()
+  if (!code) return []
+  if (measurePreviewText(code, 15, 700) <= DELIVERY_PREVIEW_CODE_CONTENT_WIDTH) return [code]
+
+  const chunks = code.split('-')
+  if (chunks.length <= 1) {
+    return wrapPreviewText(code, DELIVERY_PREVIEW_CODE_CONTENT_WIDTH, 15, 700)
+  }
+
+  const lines: string[] = []
+  let current = chunks[0] ?? ''
+
+  for (const chunk of chunks.slice(1)) {
+    const candidate = `${current}-${chunk}`
+    if (!current || measurePreviewText(candidate, 15, 700) <= DELIVERY_PREVIEW_CODE_CONTENT_WIDTH) {
+      current = candidate
+    } else {
+      lines.push(`${current}-`)
+      current = chunk
+    }
+  }
+
+  if (current || lines.length === 0) lines.push(current)
+  return lines
+}
+
+function PreviewLines({
+  lines,
+  className,
+}: {
+  lines: string[]
+  className?: string
+}) {
+  return (
+    <>
+      {lines.map((line, index) => (
+        <span key={`${className ?? 'line'}-${index}`} className={className}>
+          {line}
+        </span>
+      ))}
+    </>
+  )
+}
+
 function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) {
   const hasSticker = preview.stickerColor.trim().length > 0
+  const productNameLines = wrapPreviewText(preview.productName, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 16, 900)
+  const specialNoteLines = wrapPreviewText(preview.specialNotes, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800)
+  const pickingAdviceLines = wrapPreviewText(preview.pickingAdvice, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800)
+  const productCodeLines = wrapPreviewCode(preview.productCode)
 
   return (
     <div className="delivery-preview-wrap">
@@ -1209,10 +1325,22 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
               {hasSticker ? preview.stickerColor.trim() : ''}
             </td>
             <td className="delivery-preview-name">
-              {renderPreviewValue(preview.productName)}
+              <div className="delivery-preview-name-stack">
+                {productNameLines.length > 0 ? (
+                  <PreviewLines lines={productNameLines} className="delivery-preview-name-main" />
+                ) : (
+                  <PreviewMissingText>未入力</PreviewMissingText>
+                )}
+                <PreviewLines lines={specialNoteLines} className="delivery-preview-name-sub" />
+                <PreviewLines lines={pickingAdviceLines} className="delivery-preview-name-sub" />
+              </div>
             </td>
             <td className="delivery-preview-code">
-              {renderPreviewValue(preview.productCode, 'mono-text')}
+              {productCodeLines.length > 0 ? (
+                <PreviewLines lines={productCodeLines} className="mono-text" />
+              ) : (
+                <PreviewMissingText>未入力</PreviewMissingText>
+              )}
             </td>
           </tr>
         </tbody>
@@ -3399,6 +3527,8 @@ function App() {
     setDeliverySlipPreview({
       productCode: product.product_code,
       productName: draft.product_name,
+      specialNotes: draft.special_notes,
+      pickingAdvice: draft.picking_advice,
       floor: draft.floor,
       rackNumber: draft.rack_number,
       rackLevel: draft.rack_level,
