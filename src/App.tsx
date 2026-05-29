@@ -9,7 +9,7 @@ const IMAGE_UPLOAD_CONCURRENCY = 5
 const PRODUCT_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
-const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v1'
+const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v2'
 const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
@@ -2028,6 +2028,7 @@ function App() {
     return storedMonths.length ? storedMonths : monthOptions.slice(-1)
   })
   const [isNeSyncPanelOpen, setIsNeSyncPanelOpen] = useState(false)
+  const [isColumnWidthMenuOpen, setIsColumnWidthMenuOpen] = useState(false)
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
@@ -3618,6 +3619,13 @@ function App() {
     return columnWidths[column.key] ?? column.width
   }
 
+  function applyRecommendedColumnWidths() {
+    window.localStorage.removeItem(COLUMN_WIDTH_STORAGE_KEY)
+    setColumnWidths({})
+    setIsColumnWidthMenuOpen(false)
+    setMessage('推奨幅を適用しました')
+  }
+
   function startColumnResize(column: ColumnSpec, event: ColumnResizeMouseEvent) {
     event.preventDefault()
     event.stopPropagation()
@@ -3846,18 +3854,39 @@ function App() {
         </div>
 
         <div className="topbar-actions">
-          <button
-            type="button"
-            className="topbar-ne-button"
-            onClick={() => setIsNeSyncPanelOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={isNeSyncPanelOpen}
-          >
-            <span className="ne-button-logo-badge" aria-hidden="true">
-              <img src={`${import.meta.env.BASE_URL}ne-logo.png`} alt="" />
-            </span>
-            <span>NE取得</span>
-          </button>
+          <div className="topbar-ne-group">
+            <button
+              type="button"
+              className="topbar-ne-button"
+              onClick={() => setIsNeSyncPanelOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={isNeSyncPanelOpen}
+            >
+              <span className="ne-button-logo-badge" aria-hidden="true">
+                <img src={`${import.meta.env.BASE_URL}ne-logo.png`} alt="" />
+              </span>
+              <span>NE取得</span>
+            </button>
+            <button
+              type="button"
+              className="column-settings-button"
+              onClick={() => setIsColumnWidthMenuOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={isColumnWidthMenuOpen}
+              aria-label="列幅設定"
+              title="列幅設定"
+            >
+              ⚙
+            </button>
+            {isColumnWidthMenuOpen && (
+              <div className="column-settings-menu" role="menu">
+                <span>列幅</span>
+                <button type="button" onClick={applyRecommendedColumnWidths} role="menuitem">
+                  推奨幅を適用
+                </button>
+              </div>
+            )}
+          </div>
           <span>{user.email}</span>
           <button className="secondary" onClick={logout}>
             ログアウト

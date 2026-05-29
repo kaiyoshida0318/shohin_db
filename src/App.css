@@ -2948,3 +2948,70 @@ button.danger-button:disabled {
   font-weight: 900;
   letter-spacing: 0;
 }
+
+.topbar-ne-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.column-settings-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef3f8;
+  color: #334155;
+  box-shadow: none;
+  border: 1px solid #d8e0ea;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.column-settings-button:hover {
+  opacity: 1;
+  background: #e0ecff;
+  color: #1d4ed8;
+}
+
+.column-settings-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  min-width: 178px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #dce5f1;
+  box-shadow: 0 18px 42px rgba(24, 39, 75, 0.16);
+  display: grid;
+  gap: 8px;
+}
+
+.column-settings-menu span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.column-settings-menu button {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #1e293b;
+  box-shadow: none;
+  text-align: left;
+  font-size: 13px;
+}
+
+.column-settings-menu button:hover {
+  opacity: 1;
+  background: #e8f1ff;
+  color: #1d4ed8;
+}
