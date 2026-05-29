@@ -4328,9 +4328,6 @@ function App() {
               </button>
             </div>
 
-            <div className="delivery-preview-note">
-              紙出しviewの現在値で、builderの「棚番号 / シール / 商品名 / 商品コード」の見え方だけを確認します。
-            </div>
 
             <DeliverySlipPreview preview={deliverySlipPreview} />
           </section>
