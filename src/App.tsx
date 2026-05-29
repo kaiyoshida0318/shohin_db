@@ -1834,6 +1834,8 @@ function App() {
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
     createBulkRows(),
   )
+  const [bulkImageDrafts, setBulkImageDrafts] = useState<Record<string, ProductImageDraft>>({})
+  const bulkImageDraftsRef = useRef<Record<string, ProductImageDraft>>({})
   const [bulkShouldUpdateExisting, setBulkShouldUpdateExisting] = useState(false)
   const [selectedBulkFields, setSelectedBulkFields] = useState<BulkFieldKey[]>(
     DEFAULT_BULK_FIELD_KEYS,
@@ -1870,8 +1872,15 @@ function App() {
     imageDraftsRef.current = imageDrafts
   }, [imageDrafts])
 
+  useEffect(() => {
+    bulkImageDraftsRef.current = bulkImageDrafts
+  }, [bulkImageDrafts])
+
   useEffect(() => () => {
     Object.values(imageDraftsRef.current).forEach((draft) => {
+      URL.revokeObjectURL(draft.previewUrl)
+    })
+    Object.values(bulkImageDraftsRef.current).forEach((draft) => {
       URL.revokeObjectURL(draft.previewUrl)
     })
   }, [])
@@ -2005,6 +2014,8 @@ function App() {
       selectedBulkFields.includes(column.key),
     )
   }, [selectedBulkFields])
+
+  const bulkImageDraftCount = Object.keys(bulkImageDrafts).length
 
 
   const bulkInsertableCount = bulkSummary.insertRows.length
@@ -2276,7 +2287,84 @@ function App() {
     }
   }
 
+  function clearBulkImageDrafts(rowIds?: string[]) {
+    setBulkImageDrafts((prev) => {
+      const next = { ...prev }
+      const targetRowIds = rowIds ?? Object.keys(next)
+      let changed = false
+
+      targetRowIds.forEach((rowId) => {
+        const draft = next[rowId]
+
+        if (draft) {
+          URL.revokeObjectURL(draft.previewUrl)
+          delete next[rowId]
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }
+
+  function setBulkRowImageDraft(rowId: string, files: File[]) {
+    const imageFile = files.find(isSupportedProductImageFile)
+
+    if (!imageFile) {
+      setModalMessage('jpg / png / webp 形式の画像をドロップしてください。')
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(imageFile)
+
+    setBulkImageDrafts((prev) => {
+      const previousDraft = prev[rowId]
+
+      if (previousDraft) {
+        URL.revokeObjectURL(previousDraft.previewUrl)
+      }
+
+      return {
+        ...prev,
+        [rowId]: {
+          file: imageFile,
+          previewUrl,
+          sourceName: imageFile.name,
+        },
+      }
+    })
+
+    setModalMessage('画像を保存待ちにしました。商品コード入力後、一括追加/更新で反映します。')
+  }
+
+  function handleBulkImageDragOver(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  function handleBulkImageDrop(event: DragEvent<HTMLDivElement>, rowId: string) {
+    event.preventDefault()
+    const files = Array.from(event.dataTransfer.files ?? [])
+
+    if (files.length === 0) {
+      setModalMessage('画像ファイルをドロップしてください。')
+      return
+    }
+
+    setBulkRowImageDraft(rowId, files)
+  }
+
+  function handleBulkImageFileSelect(event: ChangeEvent<HTMLInputElement>, rowId: string) {
+    const files = Array.from(event.currentTarget.files ?? [])
+    event.currentTarget.value = ''
+
+    if (files.length > 0) {
+      setBulkRowImageDraft(rowId, files)
+    }
+  }
+
   function openCreateModal() {
+    clearBulkImageDrafts()
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
@@ -2288,6 +2376,7 @@ function App() {
 
   function closeCreateModal() {
     setIsCreateModalOpen(false)
+    clearBulkImageDrafts()
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
@@ -2508,6 +2597,7 @@ function App() {
   }
 
   function removeBulkRow(rowId: string) {
+    clearBulkImageDrafts([rowId])
     setBulkRows((prev) => {
       const next = prev.filter((row) => row.id !== rowId)
       return next.length > 0 ? next : createBulkRows(1)
@@ -2515,6 +2605,7 @@ function App() {
   }
 
   function clearBulkRows() {
+    clearBulkImageDrafts()
     setBulkRows(createBulkRows())
     setCsvColumnMapping(null)
     setModalMessage('')
@@ -2567,6 +2658,7 @@ function App() {
   function applyCsvImportResult(result: CsvImportResult, filename: string) {
     const blankRows = createBulkRows(3)
 
+    clearBulkImageDrafts()
     setSelectedBulkFields(result.fields)
     setBulkRows([...result.rows.map(cleanRowToBulkRow), ...blankRows])
     setCsvColumnMapping(null)
@@ -2917,9 +3009,14 @@ function App() {
     const targetRows = bulkShouldUpdateExisting
       ? bulkSummary.uniqueRows
       : bulkSummary.insertRows
+    const targetCodeSet = new Set(targetRows.map((row) => row.product_code))
 
     if (bulkSummary.filledCount === 0) {
-      setModalMessage('追加/更新できる商品がありません。')
+      setModalMessage(
+        bulkImageDraftCount > 0
+          ? '画像を反映するには商品コードを入力してください。'
+          : '追加/更新できる商品がありません。',
+      )
       return
     }
 
@@ -2932,19 +3029,58 @@ function App() {
       return
     }
 
+    const seenCodes = new Set<string>()
+    const targetBulkRows = bulkRows
+      .map((row) => {
+        const cleanRow: CleanBulkProductRow = {
+          product_code: row.product_code.trim(),
+          product_name: row.product_name.trim(),
+          floor: row.floor.trim(),
+          special_notes: row.special_notes.trim(),
+          picking_advice: row.picking_advice.trim(),
+          rack_number: row.rack_number.trim(),
+          rack_level: row.rack_level.trim(),
+          sticker_color: row.sticker_color.trim(),
+          order_url_1: row.order_url_1.trim(),
+          order_url_2: row.order_url_2.trim(),
+          order_url_3: row.order_url_3.trim(),
+          order_size: row.order_size.trim(),
+          order_color: row.order_color.trim(),
+          order_simple_instruction: row.order_simple_instruction.trim(),
+          order_detail_instruction: row.order_detail_instruction.trim(),
+          order_quantity_condition: row.order_quantity_condition.trim(),
+          order_note: row.order_note.trim(),
+        }
+
+        return { row, cleanRow }
+      })
+      .filter(({ cleanRow }) => {
+        if (!cleanRow.product_code || !targetCodeSet.has(cleanRow.product_code) || seenCodes.has(cleanRow.product_code)) {
+          return false
+        }
+
+        seenCodes.add(cleanRow.product_code)
+        return true
+      })
+
+    const imageRows = targetBulkRows.filter(({ row }) => bulkImageDrafts[row.id])
+
     setLoading(true)
     setModalMessage('')
 
     const now = new Date().toISOString()
-    const payload = targetRows.map((row) => {
+    const payload = targetBulkRows.map(({ row, cleanRow }) => {
       const productPayload: Record<string, string | null> = {
-        product_code: row.product_code,
+        product_code: cleanRow.product_code,
         updated_at: now,
       }
+      const hasImageOnlyChange = Boolean(bulkImageDrafts[row.id]) && selectedBulkFields.every((key) => !cleanRow[key])
 
-      selectedBulkFields.forEach((key) => {
-        productPayload[key] = row[key] || null
-      })
+      if (!hasImageOnlyChange) {
+        selectedBulkFields.forEach((key) => {
+          productPayload[key] = cleanRow[key] || null
+        })
+      }
 
       return productPayload
     })
@@ -2957,16 +3093,53 @@ function App() {
 
     if (error) {
       setModalMessage(`一括追加/更新失敗: ${error.message}`)
-    } else {
-      closeCreateModal()
-      setMessage(
-        bulkShouldUpdateExisting
-          ? `${bulkInsertableCount}件追加、${bulkUpdateableCount}件更新しました。`
-          : `${bulkInsertableCount}件追加しました。既存商品のスキップ：${bulkExistingCount}件`,
-      )
-      await fetchProducts()
+      setLoading(false)
+      return
     }
 
+    const failedImageRowIds = new Set<string>()
+    const failedImageNames: string[] = []
+
+    await runWithConcurrency(imageRows, IMAGE_UPLOAD_CONCURRENCY, async ({ row, cleanRow }) => {
+      const imageDraft = bulkImageDrafts[row.id]
+
+      if (!imageDraft) {
+        return
+      }
+
+      try {
+        await uploadProductImageFile(cleanRow.product_code, imageDraft.file)
+      } catch {
+        failedImageRowIds.add(row.id)
+        failedImageNames.push(`${cleanRow.product_code}（${imageDraft.sourceName}）`)
+      }
+    })
+
+    const successfulImageRowIds = imageRows
+      .map(({ row }) => row.id)
+      .filter((rowId) => !failedImageRowIds.has(rowId))
+
+    if (successfulImageRowIds.length > 0) {
+      clearBulkImageDrafts(successfulImageRowIds)
+      setImageCacheVersion(Date.now())
+    }
+
+    await fetchProducts()
+
+    if (failedImageRowIds.size > 0) {
+      setModalMessage(
+        `商品情報は保存しましたが、画像アップロード失敗が${failedImageRowIds.size}件あります。失敗行は残しています。例：${failedImageNames.slice(0, 3).join('、')}`,
+      )
+      setLoading(false)
+      return
+    }
+
+    closeCreateModal()
+    setMessage(
+      bulkShouldUpdateExisting
+        ? `${bulkInsertableCount}件追加、${bulkUpdateableCount}件更新しました。画像：${imageRows.length}件`
+        : `${bulkInsertableCount}件追加しました。既存商品のスキップ：${bulkExistingCount}件 / 画像：${imageRows.length}件`,
+    )
     setLoading(false)
   }
 
@@ -4075,6 +4248,7 @@ function App() {
                     <tr>
                       <th>No.</th>
                       <th>商品コード</th>
+                      <th>画像</th>
                       {selectedBulkColumns.map((column) => (
                         <th key={column.key}>{column.label}</th>
                       ))}
@@ -4096,6 +4270,48 @@ function App() {
                             onPaste={(e) => handleBulkPaste(e, index)}
                             placeholder="商品コード"
                           />
+                        </td>
+
+                        <td className="bulk-image-cell">
+                          <div
+                            className={
+                              bulkImageDrafts[row.id]
+                                ? 'bulk-image-drop is-pending'
+                                : 'bulk-image-drop'
+                            }
+                            onDragOver={handleBulkImageDragOver}
+                            onDrop={(event) => handleBulkImageDrop(event, row.id)}
+                            title="ここに画像をドロップすると、この行の商品コード.webpとして保存します"
+                          >
+                            {bulkImageDrafts[row.id] ? (
+                              <img
+                                src={bulkImageDrafts[row.id].previewUrl}
+                                alt={row.product_code || '追加予定画像'}
+                              />
+                            ) : (
+                              <span>画像<br />Drop</span>
+                            )}
+
+                            <label className="bulk-image-upload-button">
+                              選択
+                              <input
+                                type="file"
+                                accept={PRODUCT_IMAGE_ACCEPT}
+                                onChange={(event) => handleBulkImageFileSelect(event, row.id)}
+                              />
+                            </label>
+
+                            {bulkImageDrafts[row.id] && (
+                              <button
+                                type="button"
+                                className="bulk-image-remove-button"
+                                onClick={() => clearBulkImageDrafts([row.id])}
+                                aria-label="画像を削除"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
                         </td>
 
                         {selectedBulkColumns.map((column) => (
@@ -4129,6 +4345,7 @@ function App() {
                 <span>追加予定：{bulkInsertableCount}件</span>
                 <span>更新予定：{bulkShouldUpdateExisting ? bulkUpdateableCount : 0}件</span>
                 <span>既存スキップ：{bulkShouldUpdateExisting ? 0 : bulkExistingCount}件</span>
+                <span>画像待ち：{bulkImageDraftCount}件</span>
                 {bulkSummary.duplicateCodes.length > 0 && (
                   <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
                 )}

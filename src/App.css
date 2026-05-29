@@ -1078,7 +1078,7 @@ tr:hover td:last-child {
 
 .bulk-input-table {
   width: 100%;
-  min-width: 2600px;
+  min-width: 2700px;
   border-collapse: collapse;
 }
 
@@ -1118,25 +1118,29 @@ tr:hover td:last-child {
 }
 
 .bulk-input-table td:nth-child(3) {
-  width: 250px;
+  width: 104px;
 }
 
 .bulk-input-table td:nth-child(4) {
+  width: 250px;
+}
+
+.bulk-input-table td:nth-child(5) {
   width: 80px;
 }
 
-.bulk-input-table td:nth-child(5),
 .bulk-input-table td:nth-child(6),
-.bulk-input-table td:nth-child(7) {
+.bulk-input-table td:nth-child(7),
+.bulk-input-table td:nth-child(8) {
   width: 110px;
 }
 
-.bulk-input-table td:nth-child(8),
-.bulk-input-table td:nth-child(9) {
+.bulk-input-table td:nth-child(9),
+.bulk-input-table td:nth-child(10) {
   width: 220px;
 }
 
-.bulk-input-table td:nth-child(10) {
+.bulk-input-table td:nth-child(11) {
   width: 70px;
 }
 
@@ -1144,6 +1148,90 @@ tr:hover td:last-child {
   text-align: center;
   color: #66758a;
   font-weight: 800;
+}
+
+.bulk-image-cell {
+  width: 104px;
+  min-width: 104px;
+  text-align: center;
+}
+
+.bulk-image-drop {
+  position: relative;
+  display: inline-flex;
+  width: 78px;
+  height: 58px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #bfdbfe;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.25;
+  overflow: hidden;
+}
+
+.bulk-image-drop:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.bulk-image-drop.is-pending {
+  border-color: #fb923c;
+  background: #fff7ed;
+}
+
+.bulk-image-drop img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.bulk-image-upload-button {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.92);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.bulk-image-upload-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bulk-image-remove-button {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bulk-image-remove-button:hover {
+  background: rgba(15, 23, 42, 0.9);
 }
 
 .bulk-preview {
