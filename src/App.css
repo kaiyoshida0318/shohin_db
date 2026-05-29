@@ -367,7 +367,7 @@ select {
 
 .view-switch {
   grid-column: 2;
-  justify-self: center;
+  justify-self: start;
   z-index: 1;
   display: inline-flex;
   gap: 6px;
