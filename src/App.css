@@ -1114,11 +1114,11 @@ tr:hover td:last-child {
 }
 
 .bulk-input-table td:nth-child(2) {
-  width: 180px;
+  width: 104px;
 }
 
 .bulk-input-table td:nth-child(3) {
-  width: 104px;
+  width: 180px;
 }
 
 .bulk-input-table td:nth-child(4) {
@@ -1171,6 +1171,7 @@ tr:hover td:last-child {
   font-weight: 900;
   line-height: 1.25;
   overflow: hidden;
+  cursor: pointer;
 }
 
 .bulk-image-drop:hover {
@@ -1188,6 +1189,20 @@ tr:hover td:last-child {
   height: 100%;
   object-fit: contain;
   background: #fff;
+}
+
+
+.bulk-image-file-input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .bulk-image-upload-button {
@@ -1228,6 +1243,7 @@ tr:hover td:last-child {
   font-weight: 900;
   line-height: 1;
   cursor: pointer;
+  z-index: 4;
 }
 
 .bulk-image-remove-button:hover {

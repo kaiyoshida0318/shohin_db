@@ -4247,8 +4247,8 @@ function App() {
                   <thead>
                     <tr>
                       <th>No.</th>
-                      <th>商品コード</th>
                       <th>画像</th>
+                      <th>商品コード</th>
                       {selectedBulkColumns.map((column) => (
                         <th key={column.key}>{column.label}</th>
                       ))}
@@ -4261,17 +4261,6 @@ function App() {
                       <tr key={row.id}>
                         <td className="bulk-row-number">{index + 1}</td>
 
-                        <td>
-                          <input
-                            value={row.product_code}
-                            onChange={(e) =>
-                              updateBulkRow(row.id, 'product_code', e.target.value)
-                            }
-                            onPaste={(e) => handleBulkPaste(e, index)}
-                            placeholder="商品コード"
-                          />
-                        </td>
-
                         <td className="bulk-image-cell">
                           <div
                             className={
@@ -4281,7 +4270,7 @@ function App() {
                             }
                             onDragOver={handleBulkImageDragOver}
                             onDrop={(event) => handleBulkImageDrop(event, row.id)}
-                            title="ここに画像をドロップすると、この行の商品コード.webpとして保存します"
+                            title="クリックまたはドロップで、この行の商品コード.webpとして保存する画像を選択します"
                           >
                             {bulkImageDrafts[row.id] ? (
                               <img
@@ -4292,26 +4281,39 @@ function App() {
                               <span>画像<br />Drop</span>
                             )}
 
-                            <label className="bulk-image-upload-button">
-                              選択
-                              <input
-                                type="file"
-                                accept={PRODUCT_IMAGE_ACCEPT}
-                                onChange={(event) => handleBulkImageFileSelect(event, row.id)}
-                              />
-                            </label>
+                            <input
+                              className="bulk-image-file-input"
+                              type="file"
+                              accept={PRODUCT_IMAGE_ACCEPT}
+                              onChange={(event) => handleBulkImageFileSelect(event, row.id)}
+                              aria-label="画像を選択"
+                            />
 
                             {bulkImageDrafts[row.id] && (
                               <button
                                 type="button"
                                 className="bulk-image-remove-button"
-                                onClick={() => clearBulkImageDrafts([row.id])}
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  clearBulkImageDrafts([row.id])
+                                }}
                                 aria-label="画像を削除"
                               >
                                 ×
                               </button>
                             )}
                           </div>
+                        </td>
+
+                        <td>
+                          <input
+                            value={row.product_code}
+                            onChange={(e) =>
+                              updateBulkRow(row.id, 'product_code', e.target.value)
+                            }
+                            onPaste={(e) => handleBulkPaste(e, index)}
+                            placeholder="商品コード"
+                          />
                         </td>
 
                         {selectedBulkColumns.map((column) => (
