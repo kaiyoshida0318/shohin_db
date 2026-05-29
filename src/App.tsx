@@ -1173,6 +1173,47 @@ function productToDraft(product: Product): EditableProduct {
   }
 }
 
+
+function buildProductSearchText(product: Product) {
+  return [
+    product.product_code,
+    product.product_name,
+    product.floor,
+    formatClassification(product.orderboard_classification),
+    formatNumericValue(product.free_stock),
+    formatNumericValue(product.reorder_point),
+    formatNumericValue(product.stock_constant),
+    formatMonthlySales(getProductMonthlySales(product)),
+    product.special_notes,
+    product.picking_advice,
+    product.rack_number,
+    product.rack_level,
+    product.sticker_color,
+    product.order_url_1,
+    product.order_url_2,
+    product.order_url_3,
+    product.order_size,
+    product.order_color,
+    product.order_simple_instruction,
+    product.order_detail_instruction,
+    product.order_quantity_condition,
+    product.order_note,
+    product.order_memo_1,
+    product.rakumart_url_1,
+    product.order_memo_2,
+    product.rakumart_url_2,
+    product.order_memo_3,
+    product.rakumart_url_3,
+    product.order_memo_4,
+    product.rakumart_url_4,
+    product.order_memo_5,
+    product.rakumart_url_5,
+  ]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase()
+}
+
 function normalizeDraft(draft: EditableProduct) {
   return {
     product_name: draft.product_name.trim() || null,
@@ -1808,6 +1849,16 @@ function App() {
     )
   }, [products])
 
+  const productByCode = useMemo(() => {
+    return new Map(products.map((product) => [product.product_code, product]))
+  }, [products])
+
+  const productSearchTextByCode = useMemo(() => {
+    return new Map(
+      products.map((product) => [product.product_code, buildProductSearchText(product)]),
+    )
+  }, [products])
+
   const bulkSummary = useMemo(() => {
     return buildBulkSummary(bulkRows, existingProductCodes)
   }, [bulkRows, existingProductCodes])
@@ -1829,54 +1880,15 @@ function App() {
   const filteredProducts = useMemo(() => {
     const q = debouncedKeyword.trim().toLowerCase()
 
-    return products.filter((product) => {
-      const draft =
-        editingCodes.has(product.product_code)
-          ? rowDrafts[product.product_code] ?? productToDraft(product)
-          : productToDraft(product)
+    if (!q) {
+      return products
+    }
 
-      const matchesKeyword =
-        !q ||
-        [
-          product.product_code,
-          draft.product_name,
-          draft.floor,
-          formatClassification(product.orderboard_classification),
-          formatNumericValue(product.free_stock),
-          formatNumericValue(product.reorder_point),
-          formatNumericValue(product.stock_constant),
-          formatMonthlySales(getProductMonthlySales(product)),
-          draft.special_notes,
-          draft.picking_advice,
-          draft.rack_number,
-          draft.rack_level,
-          draft.sticker_color,
-          draft.order_url_1,
-          draft.order_url_2,
-          draft.order_url_3,
-          draft.order_size,
-          draft.order_color,
-          draft.order_simple_instruction,
-          draft.order_detail_instruction,
-          draft.order_quantity_condition,
-          draft.order_note,
-          draft.order_memo_1,
-          draft.rakumart_url_1,
-          draft.order_memo_2,
-          draft.rakumart_url_2,
-          draft.order_memo_3,
-          draft.rakumart_url_3,
-          draft.order_memo_4,
-          draft.rakumart_url_4,
-          draft.order_memo_5,
-          draft.rakumart_url_5,
-        ]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(q))
+    return products.filter((product) =>
+      (productSearchTextByCode.get(product.product_code) ?? '').includes(q),
+    )
+  }, [products, productSearchTextByCode, debouncedKeyword])
 
-      return matchesKeyword
-    })
-  }, [products, rowDrafts, editingCodes, debouncedKeyword])
 
 
   const sortedProducts = useMemo(() => {
@@ -2540,7 +2552,7 @@ function App() {
     key: EditableProductKey,
     value: string,
   ) {
-    const product = products.find((item) => item.product_code === productCode)
+    const product = productByCode.get(productCode)
 
     if (!product) {
       return
