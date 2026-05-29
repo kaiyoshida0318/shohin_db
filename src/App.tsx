@@ -73,6 +73,15 @@ type ProductImagePreview = {
   url: string
 }
 
+type DeliverySlipPreviewData = {
+  productCode: string
+  productName: string
+  floor: string
+  rackNumber: string
+  rackLevel: string
+  stickerColor: string
+}
+
 type ProductImageDraft = {
   file: File
   previewUrl: string
@@ -1150,6 +1159,68 @@ function formatDateTime(value: string | null) {
   return date.toLocaleString('ja-JP')
 }
 
+function previewValue(value: string) {
+  return value.trim() || '未入力'
+}
+
+function PreviewMissingText({ children }: { children: string }) {
+  return <span className="delivery-preview-missing">{children}</span>
+}
+
+function renderPreviewValue(value: string, className?: string) {
+  const text = previewValue(value)
+  if (text === '未入力') {
+    return <PreviewMissingText>{text}</PreviewMissingText>
+  }
+
+  return <span className={className}>{text}</span>
+}
+
+function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) {
+  const hasSticker = preview.stickerColor.trim().length > 0
+
+  return (
+    <div className="delivery-preview-wrap">
+      <table className="delivery-preview-table">
+        <thead>
+          <tr>
+            <th>棚番号</th>
+            <th>シール</th>
+            <th>商品名</th>
+            <th>商品コード</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="delivery-preview-shelf">
+              <div className="delivery-preview-shelf-stack">
+                <span className="delivery-preview-floor">
+                  {renderPreviewValue(preview.floor)}
+                </span>
+                <span className="delivery-preview-rack">
+                  {renderPreviewValue(preview.rackNumber)}
+                </span>
+                <span className="delivery-preview-level">
+                  {renderPreviewValue(preview.rackLevel)}
+                </span>
+              </div>
+            </td>
+            <td className={hasSticker ? 'delivery-preview-sticker has-sticker' : 'delivery-preview-sticker'}>
+              {hasSticker ? preview.stickerColor.trim() : ''}
+            </td>
+            <td className="delivery-preview-name">
+              {renderPreviewValue(preview.productName)}
+            </td>
+            <td className="delivery-preview-code">
+              {renderPreviewValue(preview.productCode, 'mono-text')}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function productToDraft(product: Product): EditableProduct {
   return {
     product_name: product.product_name ?? '',
@@ -1726,6 +1797,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'rack_number', label: '棚番号-位置', width: 120 },
       { key: 'rack_level', label: '棚番号-段', width: 108 },
       { key: 'sticker_color', label: 'シールカラー', width: 118 },
+      { key: 'delivery_preview', label: '納品書プレビュー', width: 148 },
     ],
     order: [
       { key: 'product_name', label: '商品名', width: 280 },
@@ -1851,6 +1923,7 @@ function App() {
   const [imageImportMessage, setImageImportMessage] = useState('')
   const [imageCacheVersion, setImageCacheVersion] = useState(() => Date.now())
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null)
+  const [deliverySlipPreview, setDeliverySlipPreview] = useState<DeliverySlipPreviewData | null>(null)
   const [imageDrafts, setImageDrafts] = useState<Record<string, ProductImageDraft>>({})
   const imageDraftsRef = useRef<Record<string, ProductImageDraft>>({})
 
@@ -3322,6 +3395,29 @@ function App() {
     )
   }
 
+  function openDeliverySlipPreview(product: Product, draft: EditableProduct) {
+    setDeliverySlipPreview({
+      productCode: product.product_code,
+      productName: draft.product_name,
+      floor: draft.floor,
+      rackNumber: draft.rack_number,
+      rackLevel: draft.rack_level,
+      stickerColor: draft.sticker_color,
+    })
+  }
+
+  function renderDeliveryPreviewButton(product: Product, draft: EditableProduct) {
+    return (
+      <button
+        type="button"
+        className="small secondary delivery-preview-button"
+        onClick={() => openDeliverySlipPreview(product, draft)}
+      >
+        プレビュー
+      </button>
+    )
+  }
+
   function handleRowDoubleClick(product: Product, event: ReactMouseEvent<HTMLTableRowElement>) {
     const target = event.target instanceof HTMLElement ? event.target : null
     const isInteractiveTarget = Boolean(target?.closest('button, a, input, textarea, select'))
@@ -3522,6 +3618,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderDeliveryPreviewButton(product, draft)}</td>
       </>
     )
   }
@@ -4077,6 +4174,36 @@ function App() {
             </div>
 
             <img src={imagePreview.url} alt={imagePreview.productName || imagePreview.productCode} />
+          </section>
+        </div>
+      )}
+
+      {deliverySlipPreview && (
+        <div className="modal-backdrop" onClick={() => setDeliverySlipPreview(null)}>
+          <section
+            className="modal-card delivery-preview-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="納品書プレビュー"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head delivery-preview-head">
+              <div>
+                <p className="eyebrow">Builder Preview</p>
+                <h2>納品書プレビュー</h2>
+                <span>{deliverySlipPreview.productCode}</span>
+              </div>
+
+              <button className="secondary small" onClick={() => setDeliverySlipPreview(null)}>
+                閉じる
+              </button>
+            </div>
+
+            <div className="delivery-preview-note">
+              紙出しviewの現在値で、builderの「棚番号 / シール / 商品名 / 商品コード」の見え方だけを確認します。
+            </div>
+
+            <DeliverySlipPreview preview={deliverySlipPreview} />
           </section>
         </div>
       )}
