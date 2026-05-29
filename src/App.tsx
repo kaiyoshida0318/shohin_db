@@ -1178,10 +1178,10 @@ function renderPreviewValue(value: string, className?: string) {
   return <span className={className}>{text}</span>
 }
 
-const DELIVERY_PREVIEW_NAME_CONTENT_WIDTH = 300
-const DELIVERY_PREVIEW_CODE_CONTENT_WIDTH = 274
-const DELIVERY_PREVIEW_FONT_FAMILY = '"Yu Gothic", YuGothic, Meiryo, sans-serif'
-let deliveryPreviewMeasureCanvas: HTMLCanvasElement | null = null
+const DELIVERY_PREVIEW_NAME_CONTENT_WIDTH = 230
+const DELIVERY_PREVIEW_CODE_CONTENT_WIDTH = 218
+const DELIVERY_PREVIEW_NAME_CHAR_SCALE = 0.68
+const DELIVERY_PREVIEW_CODE_CHAR_SCALE = 0.52
 
 function normalizePreviewLineBreaks(value: string) {
   return String(value ?? '')
@@ -1189,27 +1189,26 @@ function normalizePreviewLineBreaks(value: string) {
     .replace(/\\n/g, '\n')
 }
 
-function measurePreviewText(value: string, fontSizePx: number, fontWeight = 700) {
+function measurePreviewText(value: string, fontSizePx: number, fontWeight = 700, halfWidthScale = DELIVERY_PREVIEW_NAME_CHAR_SCALE) {
   const text = String(value ?? '')
-
-  if (typeof document !== 'undefined') {
-    deliveryPreviewMeasureCanvas ??= document.createElement('canvas')
-    const context = deliveryPreviewMeasureCanvas.getContext('2d')
-
-    if (context) {
-      context.font = `${fontWeight} ${fontSizePx}px ${DELIVERY_PREVIEW_FONT_FAMILY}`
-      return context.measureText(text).width
-    }
-  }
+  const weightBump = fontWeight >= 850 ? 1.02 : 1
 
   return Array.from(text).reduce((sum, ch) => {
     const code = ch.codePointAt(0) ?? 0
-    const isWide = code > 0x3000 || /[ぁ-んァ-ン一-龥]/.test(ch)
-    return sum + (isWide ? fontSizePx : fontSizePx * 0.58)
+
+    if (/\s/.test(ch)) {
+      return sum + fontSizePx * 0.35
+    }
+
+    const isJapanese = /[ぁ-んァ-ン一-龥]/.test(ch)
+    const isWideSymbol = code >= 0x3000 && code <= 0xffef
+    const unit = isJapanese || isWideSymbol ? fontSizePx : fontSizePx * halfWidthScale
+
+    return sum + unit * weightBump
   }, 0)
 }
 
-function wrapPreviewText(value: string, maxWidthPx: number, fontSizePx: number, fontWeight = 700) {
+function wrapPreviewText(value: string, maxWidthPx: number, fontSizePx: number, fontWeight = 700, halfWidthScale = DELIVERY_PREVIEW_NAME_CHAR_SCALE) {
   const normalized = normalizePreviewLineBreaks(value)
   const output: string[] = []
 
@@ -1225,7 +1224,7 @@ function wrapPreviewText(value: string, maxWidthPx: number, fontSizePx: number, 
     for (const ch of Array.from(line)) {
       const candidate = current + ch
 
-      if (!current || measurePreviewText(candidate, fontSizePx, fontWeight) <= maxWidthPx) {
+      if (!current || measurePreviewText(candidate, fontSizePx, fontWeight, halfWidthScale) <= maxWidthPx) {
         current = candidate
       } else {
         output.push(current)
@@ -1246,11 +1245,11 @@ function wrapPreviewText(value: string, maxWidthPx: number, fontSizePx: number, 
 function wrapPreviewCode(value: string) {
   const code = String(value ?? '').trim()
   if (!code) return []
-  if (measurePreviewText(code, 15, 700) <= DELIVERY_PREVIEW_CODE_CONTENT_WIDTH) return [code]
+  if (measurePreviewText(code, 15, 700, DELIVERY_PREVIEW_CODE_CHAR_SCALE) <= DELIVERY_PREVIEW_CODE_CONTENT_WIDTH) return [code]
 
   const chunks = code.split('-')
   if (chunks.length <= 1) {
-    return wrapPreviewText(code, DELIVERY_PREVIEW_CODE_CONTENT_WIDTH, 15, 700)
+    return wrapPreviewText(code, DELIVERY_PREVIEW_CODE_CONTENT_WIDTH, 15, 700, DELIVERY_PREVIEW_CODE_CHAR_SCALE)
   }
 
   const lines: string[] = []
@@ -1258,7 +1257,7 @@ function wrapPreviewCode(value: string) {
 
   for (const chunk of chunks.slice(1)) {
     const candidate = `${current}-${chunk}`
-    if (!current || measurePreviewText(candidate, 15, 700) <= DELIVERY_PREVIEW_CODE_CONTENT_WIDTH) {
+    if (!current || measurePreviewText(candidate, 15, 700, DELIVERY_PREVIEW_CODE_CHAR_SCALE) <= DELIVERY_PREVIEW_CODE_CONTENT_WIDTH) {
       current = candidate
     } else {
       lines.push(`${current}-`)
@@ -1290,9 +1289,9 @@ function PreviewLines({
 
 function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) {
   const hasSticker = preview.stickerColor.trim().length > 0
-  const productNameLines = wrapPreviewText(preview.productName, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 16, 900)
-  const specialNoteLines = wrapPreviewText(preview.specialNotes, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800)
-  const pickingAdviceLines = wrapPreviewText(preview.pickingAdvice, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800)
+  const productNameLines = wrapPreviewText(preview.productName, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 16, 900, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
+  const specialNoteLines = wrapPreviewText(preview.specialNotes, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
+  const pickingAdviceLines = wrapPreviewText(preview.pickingAdvice, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
   const productCodeLines = wrapPreviewCode(preview.productCode)
 
   return (

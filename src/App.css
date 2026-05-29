@@ -74,7 +74,7 @@ select:focus {
 }
 
 textarea {
-  min-height: 88px;
+  min-height: 92px;
   resize: vertical;
 }
 
@@ -1159,7 +1159,7 @@ tr:hover td:last-child {
 .bulk-image-drop {
   position: relative;
   display: inline-flex;
-  width: 78px;
+  width: 60px;
   height: 58px;
   align-items: center;
   justify-content: center;
@@ -2797,7 +2797,7 @@ button.danger-button:disabled {
 }
 
 .delivery-preview-table {
-  width: 760px;
+  width: 575px;
   border-collapse: collapse;
   table-layout: fixed;
   background: #fff;
@@ -2825,23 +2825,23 @@ button.danger-button:disabled {
 }
 
 .delivery-preview-table th:nth-child(1) {
-  width: 78px;
+  width: 60px;
 }
 
 .delivery-preview-table th:nth-child(2) {
-  width: 68px;
+  width: 52px;
 }
 
 .delivery-preview-table th:nth-child(3) {
-  width: 316px;
+  width: 239px;
 }
 
 .delivery-preview-table th:nth-child(4) {
-  width: 298px;
+  width: 224px;
 }
 
 .delivery-preview-table tbody td {
-  height: 108px;
+  min-height: 108px;
 }
 
 .delivery-preview-shelf {
@@ -2889,14 +2889,14 @@ button.danger-button:disabled {
 }
 
 .delivery-preview-name {
-  padding: 10px 8px !important;
+  padding: 8px 4px !important;
 }
 
 .delivery-preview-name-stack {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  min-height: 88px;
+  min-height: 92px;
   white-space: normal;
   word-break: normal;
 }
@@ -2905,7 +2905,7 @@ button.danger-button:disabled {
   display: block;
   font-size: 16px;
   font-weight: 900;
-  line-height: 1.2;
+  line-height: 1.12;
 }
 
 .delivery-preview-name-sub {
@@ -2913,11 +2913,11 @@ button.danger-button:disabled {
   margin-top: 1px;
   font-size: 11.5px;
   font-weight: 800;
-  line-height: 1.18;
+  line-height: 1.12;
 }
 
 .delivery-preview-code {
-  padding: 10px 12px !important;
+  padding: 8px 4px !important;
   font-size: 15px;
   font-weight: 700;
   white-space: normal;
