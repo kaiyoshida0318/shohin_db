@@ -1901,10 +1901,15 @@ function App() {
     )
   }, [filteredProducts, sortConfig])
 
-  const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PRODUCT_PAGE_SIZE))
+  const totalProductCount = sortedProducts.length
+  const totalPages = Math.max(1, Math.ceil(totalProductCount / PRODUCT_PAGE_SIZE))
   const currentPageNumber = Math.min(currentPage, totalPages)
   const pageStartIndex = (currentPageNumber - 1) * PRODUCT_PAGE_SIZE
-  const pageEndIndex = Math.min(pageStartIndex + PRODUCT_PAGE_SIZE, sortedProducts.length)
+  const pageEndIndex = Math.min(pageStartIndex + PRODUCT_PAGE_SIZE, totalProductCount)
+  const pagerRangeText =
+    totalProductCount === 0
+      ? '0件 / 全0件'
+      : `${pageStartIndex + 1}〜${pageEndIndex}件目 / 全${totalProductCount}件`
 
   const pagedProducts = useMemo(() => {
     return sortedProducts.slice(pageStartIndex, pageEndIndex)
@@ -3389,7 +3394,6 @@ function App() {
           <div className="table-header">
             <div className="table-title">
               <strong>商品一覧</strong>
-              <span>{filteredProducts.length}件</span>
             </div>
 
             <div className="view-switch" aria-label="表示用途切り替え">
@@ -3450,7 +3454,7 @@ function App() {
                 最後
               </button>
               <span className="pager-range">
-                {filteredProducts.length === 0 ? '0件' : `${pageStartIndex + 1}〜${pageEndIndex}件表示`}
+                {pagerRangeText}
               </span>
             </div>
 
