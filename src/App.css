@@ -1383,7 +1383,9 @@ tr:hover td:last-child {
 }
 
 .image-preview-card {
-  width: min(980px, calc(100vw - 48px));
+  width: fit-content;
+  min-width: min(360px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
   max-height: calc(100vh - 56px);
   overflow: auto;
   border-radius: 22px;
@@ -1419,9 +1421,12 @@ tr:hover td:last-child {
 
 .image-preview-card img {
   display: block;
-  width: 100%;
+  width: auto;
+  height: auto;
+  max-width: min(100%, calc(100vw - 92px));
   max-height: calc(100vh - 170px);
   object-fit: contain;
+  margin: 0 auto;
   border-radius: 16px;
   background: #f8fafc;
 }
