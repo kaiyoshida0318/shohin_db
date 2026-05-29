@@ -1,10 +1,12 @@
-import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import './App.css'
 
 const PRODUCT_IMAGE_BUCKET = 'product-images'
 const PRODUCT_IMAGE_EXTENSION = '.webp'
+const PRODUCT_IMAGE_WEBP_QUALITY = 0.92
 const IMAGE_UPLOAD_CONCURRENCY = 5
+const PRODUCT_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
 const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v1'
@@ -69,6 +71,12 @@ type ProductImagePreview = {
   productCode: string
   productName: string | null
   url: string
+}
+
+type ProductImageDraft = {
+  file: File
+  previewUrl: string
+  sourceName: string
 }
 
 type NeUsageResult = {
@@ -1278,8 +1286,68 @@ function getProductCodeFromImageFile(file: File) {
   return file.name.replace(/\.[^.]+$/, '').trim()
 }
 
-function isWebpFile(file: File) {
-  return file.name.toLowerCase().endsWith(PRODUCT_IMAGE_EXTENSION) || file.type === 'image/webp'
+function isSupportedProductImageFile(file: File) {
+  const fileName = file.name.toLowerCase()
+  const fileType = file.type.toLowerCase()
+
+  return (
+    fileType === 'image/jpeg' ||
+    fileType === 'image/png' ||
+    fileType === 'image/webp' ||
+    fileName.endsWith('.jpg') ||
+    fileName.endsWith('.jpeg') ||
+    fileName.endsWith('.png') ||
+    fileName.endsWith('.webp')
+  )
+}
+
+async function convertImageFileToWebp(file: File) {
+  const imageBitmap = await createImageBitmap(file)
+
+  try {
+    const canvas = document.createElement('canvas')
+    canvas.width = imageBitmap.width
+    canvas.height = imageBitmap.height
+
+    const context = canvas.getContext('2d')
+
+    if (!context) {
+      throw new Error('画像変換用のCanvasを作成できませんでした。')
+    }
+
+    context.drawImage(imageBitmap, 0, 0)
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('WebP変換に失敗しました。'))
+          }
+        },
+        'image/webp',
+        PRODUCT_IMAGE_WEBP_QUALITY,
+      )
+    })
+  } finally {
+    imageBitmap.close()
+  }
+}
+
+async function uploadProductImageFile(productCode: string, file: File) {
+  const webpBlob = await convertImageFileToWebp(file)
+  const { error } = await supabase.storage
+    .from(PRODUCT_IMAGE_BUCKET)
+    .upload(getProductImagePath(productCode), webpBlob, {
+      cacheControl: '3600',
+      contentType: 'image/webp',
+      upsert: true,
+    })
+
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 async function runWithConcurrency<T>(
@@ -1303,44 +1371,101 @@ async function runWithConcurrency<T>(
 function ProductImageCell({
   product,
   version,
+  isEditing,
+  draftImage,
   onPreview,
+  onImageFilesDrop,
 }: {
   product: Product
   version: number
+  isEditing: boolean
+  draftImage?: ProductImageDraft
   onPreview: (preview: ProductImagePreview) => void
+  onImageFilesDrop: (product: Product, files: File[]) => void
 }) {
-  const [hasError, setHasError] = useState(false)
-
-  useEffect(() => {
-    setHasError(false)
-  }, [product.product_code, version])
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const imageUrl = getProductImageUrl(product.product_code, version)
+  const displayUrl = draftImage?.previewUrl ?? imageUrl
+  const hasError = Boolean(displayUrl && failedImageUrl === displayUrl)
+  const shouldShowImage = Boolean(displayUrl) && !hasError
 
-  if (!imageUrl || hasError) {
-    return <span className="product-image-placeholder">画像なし</span>
+  function handleDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!isEditing) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsDragOver(true)
   }
 
+  function handleDragLeave(event: DragEvent<HTMLDivElement>) {
+    const nextTarget = event.relatedTarget as Node | null
+
+    if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+      setIsDragOver(false)
+    }
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    if (!isEditing) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+    onImageFilesDrop(product, Array.from(event.dataTransfer.files ?? []))
+  }
+
+  const dropClassName = [
+    'product-image-drop-target',
+    isEditing ? 'is-editing' : '',
+    isDragOver ? 'is-drag-over' : '',
+    draftImage ? 'is-pending' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <button
-      type="button"
-      className="product-image-button"
-      onClick={() =>
-        onPreview({
-          productCode: product.product_code,
-          productName: product.product_name,
-          url: imageUrl,
-        })
-      }
-      title="画像を拡大"
+    <div
+      className={dropClassName}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      title={isEditing ? '画像をドロップして保存待ちにする' : undefined}
     >
-      <img
-        src={imageUrl}
-        alt={product.product_name || product.product_code}
-        loading="lazy"
-        onError={() => setHasError(true)}
-      />
-    </button>
+      {shouldShowImage ? (
+        <button
+          type="button"
+          className="product-image-button"
+          onClick={() =>
+            onPreview({
+              productCode: product.product_code,
+              productName: product.product_name,
+              url: displayUrl,
+            })
+          }
+          title={draftImage ? '保存待ち画像をプレビュー' : '画像をプレビュー'}
+        >
+          <img
+            src={displayUrl}
+            alt={product.product_name || product.product_code}
+            loading="lazy"
+            onError={() => setFailedImageUrl(displayUrl)}
+          />
+        </button>
+      ) : (
+        <span className={isEditing ? 'product-image-placeholder is-editing' : 'product-image-placeholder'}>
+          {isEditing ? '画像\nドロップ' : '画像なし'}
+        </span>
+      )}
+
+      {draftImage && <span className="product-image-pending-badge">未保存</span>}
+    </div>
   )
 }
 
@@ -1724,6 +1849,8 @@ function App() {
   const [imageImportMessage, setImageImportMessage] = useState('')
   const [imageCacheVersion, setImageCacheVersion] = useState(() => Date.now())
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null)
+  const [imageDrafts, setImageDrafts] = useState<Record<string, ProductImageDraft>>({})
+  const imageDraftsRef = useRef<Record<string, ProductImageDraft>>({})
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -1737,6 +1864,16 @@ function App() {
     })
 
     return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    imageDraftsRef.current = imageDrafts
+  }, [imageDrafts])
+
+  useEffect(() => () => {
+    Object.values(imageDraftsRef.current).forEach((draft) => {
+      URL.revokeObjectURL(draft.previewUrl)
+    })
   }, [])
 
   useEffect(() => {
@@ -2178,21 +2315,81 @@ function App() {
     setImageImportMessage('')
   }
 
+  function removeImageDrafts(productCodes: string[]) {
+    if (productCodes.length === 0) {
+      return
+    }
+
+    const productCodeSet = new Set(productCodes)
+
+    setImageDrafts((prev) => {
+      let changed = false
+      const next = { ...prev }
+
+      productCodeSet.forEach((productCode) => {
+        const draft = next[productCode]
+
+        if (draft) {
+          URL.revokeObjectURL(draft.previewUrl)
+          delete next[productCode]
+          changed = true
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }
+
+  function setRowImageDraft(product: Product, files: File[]) {
+    if (!editingCodes.has(product.product_code)) {
+      setMessage('画像更新は編集モード中のみ受付できます。')
+      return
+    }
+
+    const imageFile = files.find(isSupportedProductImageFile)
+
+    if (!imageFile) {
+      setMessage('jpg / png / webp 形式の画像をドロップしてください。')
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(imageFile)
+
+    setImageDrafts((prev) => {
+      const previousDraft = prev[product.product_code]
+
+      if (previousDraft) {
+        URL.revokeObjectURL(previousDraft.previewUrl)
+      }
+
+      return {
+        ...prev,
+        [product.product_code]: {
+          file: imageFile,
+          previewUrl,
+          sourceName: imageFile.name,
+        },
+      }
+    })
+
+    setMessage(`${product.product_code} の画像を保存待ちにしました。保存で反映します。`)
+  }
+
   function setProductImageFiles(files: File[]) {
-    const webpFiles = files.filter(isWebpFile)
-    const skippedCount = files.length - webpFiles.length
+    const supportedFiles = files.filter(isSupportedProductImageFile)
+    const skippedCount = files.length - supportedFiles.length
 
-    setImageFiles(webpFiles)
+    setImageFiles(supportedFiles)
 
-    if (webpFiles.length === 0) {
-      setImageImportMessage('商品コード.webp 形式のWebP画像を選択してください。')
+    if (supportedFiles.length === 0) {
+      setImageImportMessage('商品コード付きの jpg / png / webp 画像を選択してください。')
       return
     }
 
     setImageImportMessage(
       skippedCount > 0
-        ? `${webpFiles.length}件のWebP画像を選択しました。WebP以外は${skippedCount}件スキップします。`
-        : `${webpFiles.length}件のWebP画像を選択しました。`,
+        ? `${supportedFiles.length}件の画像を選択しました。非対応ファイルは${skippedCount}件スキップします。保存時はWebPに変換します。`
+        : `${supportedFiles.length}件の画像を選択しました。保存時はWebPに変換します。`,
     )
   }
 
@@ -2226,7 +2423,7 @@ function App() {
     const files = Array.from(event.dataTransfer.files ?? [])
 
     if (files.length === 0) {
-      setImageImportMessage('商品コード.webp 形式の画像をドロップしてください。')
+      setImageImportMessage('商品コード付きの jpg / png / webp 画像をドロップしてください。')
       return
     }
 
@@ -2256,19 +2453,12 @@ function App() {
         return
       }
 
-      const { error } = await supabase.storage
-        .from(PRODUCT_IMAGE_BUCKET)
-        .upload(getProductImagePath(productCode), file, {
-          cacheControl: '3600',
-          contentType: 'image/webp',
-          upsert: true,
-        })
-
-      if (error) {
+      try {
+        await uploadProductImageFile(productCode, file)
+        uploadedCount += 1
+      } catch {
         failedCount += 1
         failedNames.push(file.name)
-      } else {
-        uploadedCount += 1
       }
     })
 
@@ -2572,7 +2762,12 @@ function App() {
     }))
   }
 
+  function hasRowChanges(product: Product, draft: EditableProduct) {
+    return isDraftDirty(product, draft) || Boolean(imageDrafts[product.product_code])
+  }
+
   function cancelEdit(product: Product) {
+    removeImageDrafts([product.product_code])
     setRowDrafts((prev) => ({
       ...prev,
       [product.product_code]: productToDraft(product),
@@ -2592,6 +2787,7 @@ function App() {
 
     const cancelCount = editingCodes.size
 
+    removeImageDrafts(Array.from(editingCodes))
     setRowDrafts((prev) => {
       const next = { ...prev }
 
@@ -2616,7 +2812,7 @@ function App() {
       editingCodes.has(product.product_code),
     )
     const dirtyProducts = editingProducts.filter((product) =>
-      isDraftDirty(
+      hasRowChanges(
         product,
         rowDrafts[product.product_code] ?? productToDraft(product),
       ),
@@ -2624,6 +2820,7 @@ function App() {
     const cleanCount = editingProducts.length - dirtyProducts.length
 
     if (dirtyProducts.length === 0) {
+      removeImageDrafts(Array.from(editingCodes))
       setRowDrafts((prev) => {
         const next = { ...prev }
 
@@ -2658,21 +2855,60 @@ function App() {
       return
     }
 
+    const imageProducts = dirtyProducts.filter((product) => imageDrafts[product.product_code])
+    const failedImageCodes = new Set<string>()
+    const failedImageNames: string[] = []
+
+    await runWithConcurrency(imageProducts, IMAGE_UPLOAD_CONCURRENCY, async (product) => {
+      const imageDraft = imageDrafts[product.product_code]
+
+      if (!imageDraft) {
+        return
+      }
+
+      try {
+        await uploadProductImageFile(product.product_code, imageDraft.file)
+      } catch {
+        failedImageCodes.add(product.product_code)
+        failedImageNames.push(`${product.product_code}（${imageDraft.sourceName}）`)
+      }
+    })
+
+    const successfulImageCodes = imageProducts
+      .map((product) => product.product_code)
+      .filter((productCode) => !failedImageCodes.has(productCode))
+
+    if (successfulImageCodes.length > 0) {
+      removeImageDrafts(successfulImageCodes)
+      setImageCacheVersion(Date.now())
+    }
+
     setRowDrafts((prev) => {
       const next = { ...prev }
 
       editingProducts.forEach((product) => {
-        next[product.product_code] = productToDraft(product)
+        if (!failedImageCodes.has(product.product_code)) {
+          next[product.product_code] = productToDraft(product)
+        }
       })
 
       return next
     })
-    setEditingCodes(new Set())
-    setMessage(
-      cleanCount > 0
-        ? `${dirtyProducts.length}件保存、${cleanCount}件キャンセルしました。`
-        : `${dirtyProducts.length}件保存しました。`,
-    )
+
+    if (failedImageCodes.size > 0) {
+      setEditingCodes(new Set(failedImageCodes))
+      setMessage(
+        `保存しましたが、画像アップロード失敗が${failedImageCodes.size}件あります。失敗行は編集モードのまま残しました。例：${failedImageNames.slice(0, 3).join('、')}`,
+      )
+    } else {
+      setEditingCodes(new Set())
+      setMessage(
+        cleanCount > 0
+          ? `${dirtyProducts.length}件保存、${cleanCount}件キャンセルしました。`
+          : `${dirtyProducts.length}件保存しました。`,
+      )
+    }
+
     await fetchProducts()
     setSavingCode(null)
   }
@@ -2742,6 +2978,13 @@ function App() {
       return
     }
 
+    const imageDraft = imageDrafts[product.product_code]
+
+    if (!isDraftDirty(product, draft) && !imageDraft) {
+      setMessage('変更はありません。')
+      return
+    }
+
     setSavingCode(product.product_code)
     setMessage('')
 
@@ -2757,16 +3000,31 @@ function App() {
 
     if (error) {
       setMessage(`保存失敗: ${error.message}`)
-    } else {
-      setMessage(`保存しました：${product.product_code}`)
-      setEditingCodes((prev) => {
-        const next = new Set(prev)
-        next.delete(product.product_code)
-        return next
-      })
-      await fetchProducts()
+      setSavingCode(null)
+      return
     }
 
+    if (imageDraft) {
+      try {
+        await uploadProductImageFile(product.product_code, imageDraft.file)
+        removeImageDrafts([product.product_code])
+        setImageCacheVersion(Date.now())
+      } catch (uploadError) {
+        setMessage(
+          `商品情報は保存しましたが、画像アップロードに失敗しました：${uploadError instanceof Error ? uploadError.message : String(uploadError)}`,
+        )
+        setSavingCode(null)
+        return
+      }
+    }
+
+    setMessage(`保存しました：${product.product_code}`)
+    setEditingCodes((prev) => {
+      const next = new Set(prev)
+      next.delete(product.product_code)
+      return next
+    })
+    await fetchProducts()
     setSavingCode(null)
   }
 
@@ -2920,7 +3178,7 @@ function App() {
 
   function renderActions(product: Product, draft: EditableProduct) {
     const isEditing = editingCodes.has(product.product_code)
-    const dirty = isEditing && isDraftDirty(product, draft)
+    const dirty = isEditing && hasRowChanges(product, draft)
     const isSaving = savingCode === product.product_code
 
     if (isEditing) {
@@ -3504,7 +3762,7 @@ function App() {
                 {pagedProducts.map((product) => {
                   const draft = rowDrafts[product.product_code] ?? productToDraft(product)
                   const isEditing = editingCodes.has(product.product_code)
-                  const dirty = isEditing && isDraftDirty(product, draft)
+                  const dirty = isEditing && hasRowChanges(product, draft)
 
                   return (
                     <tr
@@ -3516,7 +3774,10 @@ function App() {
                         <ProductImageCell
                           product={product}
                           version={imageCacheVersion}
+                          isEditing={isEditing}
+                          draftImage={imageDrafts[product.product_code]}
                           onPreview={setImagePreview}
+                          onImageFilesDrop={setRowImageDraft}
                         />
                       </td>
 
@@ -3585,15 +3846,15 @@ function App() {
                 onDrop={handleImageDrop}
               >
                 <div>
-                  <strong>商品コード.webp をまとめて取り込み</strong>
-                  <span>ファイル名から商品コードを判定し、Supabase Storage の product-images に上書きアップロードします。</span>
+                  <strong>商品コード付き画像をまとめて取り込み</strong>
+                  <span>ファイル名から商品コードを判定し、jpg / png / webp をWebPへ変換して product-images に上書きアップロードします。</span>
                 </div>
 
                 <label className="csv-upload-button">
                   画像を選択
                   <input
                     type="file"
-                    accept=".webp,image/webp"
+                    accept={PRODUCT_IMAGE_ACCEPT}
                     multiple
                     onChange={handleImageFileSelect}
                   />
@@ -3603,7 +3864,7 @@ function App() {
               <div className="image-import-summary">
                 <span>選択中：{imageFiles.length}件</span>
                 <span>保存先：{PRODUCT_IMAGE_BUCKET}</span>
-                <span>形式：商品コード.webp</span>
+                <span>保存形式：商品コード.webp</span>
               </div>
 
               {imageImportMessage && <p className="modal-message">{imageImportMessage}</p>}
