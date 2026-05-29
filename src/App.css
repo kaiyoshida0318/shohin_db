@@ -2850,43 +2850,54 @@ button.danger-button:disabled {
 }
 
 .delivery-preview-shelf-stack {
-  display: grid;
-  place-items: center;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
   min-height: 108px;
-  padding: 5px 0;
-  line-height: 1;
+  padding: 0;
+  line-height: 0.95;
 }
 
 .delivery-preview-floor {
+  display: block;
+  margin-bottom: 3px;
   font-size: 15px;
   font-weight: 700;
+  line-height: 1;
 }
 
 .delivery-preview-rack {
+  display: block;
   font-size: 31px;
   font-weight: 900;
   letter-spacing: 0.18em;
+  line-height: 0.95;
   transform: translateX(0.09em);
 }
 
 .delivery-preview-level {
+  display: block;
+  margin-top: 4px;
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.16em;
+  line-height: 1;
   transform: translateX(0.08em);
 }
 
 .delivery-preview-sticker {
+  background: #fff;
   text-align: center;
-  font-size: 16px;
+  font-size: 20px;
   font-weight: 900;
   writing-mode: vertical-rl;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
 }
 
 .delivery-preview-sticker.has-sticker {
-  background: #fff7ed;
+  background: #fff;
 }
 
 .delivery-preview-name {
