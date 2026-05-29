@@ -2802,6 +2802,7 @@ button.danger-button:disabled {
   table-layout: fixed;
   background: #fff;
   border: 2px solid #222;
+  margin: 0 auto;
   font-family: "Yu Gothic", "YuGothic", "Meiryo", sans-serif;
   color: #111827;
 }

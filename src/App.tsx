@@ -1178,7 +1178,7 @@ function renderPreviewValue(value: string, className?: string) {
   return <span className={className}>{text}</span>
 }
 
-const DELIVERY_PREVIEW_NAME_CONTENT_WIDTH = 230
+const DELIVERY_PREVIEW_NAME_CONTENT_WIDTH = 236
 const DELIVERY_PREVIEW_CODE_CONTENT_WIDTH = 218
 const DELIVERY_PREVIEW_NAME_CHAR_SCALE = 0.68
 const DELIVERY_PREVIEW_CODE_CHAR_SCALE = 0.52
