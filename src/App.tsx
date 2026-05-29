@@ -9,7 +9,7 @@ const IMAGE_UPLOAD_CONCURRENCY = 5
 const PRODUCT_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
-const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v2'
+const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v3'
 const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
@@ -1907,32 +1907,42 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'rack_number', label: '棚番号-位置', width: 118 },
       { key: 'rack_level', label: '棚番号-段', width: 108 },
       { key: 'sticker_color', label: 'シールカラー', width: 118 },
+      { key: 'delivery_preview', label: '納品書プレビュー', width: 148 },
       { key: 'order_memo_1', label: 'オーダー1', width: 150 },
       { key: 'order_memo_2', label: 'オーダー2', width: 150 },
       { key: 'order_memo_3', label: 'オーダー3', width: 150 },
       { key: 'order_memo_4', label: 'オーダー4', width: 150 },
       { key: 'order_memo_5', label: 'オーダー5', width: 150 },
+      { key: 'order_url_1', label: '発注URL1', width: 250 },
+      { key: 'order_url_2', label: '発注URL2', width: 250 },
+      { key: 'order_url_3', label: '発注URL3', width: 250 },
+      { key: 'order_size', label: 'サイズ', width: 96 },
+      { key: 'order_color', label: 'カラー', width: 110 },
+      { key: 'order_simple_instruction', label: '■簡潔指示', width: 260 },
+      { key: 'order_detail_instruction', label: '▲具体指示', width: 320 },
+      { key: 'order_quantity_condition', label: '数量条件指定', width: 220 },
+      { key: 'order_note', label: '補足情報', width: 260 },
       { key: 'product_info_synced_at', label: '商品同期', width: 160 },
       { key: 'order_status_synced_at', label: 'オーダー同期', width: 160 },
       { key: 'updated_at', label: '更新日', width: 160 },
     ],
     pick: [
       { key: 'product_name', label: '商品名', width: 280 },
-      { key: 'special_notes', label: '特記事項', width: 260 },
-      { key: 'picking_advice', label: 'ピック時アドバイス', width: 300 },
+      { key: 'special_notes', label: '特記事項', width: 240 },
+      { key: 'picking_advice', label: 'ピック時アドバイス', width: 260 },
       { key: 'floor', label: '階数', width: 84 },
-      { key: 'rack_number', label: '棚番号-位置', width: 120 },
+      { key: 'rack_number', label: '棚番号-位置', width: 118 },
       { key: 'rack_level', label: '棚番号-段', width: 108 },
       { key: 'sticker_color', label: 'シールカラー', width: 118 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 148 },
     ],
     order: [
       { key: 'product_name', label: '商品名', width: 280 },
-      { key: 'order_memo_1', label: 'オーダー1', width: 170 },
-      { key: 'order_memo_2', label: 'オーダー2', width: 170 },
-      { key: 'order_memo_3', label: 'オーダー3', width: 170 },
-      { key: 'order_memo_4', label: 'オーダー4', width: 170 },
-      { key: 'order_memo_5', label: 'オーダー5', width: 170 },
+      { key: 'order_memo_1', label: 'オーダー1', width: 150 },
+      { key: 'order_memo_2', label: 'オーダー2', width: 150 },
+      { key: 'order_memo_3', label: 'オーダー3', width: 150 },
+      { key: 'order_memo_4', label: 'オーダー4', width: 150 },
+      { key: 'order_memo_5', label: 'オーダー5', width: 150 },
     ],
     purchase: [
       { key: 'product_name', label: '商品名', width: 280 },
@@ -1954,12 +1964,12 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'product_name', label: '商品名', width: 280 },
       ...neColumns,
       { key: 'floor', label: '階数', width: 84 },
-      { key: 'rack_number', label: '棚番号-位置', width: 120 },
+      { key: 'rack_number', label: '棚番号-位置', width: 118 },
       { key: 'rack_level', label: '棚番号-段', width: 108 },
       { key: 'sticker_color', label: 'シールカラー', width: 118 },
-      { key: 'special_notes', label: '特記事項', width: 260 },
-      { key: 'picking_advice', label: 'ピック時アドバイス', width: 300 },
-      { key: 'order_memo_1', label: 'オーダー1', width: 170 },
+      { key: 'special_notes', label: '特記事項', width: 240 },
+      { key: 'picking_advice', label: 'ピック時アドバイス', width: 260 },
+      { key: 'order_memo_1', label: 'オーダー1', width: 150 },
       { key: 'updated_at', label: '更新日', width: 160 },
     ],
   }
@@ -3733,11 +3743,21 @@ function App() {
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderDeliveryPreviewButton(product, draft)}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_3', 'rakumart_url_3')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_4', 'rakumart_url_4')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_5', 'rakumart_url_5')}</td>
+        <td>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
+        <td>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
+        <td>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
+        <td>{renderTextCell(product, draft, 'order_size', { inputClassName: 'small-text-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_color', { inputClassName: 'small-text-input' })}</td>
+        <td>{renderTextCell(product, draft, 'order_simple_instruction', { className: 'note-text', multiline: true, placeholder: '■簡潔指示' })}</td>
+        <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
+        <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
+        <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
         <td>{formatDateTime(product.product_info_synced_at)}</td>
         <td>{formatDateTime(product.order_status_synced_at)}</td>
         <td>{formatDateTime(product.updated_at)}</td>
