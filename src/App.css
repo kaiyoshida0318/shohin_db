@@ -394,7 +394,7 @@ select {
 
 .table-wrap {
   overflow: auto;
-  max-height: calc(100vh - 285px);
+  max-height: calc(100vh - 290px);
 }
 
 table {
