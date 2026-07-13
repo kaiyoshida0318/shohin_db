@@ -39,6 +39,7 @@ type Product = {
   rack_number: string | null
   rack_level: string | null
   sticker_color: string | null
+  size_conversion_value: number | null
 
   order_url_1: string | null
   order_url_2: string | null
@@ -177,6 +178,7 @@ type EditableProduct = {
   rack_number: string
   rack_level: string
   sticker_color: string
+  size_conversion_value: string
 
   order_url_1: string
   order_url_2: string
@@ -328,6 +330,7 @@ const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
   rack_number: '棚番号-位置',
   rack_level: '棚番号-段',
   sticker_color: 'シールカラー',
+  size_conversion_value: '茶大：1、定形：0.3',
   order_url_1: '発注URL1',
   order_url_2: '発注URL2',
   order_url_3: '発注URL3',
@@ -1357,6 +1360,7 @@ function productToDraft(product: Product): EditableProduct {
     rack_number: product.rack_number ?? '',
     rack_level: product.rack_level ?? '',
     sticker_color: product.sticker_color ?? '',
+    size_conversion_value: product.size_conversion_value == null ? '' : String(product.size_conversion_value),
     order_url_1: product.order_url_1 ?? '',
     order_url_2: product.order_url_2 ?? '',
     order_url_3: product.order_url_3 ?? '',
@@ -1395,6 +1399,7 @@ function buildProductSearchText(product: Product) {
     product.rack_number,
     product.rack_level,
     product.sticker_color,
+    product.size_conversion_value == null ? '' : String(product.size_conversion_value),
     product.order_url_1,
     product.order_url_2,
     product.order_url_3,
@@ -1420,6 +1425,22 @@ function buildProductSearchText(product: Product) {
     .toLowerCase()
 }
 
+function normalizeSizeConversionValue(value: string) {
+  const trimmed = value.trim()
+
+  if (!trimmed) {
+    return null
+  }
+
+  const parsed = Number(trimmed)
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error('サイズ換算値は0以上の数値で入力してください。')
+  }
+
+  return parsed
+}
+
 function normalizeDraft(draft: EditableProduct) {
   return {
     product_name: draft.product_name.trim() || null,
@@ -1429,6 +1450,7 @@ function normalizeDraft(draft: EditableProduct) {
     rack_number: draft.rack_number.trim() || null,
     rack_level: draft.rack_level.trim() || null,
     sticker_color: draft.sticker_color.trim() || null,
+    size_conversion_value: normalizeSizeConversionValue(draft.size_conversion_value),
     order_url_1: draft.order_url_1.trim() || null,
     order_url_2: draft.order_url_2.trim() || null,
     order_url_3: draft.order_url_3.trim() || null,
@@ -1934,6 +1956,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
+      { key: 'size_conversion_value', label: 'サイズ換算値（茶大：1、定形：0.3）', width: 220 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
     ],
     order: [
@@ -3372,9 +3395,17 @@ function App() {
     setSavingCode(product.product_code)
     setMessage('')
 
-    const payload = {
-      ...normalizeDraft(draft),
-      updated_at: new Date().toISOString(),
+    let payload: ReturnType<typeof normalizeDraft> & { updated_at: string }
+
+    try {
+      payload = {
+        ...normalizeDraft(draft),
+        updated_at: new Date().toISOString(),
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : '入力内容を確認してください。')
+      setSavingCode(null)
+      return
     }
 
     const { error } = await supabase
@@ -3448,7 +3479,34 @@ function App() {
       )
     }
 
-    return <DisplayText value={product[key] ?? null} className={options.className} />
+    const displayValue = product[key]
+    return <DisplayText value={displayValue == null ? null : String(displayValue)} className={options.className} />
+  }
+
+  function renderSizeConversionCell(product: Product, draft: EditableProduct) {
+    const isEditing = editingCodes.has(product.product_code)
+
+    if (isEditing) {
+      return (
+        <input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="0.001"
+          className="table-input size-conversion-input"
+          value={draft.size_conversion_value}
+          onChange={(event) => updateDraft(product.product_code, 'size_conversion_value', event.target.value)}
+          placeholder={EDIT_FIELD_PLACEHOLDERS.size_conversion_value}
+        />
+      )
+    }
+
+    return (
+      <DisplayText
+        value={product.size_conversion_value == null ? null : String(product.size_conversion_value)}
+        className="mono-text number-text"
+      />
+    )
   }
 
   function renderUrlTextCell(
@@ -3775,6 +3833,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderSizeConversionCell(product, draft)}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
       </>
     )

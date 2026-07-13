@@ -765,6 +765,12 @@ th:first-child {
   min-width: 110px;
 }
 
+.size-conversion-input {
+  width: 160px;
+  min-width: 160px;
+  text-align: right;
+}
+
 .order-input {
   width: 100px;
   min-width: 100px;
