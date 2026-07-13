@@ -1956,7 +1956,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
-      { key: 'size_conversion_value', label: 'サイズ換算値（茶大：1、定形：0.3）', width: 220 },
+      { key: 'size_conversion_value', label: 'サイズ換算値', width: 120 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
     ],
     order: [
