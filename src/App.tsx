@@ -10,7 +10,8 @@ const PRODUCT_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/w
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
 const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v4'
-const RECOMMENDED_COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-recommended-column-widths-v1'
+const APP_SETTINGS_TABLE = 'app_settings'
+const COLUMN_WIDTH_SETTING_PREFIX = 'shohin-db:column-widths'
 const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
@@ -246,6 +247,7 @@ type SortConfig = { key: SortableColumnKey; direction: SortDirection } | null
 const SORTABLE_COLUMN_SET = new Set<string>(SORTABLE_COLUMN_KEYS)
 
 type ColumnWidthMap = Record<string, number>
+type RecommendedColumnWidthsByView = Partial<Record<TableView, ColumnWidthMap>>
 
 type ColumnResizeMouseEvent = {
   clientX: number
@@ -1821,25 +1823,32 @@ function selectedNeOperationalFieldKeys(fields: NeSyncFieldState): NeOperational
 }
 
 
+function normalizeColumnWidths(value: unknown): ColumnWidthMap {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, width]) => typeof width === 'number' && Number.isFinite(width))
+      .map(([key, width]) => [key, clampColumnWidth(width as number)]),
+  )
+}
+
 function safeParseColumnWidths(raw: string | null): ColumnWidthMap {
   if (!raw) {
     return {}
   }
 
   try {
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return {}
-    }
-
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>)
-        .filter(([, value]) => typeof value === 'number' && Number.isFinite(value))
-        .map(([key, value]) => [key, clampColumnWidth(value as number)]),
-    )
+    return normalizeColumnWidths(JSON.parse(raw) as unknown)
   } catch {
     return {}
   }
+}
+
+function getColumnWidthSettingKey(view: TableView) {
+  return `${COLUMN_WIDTH_SETTING_PREFIX}:${view}`
 }
 
 function clampColumnWidth(width: number) {
@@ -2058,9 +2067,11 @@ function App() {
   const [columnWidths, setColumnWidths] = useState<ColumnWidthMap>(() =>
     safeParseColumnWidths(window.localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY)),
   )
-  const [recommendedColumnWidths, setRecommendedColumnWidths] = useState<ColumnWidthMap>(() =>
-    safeParseColumnWidths(window.localStorage.getItem(RECOMMENDED_COLUMN_WIDTH_STORAGE_KEY)),
-  )
+  const [recommendedColumnWidthsByView, setRecommendedColumnWidthsByView] =
+    useState<RecommendedColumnWidthsByView>({})
+  const [sharedColumnWidthsLoading, setSharedColumnWidthsLoading] = useState(false)
+  const [sharedColumnWidthsSaving, setSharedColumnWidthsSaving] = useState(false)
+  const [sharedColumnWidthsDirty, setSharedColumnWidthsDirty] = useState(false)
 
   const [loading, setLoading] = useState(false)
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -2198,11 +2209,45 @@ function App() {
   }, [columnWidths])
 
   useEffect(() => {
-    window.localStorage.setItem(
-      RECOMMENDED_COLUMN_WIDTH_STORAGE_KEY,
-      JSON.stringify(recommendedColumnWidths),
-    )
-  }, [recommendedColumnWidths])
+    if (!user || !isColumnWidthMenuOpen) {
+      return
+    }
+
+    let isActive = true
+
+    async function fetchSharedColumnWidths() {
+      setSharedColumnWidthsLoading(true)
+
+      const { data, error } = await supabase
+        .from(APP_SETTINGS_TABLE)
+        .select('setting_value')
+        .eq('setting_key', getColumnWidthSettingKey(tableView))
+        .maybeSingle()
+
+      if (!isActive) {
+        return
+      }
+
+      if (error) {
+        setSharedColumnWidthsLoading(false)
+        setMessage(`共有推奨幅の取得失敗: ${error.message}`)
+        return
+      }
+
+      setRecommendedColumnWidthsByView((prev) => ({
+        ...prev,
+        [tableView]: normalizeColumnWidths(data?.setting_value),
+      }))
+      setSharedColumnWidthsDirty(false)
+      setSharedColumnWidthsLoading(false)
+    }
+
+    fetchSharedColumnWidths()
+
+    return () => {
+      isActive = false
+    }
+  }, [isColumnWidthMenuOpen, tableView, user])
 
   useEffect(() => {
     window.localStorage.setItem(NE_SYNC_FIELDS_STORAGE_KEY, JSON.stringify(neSyncFields))
@@ -3717,7 +3762,7 @@ function App() {
   const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView), [tableView])
 
   function getRecommendedColumnWidth(column: ColumnSpec) {
-    return recommendedColumnWidths[column.key] ?? column.width
+    return recommendedColumnWidthsByView[tableView]?.[column.key] ?? column.width
   }
 
   function getColumnWidth(column: ColumnSpec) {
@@ -3730,27 +3775,72 @@ function App() {
       return
     }
 
-    setRecommendedColumnWidths((prev) => ({
+    setRecommendedColumnWidthsByView((prev) => ({
       ...prev,
-      [column.key]: clampColumnWidth(parsed),
+      [tableView]: {
+        ...(prev[tableView] ?? {}),
+        [column.key]: clampColumnWidth(parsed),
+      },
     }))
+    setSharedColumnWidthsDirty(true)
   }
 
-  function captureCurrentWidthsAsRecommended() {
+  function getCurrentRecommendedWidths() {
+    return Object.fromEntries(
+      currentColumnSpecs.map((column) => [column.key, getRecommendedColumnWidth(column)]),
+    )
+  }
+
+  async function saveSharedRecommendedWidths(widths: ColumnWidthMap, successMessage: string) {
+    setSharedColumnWidthsSaving(true)
+
+    const { error } = await supabase
+      .from(APP_SETTINGS_TABLE)
+      .upsert(
+        {
+          setting_key: getColumnWidthSettingKey(tableView),
+          setting_value: widths,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'setting_key' },
+      )
+
+    if (error) {
+      setSharedColumnWidthsSaving(false)
+      setMessage(`共有推奨幅の保存失敗: ${error.message}`)
+      return false
+    }
+
+    setRecommendedColumnWidthsByView((prev) => ({ ...prev, [tableView]: widths }))
+    setSharedColumnWidthsDirty(false)
+    setSharedColumnWidthsSaving(false)
+    setMessage(successMessage)
+    return true
+  }
+
+  async function saveEditedRecommendedWidths() {
+    await saveSharedRecommendedWidths(
+      getCurrentRecommendedWidths(),
+      '入力した推奨幅を共有設定へ保存しました',
+    )
+  }
+
+  async function captureCurrentWidthsAsRecommended() {
     const capturedWidths = Object.fromEntries(
       currentColumnSpecs.map((column) => [column.key, getColumnWidth(column)]),
     )
-    setRecommendedColumnWidths((prev) => ({ ...prev, ...capturedWidths }))
-    setMessage('現在の列幅を推奨幅に反映しました')
+    setRecommendedColumnWidthsByView((prev) => ({ ...prev, [tableView]: capturedWidths }))
+    await saveSharedRecommendedWidths(
+      capturedWidths,
+      '現在の列幅を共有推奨幅へ反映しました',
+    )
   }
 
   function applyRecommendedColumnWidths() {
-    const widthsToApply = Object.fromEntries(
-      currentColumnSpecs.map((column) => [column.key, getRecommendedColumnWidth(column)]),
-    )
+    const widthsToApply = getCurrentRecommendedWidths()
     setColumnWidths((prev) => ({ ...prev, ...widthsToApply }))
     setIsColumnWidthMenuOpen(false)
-    setMessage('推奨幅を適用しました')
+    setMessage('共有推奨幅を適用しました')
   }
 
   function startColumnResize(column: ColumnSpec, event: ColumnResizeMouseEvent) {
@@ -4024,7 +4114,7 @@ function App() {
                 <div className="column-settings-menu-head">
                   <div>
                     <strong>推奨幅の設定</strong>
-                    <span>表示中のビューの列幅を数値で設定できます</span>
+                    <span>表示中のビューごとにSupabaseで共有します</span>
                   </div>
                   <button
                     type="button"
@@ -4052,19 +4142,14 @@ function App() {
                           {column.label}
                         </span>
                         <input
-                          key={`${column.key}-${recommendedWidth}`}
                           type="number"
                           min={MIN_COLUMN_WIDTH}
                           max={MAX_COLUMN_WIDTH}
                           step="1"
-                          defaultValue={recommendedWidth}
+                          value={recommendedWidth}
                           onFocus={(event) => event.currentTarget.select()}
-                          onBlur={(event) => updateRecommendedColumnWidth(column, event.target.value)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.currentTarget.blur()
-                            }
-                          }}
+                          onChange={(event) => updateRecommendedColumnWidth(column, event.target.value)}
+                          disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
                           aria-label={`${column.label}の推奨幅`}
                         />
                         <span className="column-width-current">{currentWidth}px</span>
@@ -4078,15 +4163,34 @@ function App() {
                     type="button"
                     className="secondary"
                     onClick={captureCurrentWidthsAsRecommended}
+                    disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
                     role="menuitem"
                   >
-                    現在の幅を反映
+                    現在の幅を共有へ反映
                   </button>
-                  <button type="button" onClick={applyRecommendedColumnWidths} role="menuitem">
-                    推奨幅を適用
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={saveEditedRecommendedWidths}
+                    disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving || !sharedColumnWidthsDirty}
+                    role="menuitem"
+                  >
+                    {sharedColumnWidthsSaving ? '共有保存中' : '数値を共有保存'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyRecommendedColumnWidths}
+                    disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
+                    role="menuitem"
+                  >
+                    共有推奨幅を適用
                   </button>
                 </div>
-                <small>{MIN_COLUMN_WIDTH}〜{MAX_COLUMN_WIDTH}pxで設定できます。</small>
+                <small>
+                  {sharedColumnWidthsLoading
+                    ? '共有推奨幅を取得しています…'
+                    : `${MIN_COLUMN_WIDTH}〜${MAX_COLUMN_WIDTH}px。現在幅はこのPCに保存されます。`}
+                </small>
               </div>
             )}
           </div>
