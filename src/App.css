@@ -714,6 +714,14 @@ th:first-child {
   max-width: 360px;
 }
 
+.centered-cell-text,
+.floor-input,
+.rack-input,
+.rack-level-input,
+.sticker-input {
+  text-align: center;
+}
+
 .note-text {
   min-width: 190px;
   max-width: 280px;

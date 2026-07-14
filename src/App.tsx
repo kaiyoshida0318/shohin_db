@@ -3959,7 +3959,7 @@ function App() {
         <td><DisplayText value={formatNumericValue(product.reorder_point)} className="mono-text number-text" /></td>
         <td><DisplayText value={formatNumericValue(product.stock_constant)} className="mono-text number-text" /></td>
         <td><MonthlySalesByYear monthlySales={getProductMonthlySales(product)} /></td>
-        <td><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text" /></td>
+        <td><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text centered-cell-text" /></td>
       </>
     )
   }
@@ -3978,13 +3978,13 @@ function App() {
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         {renderNeInfoColumns(product)}
-        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
-        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
-        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
-        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
@@ -4014,10 +4014,10 @@ function App() {
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
-        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
-        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
-        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
-        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td>{renderSizeConversionCell(product, draft)}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
       </>
@@ -4059,10 +4059,10 @@ function App() {
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         {renderNeInfoColumns(product)}
-        <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
-        <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
-        <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
-        <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
+        <td>{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
+        <td>{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+        <td>{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
