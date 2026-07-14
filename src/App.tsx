@@ -10,6 +10,7 @@ const PRODUCT_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/w
 const PRODUCT_FETCH_BATCH_SIZE = 1000
 const PRODUCT_PAGE_SIZE = 200
 const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v4'
+const RECOMMENDED_COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-recommended-column-widths-v1'
 const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
@@ -2057,6 +2058,9 @@ function App() {
   const [columnWidths, setColumnWidths] = useState<ColumnWidthMap>(() =>
     safeParseColumnWidths(window.localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY)),
   )
+  const [recommendedColumnWidths, setRecommendedColumnWidths] = useState<ColumnWidthMap>(() =>
+    safeParseColumnWidths(window.localStorage.getItem(RECOMMENDED_COLUMN_WIDTH_STORAGE_KEY)),
+  )
 
   const [loading, setLoading] = useState(false)
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -2192,6 +2196,13 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, JSON.stringify(columnWidths))
   }, [columnWidths])
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      RECOMMENDED_COLUMN_WIDTH_STORAGE_KEY,
+      JSON.stringify(recommendedColumnWidths),
+    )
+  }, [recommendedColumnWidths])
 
   useEffect(() => {
     window.localStorage.setItem(NE_SYNC_FIELDS_STORAGE_KEY, JSON.stringify(neSyncFields))
@@ -3705,13 +3716,39 @@ function App() {
 
   const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView), [tableView])
 
+  function getRecommendedColumnWidth(column: ColumnSpec) {
+    return recommendedColumnWidths[column.key] ?? column.width
+  }
+
   function getColumnWidth(column: ColumnSpec) {
     return columnWidths[column.key] ?? column.width
   }
 
+  function updateRecommendedColumnWidth(column: ColumnSpec, rawValue: string) {
+    const parsed = Number(rawValue)
+    if (!Number.isFinite(parsed)) {
+      return
+    }
+
+    setRecommendedColumnWidths((prev) => ({
+      ...prev,
+      [column.key]: clampColumnWidth(parsed),
+    }))
+  }
+
+  function captureCurrentWidthsAsRecommended() {
+    const capturedWidths = Object.fromEntries(
+      currentColumnSpecs.map((column) => [column.key, getColumnWidth(column)]),
+    )
+    setRecommendedColumnWidths((prev) => ({ ...prev, ...capturedWidths }))
+    setMessage('現在の列幅を推奨幅に反映しました')
+  }
+
   function applyRecommendedColumnWidths() {
-    window.localStorage.removeItem(COLUMN_WIDTH_STORAGE_KEY)
-    setColumnWidths({})
+    const widthsToApply = Object.fromEntries(
+      currentColumnSpecs.map((column) => [column.key, getRecommendedColumnWidth(column)]),
+    )
+    setColumnWidths((prev) => ({ ...prev, ...widthsToApply }))
     setIsColumnWidthMenuOpen(false)
     setMessage('推奨幅を適用しました')
   }
@@ -3983,11 +4020,73 @@ function App() {
               ⚙
             </button>
             {isColumnWidthMenuOpen && (
-              <div className="column-settings-menu" role="menu">
-                <span>列幅</span>
-                <button type="button" onClick={applyRecommendedColumnWidths} role="menuitem">
-                  推奨幅を適用
-                </button>
+              <div className="column-settings-menu" role="menu" aria-label="列幅設定">
+                <div className="column-settings-menu-head">
+                  <div>
+                    <strong>列幅設定</strong>
+                    <span>表示中のビューに適用されます</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="column-settings-close"
+                    onClick={() => setIsColumnWidthMenuOpen(false)}
+                    aria-label="列幅設定を閉じる"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="column-width-list">
+                  <div className="column-width-list-head" aria-hidden="true">
+                    <span>列名</span>
+                    <span>推奨幅</span>
+                    <span>現在</span>
+                  </div>
+                  {currentColumnSpecs.map((column) => {
+                    const recommendedWidth = getRecommendedColumnWidth(column)
+                    const currentWidth = getColumnWidth(column)
+
+                    return (
+                      <label className="column-width-row" key={column.key}>
+                        <span className="column-width-label" title={column.label}>
+                          {column.label}
+                        </span>
+                        <input
+                          key={`${column.key}-${recommendedWidth}`}
+                          type="number"
+                          min={MIN_COLUMN_WIDTH}
+                          max={MAX_COLUMN_WIDTH}
+                          step="1"
+                          defaultValue={recommendedWidth}
+                          onFocus={(event) => event.currentTarget.select()}
+                          onBlur={(event) => updateRecommendedColumnWidth(column, event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
+                          aria-label={`${column.label}の推奨幅`}
+                        />
+                        <span className="column-width-current">{currentWidth}px</span>
+                      </label>
+                    )
+                  })}
+                </div>
+
+                <div className="column-settings-actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={captureCurrentWidthsAsRecommended}
+                    role="menuitem"
+                  >
+                    現在の幅を反映
+                  </button>
+                  <button type="button" onClick={applyRecommendedColumnWidths} role="menuitem">
+                    推奨幅を適用
+                  </button>
+                </div>
+                <small>{MIN_COLUMN_WIDTH}〜{MAX_COLUMN_WIDTH}pxで設定できます。</small>
               </div>
             )}
           </div>
