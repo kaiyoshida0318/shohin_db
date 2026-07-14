@@ -2072,6 +2072,7 @@ function App() {
   const [sharedColumnWidthsLoading, setSharedColumnWidthsLoading] = useState(false)
   const [sharedColumnWidthsSaving, setSharedColumnWidthsSaving] = useState(false)
   const [sharedColumnWidthsDirty, setSharedColumnWidthsDirty] = useState(false)
+  const [recommendedColumnWidthInputs, setRecommendedColumnWidthInputs] = useState<Record<string, string>>({})
 
   const [loading, setLoading] = useState(false)
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -2238,6 +2239,7 @@ function App() {
         ...prev,
         [tableView]: normalizeColumnWidths(data?.setting_value),
       }))
+      setRecommendedColumnWidthInputs({})
       setSharedColumnWidthsDirty(false)
       setSharedColumnWidthsLoading(false)
     }
@@ -3769,25 +3771,51 @@ function App() {
     return columnWidths[column.key] ?? column.width
   }
 
-  function updateRecommendedColumnWidth(column: ColumnSpec, rawValue: string) {
-    const parsed = Number(rawValue)
-    if (!Number.isFinite(parsed)) {
-      return
+  function getRecommendedColumnWidthInputKey(column: ColumnSpec) {
+    return `${tableView}:${column.key}`
+  }
+
+  function getRecommendedColumnWidthInput(column: ColumnSpec) {
+    const inputKey = getRecommendedColumnWidthInputKey(column)
+    return recommendedColumnWidthInputs[inputKey] ?? String(getRecommendedColumnWidth(column))
+  }
+
+  function resolveRecommendedColumnWidthInput(column: ColumnSpec) {
+    const rawValue = recommendedColumnWidthInputs[getRecommendedColumnWidthInputKey(column)]
+    if (rawValue === undefined || rawValue.trim() === '') {
+      return getRecommendedColumnWidth(column)
     }
 
-    setRecommendedColumnWidthsByView((prev) => ({
+    const parsed = Number(rawValue)
+    return Number.isFinite(parsed) ? clampColumnWidth(parsed) : getRecommendedColumnWidth(column)
+  }
+
+  function updateRecommendedColumnWidthInput(column: ColumnSpec, rawValue: string) {
+    setRecommendedColumnWidthInputs((prev) => ({
       ...prev,
-      [tableView]: {
-        ...(prev[tableView] ?? {}),
-        [column.key]: clampColumnWidth(parsed),
-      },
+      [getRecommendedColumnWidthInputKey(column)]: rawValue,
     }))
     setSharedColumnWidthsDirty(true)
   }
 
+  function commitRecommendedColumnWidthInput(column: ColumnSpec) {
+    const resolvedWidth = resolveRecommendedColumnWidthInput(column)
+    setRecommendedColumnWidthsByView((prev) => ({
+      ...prev,
+      [tableView]: {
+        ...(prev[tableView] ?? {}),
+        [column.key]: resolvedWidth,
+      },
+    }))
+    setRecommendedColumnWidthInputs((prev) => ({
+      ...prev,
+      [getRecommendedColumnWidthInputKey(column)]: String(resolvedWidth),
+    }))
+  }
+
   function getCurrentRecommendedWidths() {
     return Object.fromEntries(
-      currentColumnSpecs.map((column) => [column.key, getRecommendedColumnWidth(column)]),
+      currentColumnSpecs.map((column) => [column.key, resolveRecommendedColumnWidthInput(column)]),
     )
   }
 
@@ -3812,6 +3840,7 @@ function App() {
     }
 
     setRecommendedColumnWidthsByView((prev) => ({ ...prev, [tableView]: widths }))
+    setRecommendedColumnWidthInputs({})
     setSharedColumnWidthsDirty(false)
     setSharedColumnWidthsSaving(false)
     setMessage(successMessage)
@@ -3830,6 +3859,7 @@ function App() {
       currentColumnSpecs.map((column) => [column.key, getColumnWidth(column)]),
     )
     setRecommendedColumnWidthsByView((prev) => ({ ...prev, [tableView]: capturedWidths }))
+    setRecommendedColumnWidthInputs({})
     await saveSharedRecommendedWidths(
       capturedWidths,
       '現在の列幅を共有推奨幅へ反映しました',
@@ -4133,7 +4163,7 @@ function App() {
                     <span>現在</span>
                   </div>
                   {currentColumnSpecs.map((column) => {
-                    const recommendedWidth = getRecommendedColumnWidth(column)
+                    const recommendedWidthInput = getRecommendedColumnWidthInput(column)
                     const currentWidth = getColumnWidth(column)
 
                     return (
@@ -4146,9 +4176,10 @@ function App() {
                           min={MIN_COLUMN_WIDTH}
                           max={MAX_COLUMN_WIDTH}
                           step="1"
-                          value={recommendedWidth}
+                          value={recommendedWidthInput}
                           onFocus={(event) => event.currentTarget.select()}
-                          onChange={(event) => updateRecommendedColumnWidth(column, event.target.value)}
+                          onChange={(event) => updateRecommendedColumnWidthInput(column, event.target.value)}
+                          onBlur={() => commitRecommendedColumnWidthInput(column)}
                           disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
                           aria-label={`${column.label}の推奨幅`}
                         />
