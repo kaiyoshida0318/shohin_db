@@ -722,6 +722,21 @@ th:first-child {
   text-align: center;
 }
 
+/* Center both display values and edit controls for location-related columns. */
+.products-table td.centered-table-cell {
+  text-align: center;
+}
+
+.products-table td.centered-table-cell > .cell-text,
+.products-table td.centered-table-cell > input,
+.products-table td.centered-table-cell > textarea,
+.products-table td.centered-table-cell > select {
+  width: 100%;
+  margin-right: auto;
+  margin-left: auto;
+  text-align: center !important;
+}
+
 .note-text {
   min-width: 190px;
   max-width: 280px;
