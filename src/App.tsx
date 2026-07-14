@@ -4023,8 +4023,8 @@ function App() {
               <div className="column-settings-menu" role="menu" aria-label="列幅設定">
                 <div className="column-settings-menu-head">
                   <div>
-                    <strong>列幅設定</strong>
-                    <span>表示中のビューに適用されます</span>
+                    <strong>推奨幅の設定</strong>
+                    <span>表示中のビューの列幅を数値で設定できます</span>
                   </div>
                   <button
                     type="button"
