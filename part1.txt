@@ -1,0 +1,560 @@
+import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { supabase } from './lib/supabase'
+import './App.css'
+
+const PRODUCT_IMAGE_BUCKET = 'product-images'
+const PRODUCT_IMAGE_EXTENSION = '.webp'
+const PRODUCT_IMAGE_WEBP_QUALITY = 0.92
+const IMAGE_UPLOAD_CONCURRENCY = 5
+const PRODUCT_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp'
+const PRODUCT_FETCH_BATCH_SIZE = 1000
+const PRODUCT_PAGE_SIZE = 200
+const COLUMN_WIDTH_STORAGE_KEY = 'shohin-db-column-widths-v4'
+const MIN_COLUMN_WIDTH = 64
+const MAX_COLUMN_WIDTH = 720
+const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
+const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
+const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
+const NE_SYNC_MONTH_MIN_YEAR = 2025
+const AUTH_API_BASE_URL = String(import.meta.env.VITE_AUTH_API_BASE_URL ?? '').replace(/\/+$/, '')
+const DEFAULT_AUTH_QUESTION = '秘密の質問'
+
+
+
+type Product = {
+  product_code: string
+  product_name: string | null
+  floor: string | null
+
+  free_stock: number | null
+  reorder_point: number | null
+  stock_constant: number | null
+  monthly_sales: unknown | null
+  monthly_by_year?: unknown | null
+  monthlyByYear?: unknown | null
+  orderboard_classification: string | null
+
+  special_notes: string | null
+  picking_advice: string | null
+  rack_number: string | null
+  rack_level: string | null
+  sticker_color: string | null
+  size_conversion_value: number | null
+
+  order_url_1: string | null
+  order_url_2: string | null
+  order_url_3: string | null
+  order_size: string | null
+  order_color: string | null
+  order_simple_instruction: string | null
+  order_detail_instruction: string | null
+  order_quantity_condition: string | null
+  order_note: string | null
+
+  order_memo_1: string | null
+  rakumart_url_1: string | null
+  order_memo_2: string | null
+  rakumart_url_2: string | null
+  order_memo_3: string | null
+  rakumart_url_3: string | null
+  order_memo_4: string | null
+  rakumart_url_4: string | null
+  order_memo_5: string | null
+  rakumart_url_5: string | null
+
+  product_info_synced_at: string | null
+  order_status_synced_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+type ProductImagePreview = {
+  productCode: string
+  productName: string | null
+  url: string
+}
+
+type DeliverySlipPreviewData = {
+  productCode: string
+  productName: string
+  specialNotes: string
+  pickingAdvice: string
+  floor: string
+  rackNumber: string
+  rackLevel: string
+  stickerColor: string
+}
+
+type ProductImageDraft = {
+  file: File
+  previewUrl: string
+  sourceName: string
+}
+
+type NeUsageResult = {
+  ok: boolean
+  month?: string
+  callCount?: number
+  estimatedGb?: number
+  remainingCalls?: number
+  callLimit?: number
+  byEndpoint?: Array<{ endpoint: string; calls: number; estimatedBytes: number; success: number; errors: number }>
+  error?: string
+}
+
+type NeOperationalSyncResult = {
+  ok: boolean
+  dryRun?: boolean
+  selectedFields?: string[]
+  stockFetched?: number
+  goodsFetched?: number
+  merged?: number
+  matched?: number
+  unmatched?: number
+  updated?: number
+  message?: string
+  error?: string
+}
+
+type NeMonthlySalesSyncResult = {
+  ok: boolean
+  dryRun?: boolean
+  months?: string[]
+  rowFetched?: number
+  activeRows?: number
+  aggregatedProducts?: number
+  matched?: number
+  unmatched?: number
+  updated?: number
+  message?: string
+  error?: string
+}
+
+
+type SecretQuestionResponse = {
+  ok?: boolean
+  question?: string
+  displayName?: string
+  error?: string
+}
+
+type SecretLoginResponse = {
+  ok?: boolean
+  email?: string
+  sub?: string
+  user?: {
+    id?: string
+    email?: string
+  }
+  session?: {
+    access_token?: string
+    refresh_token?: string
+  }
+  error?: string
+}
+
+type NeOperationalFieldKey = 'free_stock' | 'reorder_point' | 'stock_constant'
+
+type NeSyncFieldState = {
+  freeStock: boolean
+  reorderPoint: boolean
+  stockConstant: boolean
+  monthlySales: boolean
+}
+
+const DEFAULT_NE_SYNC_FIELDS: NeSyncFieldState = {
+  freeStock: true,
+  reorderPoint: true,
+  stockConstant: true,
+  monthlySales: false,
+}
+
+type EditableProduct = {
+  product_name: string
+  floor: string
+
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
+  size_conversion_value: string
+
+  order_url_1: string
+  order_url_2: string
+  order_url_3: string
+  order_size: string
+  order_color: string
+  order_simple_instruction: string
+  order_detail_instruction: string
+  order_quantity_condition: string
+  order_note: string
+
+  order_memo_1: string
+  rakumart_url_1: string
+  order_memo_2: string
+  rakumart_url_2: string
+  order_memo_3: string
+  rakumart_url_3: string
+  order_memo_4: string
+  rakumart_url_4: string
+  order_memo_5: string
+  rakumart_url_5: string
+}
+
+type EditableProductKey = keyof EditableProduct
+
+type SessionUser = {
+  email?: string
+}
+
+type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'ne' | 'custom'
+
+type ColumnSpec = {
+  key: string
+  label: string
+  width: number
+  className?: string
+}
+
+const SORTABLE_COLUMN_KEYS = [
+  'product_code',
+  'product_name',
+  'free_stock',
+  'reorder_point',
+  'stock_constant',
+  'orderboard_classification',
+  'floor',
+  'rack_number',
+  'rack_level',
+  'sticker_color',
+  'order_memo_1',
+  'order_memo_2',
+  'order_memo_3',
+  'order_memo_4',
+  'order_memo_5',
+] as const
+
+type SortableColumnKey = (typeof SORTABLE_COLUMN_KEYS)[number]
+type SortDirection = 'asc' | 'desc'
+type SortConfig = { key: SortableColumnKey; direction: SortDirection } | null
+
+const SORTABLE_COLUMN_SET = new Set<string>(SORTABLE_COLUMN_KEYS)
+
+type ColumnWidthMap = Record<string, number>
+
+type ColumnResizeMouseEvent = {
+  clientX: number
+  preventDefault: () => void
+  stopPropagation: () => void
+}
+
+
+type BulkProductRow = {
+  id: string
+  product_code: string
+  product_name: string
+  floor: string
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
+  order_url_1: string
+  order_url_2: string
+  order_url_3: string
+  order_size: string
+  order_color: string
+  order_simple_instruction: string
+  order_detail_instruction: string
+  order_quantity_condition: string
+  order_note: string
+}
+
+type CleanBulkProductRow = {
+  product_code: string
+  product_name: string
+  floor: string
+  special_notes: string
+  picking_advice: string
+  rack_number: string
+  rack_level: string
+  sticker_color: string
+  order_url_1: string
+  order_url_2: string
+  order_url_3: string
+  order_size: string
+  order_color: string
+  order_simple_instruction: string
+  order_detail_instruction: string
+  order_quantity_condition: string
+  order_note: string
+}
+
+type BulkFieldKey = Exclude<keyof CleanBulkProductRow, 'product_code'>
+
+type BulkFieldColumn = {
+  key: BulkFieldKey
+  label: string
+  placeholder: string
+}
+
+const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
+  { key: 'product_name', label: '商品名', placeholder: '商品名' },
+  { key: 'floor', label: '階数', placeholder: '階数' },
+  { key: 'rack_number', label: '棚番号-位置', placeholder: '棚番号-位置' },
+  { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
+  { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
+  { key: 'special_notes', label: '特記事項', placeholder: '特記事項' },
+  { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: 'ピック時アドバイス' },
+  { key: 'order_url_1', label: '発注URL1', placeholder: '発注URL1' },
+  { key: 'order_url_2', label: '発注URL2', placeholder: '発注URL2' },
+  { key: 'order_url_3', label: '発注URL3', placeholder: '発注URL3' },
+  { key: 'order_size', label: 'サイズ', placeholder: 'サイズ' },
+  { key: 'order_color', label: 'カラー', placeholder: 'カラー' },
+  { key: 'order_simple_instruction', label: '■簡潔指示', placeholder: '■簡潔指示' },
+  { key: 'order_detail_instruction', label: '▲具体指示', placeholder: '▲具体指示' },
+  { key: 'order_quantity_condition', label: '数量条件指定', placeholder: '数量条件指定' },
+  { key: 'order_note', label: '補足情報', placeholder: '補足情報' },
+]
+
+const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
+  (column) => column.key,
+)
+
+const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
+  product_name: '商品名',
+  floor: '階数',
+  special_notes: '特記事項',
+  picking_advice: 'ピック時アドバイス',
+  rack_number: '棚番号-位置',
+  rack_level: '棚番号-段',
+  sticker_color: 'シールカラー',
+  size_conversion_value: '茶大：1、定形：0.3',
+  order_url_1: '発注URL1',
+  order_url_2: '発注URL2',
+  order_url_3: '発注URL3',
+  order_size: 'サイズ',
+  order_color: 'カラー',
+  order_simple_instruction: '■簡潔指示',
+  order_detail_instruction: '▲具体指示',
+  order_quantity_condition: '数量条件指定',
+  order_note: '補足情報',
+  order_memo_1: 'オーダー1',
+  rakumart_url_1: 'RM1',
+  order_memo_2: 'オーダー2',
+  rakumart_url_2: 'RM2',
+  order_memo_3: 'オーダー3',
+  rakumart_url_3: 'RM3',
+  order_memo_4: 'オーダー4',
+  rakumart_url_4: 'RM4',
+  order_memo_5: 'オーダー5',
+  rakumart_url_5: 'RM5',
+}
+
+
+type CsvImportResult = {
+  rows: CleanBulkProductRow[]
+  fields: BulkFieldKey[]
+}
+
+type CsvColumnMapping = {
+  filename: string
+  headers: string[]
+  dataRows: string[][]
+  productCodeIndex: number | null
+  fieldIndexes: Partial<Record<BulkFieldKey, number>>
+}
+
+type CsvMappingKey = BulkFieldKey | 'product_code'
+
+const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
+  product_code: [
+    '商品コード',
+    '商品番号',
+    '商品管理番号',
+    'SKUコード',
+    'product_code',
+    'productCode',
+    'code',
+    'sku',
+  ],
+  product_name: [
+    '商品名',
+    'product_name',
+    'productName',
+    'shipping_name',
+    'shippingName',
+    'name',
+  ],
+  floor: ['階数', 'フロア', 'floor'],
+  rack_number: [
+    '棚番号-位置',
+    '棚番号位置',
+    '棚番号',
+    'ラック番号',
+    'rack_number',
+    'rackNumber',
+    'rack',
+    'location',
+  ],
+  rack_level: [
+    '棚番号-段',
+    '棚番号段',
+    '段',
+    'ラック段',
+    'rack_level',
+    'rackLevel',
+    'level',
+  ],
+  sticker_color: [
+    'シールカラー',
+    'シール色',
+    'sticker_color',
+    'stickerColor',
+    'color',
+  ],
+  special_notes: ['特記事項', '注意事項', 'special_notes', 'specialNotes', 'notes', 'note'],
+  picking_advice: [
+    'ピック時アドバイス',
+    'ピックアドバイス',
+    'picking_advice',
+    'pickingAdvice',
+    'advice',
+  ],
+  order_url_1: ['発注URL1', '発注URL 1', 'order_url_1', 'orderUrl1', 'purchase_url_1', 'purchaseUrl1'],
+  order_url_2: ['発注URL2', '発注URL 2', 'order_url_2', 'orderUrl2', 'purchase_url_2', 'purchaseUrl2'],
+  order_url_3: ['発注URL3', '発注URL 3', 'order_url_3', 'orderUrl3', 'purchase_url_3', 'purchaseUrl3'],
+  order_size: ['サイズ', 'order_size', 'orderSize', 'purchase_size', 'purchaseSize', 'size'],
+  order_color: ['カラー', '色', 'order_color', 'orderColor', 'purchase_color', 'purchaseColor'],
+  order_simple_instruction: [
+    '■簡潔指示',
+    '簡潔指示',
+    'order_simple_instruction',
+    'orderSimpleInstruction',
+    'simple_instruction',
+    'simpleInstruction',
+  ],
+  order_detail_instruction: [
+    '▲具体指示',
+    '具体指示',
+    'order_detail_instruction',
+    'orderDetailInstruction',
+    'detail_instruction',
+    'detailInstruction',
+  ],
+  order_quantity_condition: [
+    '数量条件指定',
+    '数量条件',
+    'order_quantity_condition',
+    'orderQuantityCondition',
+    'quantity_condition',
+    'quantityCondition',
+  ],
+  order_note: ['補足情報', '補足', 'order_note', 'orderNote', 'purchase_note', 'purchaseNote'],
+}
+
+type BulkSummary = {
+  filledCount: number
+  uniqueRows: CleanBulkProductRow[]
+  insertRows: CleanBulkProductRow[]
+  updateRows: CleanBulkProductRow[]
+  existingCount: number
+  duplicateCodes: string[]
+}
+
+const INITIAL_BULK_ROW_COUNT = 10
+
+function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
+  return {
+    product_code: productCode,
+    product_name: '',
+    floor: '',
+    special_notes: '',
+    picking_advice: '',
+    rack_number: '',
+    rack_level: '',
+    sticker_color: '',
+    order_url_1: '',
+    order_url_2: '',
+    order_url_3: '',
+    order_size: '',
+    order_color: '',
+    order_simple_instruction: '',
+    order_detail_instruction: '',
+    order_quantity_condition: '',
+    order_note: '',
+  }
+}
+
+function getBulkFieldLabel(key: BulkFieldKey) {
+  return BULK_FIELD_COLUMNS.find((column) => column.key === key)?.label ?? key
+}
+
+function createBulkRow(): BulkProductRow {
+  return {
+    id:
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`,
+    product_code: '',
+    product_name: '',
+    floor: '',
+    special_notes: '',
+    picking_advice: '',
+    rack_number: '',
+    rack_level: '',
+    sticker_color: '',
+    order_url_1: '',
+    order_url_2: '',
+    order_url_3: '',
+    order_size: '',
+    order_color: '',
+    order_simple_instruction: '',
+    order_detail_instruction: '',
+    order_quantity_condition: '',
+    order_note: '',
+  }
+}
+
+function createBulkRows(count = INITIAL_BULK_ROW_COUNT): BulkProductRow[] {
+  return Array.from({ length: count }, () => createBulkRow())
+}
+
+function splitBulkLine(line: string) {
+  const cells = line.includes('\t') ? line.split('\t') : line.split(',')
+  return cells.map((cell) => cell.trim())
+}
+
+function normalizeCsvHeader(value: string) {
+  return value
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_＿\-－ー]/g, '')
+}
+
+function getCsvColumnIndex(headers: string[], key: BulkFieldKey | 'product_code') {
+  const normalizedAliases = CSV_HEADER_ALIASES[key].map(normalizeCsvHeader)
+
+  return headers.findIndex((header) =>
+    normalizedAliases.includes(normalizeCsvHeader(header)),
+  )
+}
+
+function parseDelimitedRows(text: string, delimiter: ',' | '\t' = ',') {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let inQuotes = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    const nextChar = text[index + 1]
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        cell += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes

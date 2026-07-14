@@ -71,3 +71,8 @@ export default defineConfig([
   },
 ])
 ```
+
+## 紙出し用「4行目」追加
+
+`add_delivery_line_4.sql` をSupabaseのSQL Editorで1回実行してからデプロイしてください。
+紙出し用ビューでは、商品名の後に「2行目」「3行目」「4行目」を入力できます。

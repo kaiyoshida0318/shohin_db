@@ -36,6 +36,7 @@ type Product = {
 
   special_notes: string | null
   picking_advice: string | null
+  delivery_line_4: string | null
   rack_number: string | null
   rack_level: string | null
   sticker_color: string | null
@@ -79,6 +80,7 @@ type DeliverySlipPreviewData = {
   productName: string
   specialNotes: string
   pickingAdvice: string
+  deliveryLine4: string
   floor: string
   rackNumber: string
   rackLevel: string
@@ -175,6 +177,7 @@ type EditableProduct = {
 
   special_notes: string
   picking_advice: string
+  delivery_line_4: string
   rack_number: string
   rack_level: string
   sticker_color: string
@@ -257,6 +260,7 @@ type BulkProductRow = {
   floor: string
   special_notes: string
   picking_advice: string
+  delivery_line_4: string
   rack_number: string
   rack_level: string
   sticker_color: string
@@ -277,6 +281,7 @@ type CleanBulkProductRow = {
   floor: string
   special_notes: string
   picking_advice: string
+  delivery_line_4: string
   rack_number: string
   rack_level: string
   sticker_color: string
@@ -307,6 +312,7 @@ const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
   { key: 'special_notes', label: '特記事項', placeholder: '特記事項' },
   { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: 'ピック時アドバイス' },
+  { key: 'delivery_line_4', label: '4行目', placeholder: '4行目' },
   { key: 'order_url_1', label: '発注URL1', placeholder: '発注URL1' },
   { key: 'order_url_2', label: '発注URL2', placeholder: '発注URL2' },
   { key: 'order_url_3', label: '発注URL3', placeholder: '発注URL3' },
@@ -327,6 +333,7 @@ const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
   floor: '階数',
   special_notes: '特記事項',
   picking_advice: 'ピック時アドバイス',
+  delivery_line_4: '4行目',
   rack_number: '棚番号-位置',
   rack_level: '棚番号-段',
   sticker_color: 'シールカラー',
@@ -414,9 +421,11 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
     'stickerColor',
     'color',
   ],
-  special_notes: ['特記事項', '注意事項', 'special_notes', 'specialNotes', 'notes', 'note'],
+  special_notes: ['特記事項', '2行目', '注意事項', 'special_notes', 'specialNotes', 'notes', 'note'],
+  delivery_line_4: ['4行目', 'delivery_line_4', 'deliveryLine4', 'line4'],
   picking_advice: [
     'ピック時アドバイス',
+    '3行目',
     'ピックアドバイス',
     'picking_advice',
     'pickingAdvice',
@@ -472,6 +481,7 @@ function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
     floor: '',
     special_notes: '',
     picking_advice: '',
+    delivery_line_4: '',
     rack_number: '',
     rack_level: '',
     sticker_color: '',
@@ -502,6 +512,7 @@ function createBulkRow(): BulkProductRow {
     floor: '',
     special_notes: '',
     picking_advice: '',
+    delivery_line_4: '',
     rack_number: '',
     rack_level: '',
     sticker_color: '',
@@ -814,6 +825,7 @@ function buildBulkSummary(
       floor: row.floor.trim(),
       special_notes: row.special_notes.trim(),
       picking_advice: row.picking_advice.trim(),
+      delivery_line_4: row.delivery_line_4.trim(),
       rack_number: row.rack_number.trim(),
       rack_level: row.rack_level.trim(),
       sticker_color: row.sticker_color.trim(),
@@ -1295,6 +1307,7 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
   const productNameLines = wrapPreviewText(preview.productName, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 16, 900, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
   const specialNoteLines = wrapPreviewText(preview.specialNotes, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
   const pickingAdviceLines = wrapPreviewText(preview.pickingAdvice, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
+  const deliveryLine4Lines = wrapPreviewText(preview.deliveryLine4, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
   const productCodeLines = wrapPreviewCode(preview.productCode)
 
   return (
@@ -1335,6 +1348,7 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
                 )}
                 <PreviewLines lines={specialNoteLines} className="delivery-preview-name-sub" />
                 <PreviewLines lines={pickingAdviceLines} className="delivery-preview-name-sub" />
+                <PreviewLines lines={deliveryLine4Lines} className="delivery-preview-name-sub" />
               </div>
             </td>
             <td className="delivery-preview-code">
@@ -1357,6 +1371,7 @@ function productToDraft(product: Product): EditableProduct {
     floor: product.floor ?? '',
     special_notes: product.special_notes ?? '',
     picking_advice: product.picking_advice ?? '',
+    delivery_line_4: product.delivery_line_4 ?? '',
     rack_number: product.rack_number ?? '',
     rack_level: product.rack_level ?? '',
     sticker_color: product.sticker_color ?? '',
@@ -1396,6 +1411,7 @@ function buildProductSearchText(product: Product) {
     formatMonthlySales(getProductMonthlySales(product)),
     product.special_notes,
     product.picking_advice,
+    product.delivery_line_4,
     product.rack_number,
     product.rack_level,
     product.sticker_color,
@@ -1447,6 +1463,7 @@ function normalizeDraft(draft: EditableProduct) {
     floor: draft.floor.trim() || null,
     special_notes: draft.special_notes.trim() || null,
     picking_advice: draft.picking_advice.trim() || null,
+    delivery_line_4: draft.delivery_line_4.trim() || null,
     rack_number: draft.rack_number.trim() || null,
     rack_level: draft.rack_level.trim() || null,
     sticker_color: draft.sticker_color.trim() || null,
@@ -1926,6 +1943,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'floor', label: '階数', width: 87 },
       { key: 'special_notes', label: '特記事項', width: 171 },
       { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
+      { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
@@ -1952,6 +1970,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'product_name', label: '商品名', width: 219 },
       { key: 'special_notes', label: '2行目', width: 171 },
       { key: 'picking_advice', label: '3行目', width: 175 },
+      { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'floor', label: '階数', width: 87 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
@@ -1992,6 +2011,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
       { key: 'special_notes', label: '特記事項', width: 171 },
       { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
+      { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'order_memo_1', label: 'オーダー1', width: 145 },
       { key: 'updated_at', label: '更新日', width: 134 },
     ],
@@ -3272,6 +3292,7 @@ function App() {
           floor: row.floor.trim(),
           special_notes: row.special_notes.trim(),
           picking_advice: row.picking_advice.trim(),
+          delivery_line_4: row.delivery_line_4.trim(),
           rack_number: row.rack_number.trim(),
           rack_level: row.rack_level.trim(),
           sticker_color: row.sticker_color.trim(),
@@ -3597,6 +3618,7 @@ function App() {
       productName: draft.product_name,
       specialNotes: draft.special_notes,
       pickingAdvice: draft.picking_advice,
+      deliveryLine4: draft.delivery_line_4,
       floor: draft.floor,
       rackNumber: draft.rack_number,
       rackLevel: draft.rack_level,
@@ -3798,6 +3820,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
@@ -3829,6 +3852,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td>{renderTextCell(product, draft, 'floor', { inputClassName: 'floor-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_number', { inputClassName: 'rack-input' })}</td>
         <td>{renderTextCell(product, draft, 'rack_level', { inputClassName: 'rack-level-input' })}</td>
@@ -3880,6 +3904,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'sticker_color', { inputClassName: 'sticker-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '特記事項' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: 'ピック時アドバイス' })}</td>
+        <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
         <td>{formatDateTime(product.updated_at)}</td>
       </>
