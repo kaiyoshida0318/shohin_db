@@ -4244,7 +4244,7 @@ function App() {
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            placeholder="商品コード・商品名・特記事項・ピック時アドバイス・棚番号で検索"
+            placeholder="商品コード・商品名・2行目・3行目・棚番号で検索"
           />
           <button
             type="button"
