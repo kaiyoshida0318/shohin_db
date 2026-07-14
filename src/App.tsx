@@ -3791,9 +3791,13 @@ function App() {
   }
 
   function updateRecommendedColumnWidthInput(column: ColumnSpec, rawValue: string) {
+    // Keep the field as an uncommitted text value while typing. Using a native
+    // number input with min/max caused the browser to coerce partial values
+    // such as "1" to 64 before the user could finish entering "120".
+    const digitsOnly = rawValue.replace(/[^0-9]/g, '')
     setRecommendedColumnWidthInputs((prev) => ({
       ...prev,
-      [getRecommendedColumnWidthInputKey(column)]: rawValue,
+      [getRecommendedColumnWidthInputKey(column)]: digitsOnly,
     }))
     setSharedColumnWidthsDirty(true)
   }
@@ -4172,14 +4176,17 @@ function App() {
                           {column.label}
                         </span>
                         <input
-                          type="number"
-                          min={MIN_COLUMN_WIDTH}
-                          max={MAX_COLUMN_WIDTH}
-                          step="1"
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           value={recommendedWidthInput}
-                          onFocus={(event) => event.currentTarget.select()}
                           onChange={(event) => updateRecommendedColumnWidthInput(column, event.target.value)}
                           onBlur={() => commitRecommendedColumnWidthInput(column)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.currentTarget.blur()
+                            }
+                          }}
                           disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
                           aria-label={`${column.label}の推奨幅`}
                         />
@@ -4220,7 +4227,7 @@ function App() {
                 <small>
                   {sharedColumnWidthsLoading
                     ? '共有推奨幅を取得しています…'
-                    : `${MIN_COLUMN_WIDTH}〜${MAX_COLUMN_WIDTH}px。現在幅はこのPCに保存されます。`}
+                    : `入力中は補正しません。確定時に${MIN_COLUMN_WIDTH}〜${MAX_COLUMN_WIDTH}pxへ補正します。現在幅はこのPCに保存されます。`}
                 </small>
               </div>
             )}
