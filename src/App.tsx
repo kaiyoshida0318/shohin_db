@@ -1950,8 +1950,8 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     ],
     pick: [
       { key: 'product_name', label: '商品名', width: 219 },
-      { key: 'special_notes', label: '特記事項', width: 171 },
-      { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
+      { key: 'special_notes', label: '2行目', width: 171 },
+      { key: 'picking_advice', label: '3行目', width: 175 },
       { key: 'floor', label: '階数', width: 87 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
