@@ -89,6 +89,84 @@ type DeliverySlipPreviewData = {
   stickerColor: string
 }
 
+type RakumartRemarkMode = 'manual' | 'none' | 'template'
+
+type RakumartOptionDraft = {
+  id: string
+  group: string
+  value: string
+}
+
+type RakumartLineDraft = {
+  id: string
+  options: RakumartOptionDraft[]
+  quantityMultiplier: string
+  memo: string
+}
+
+type RakumartSourceDraft = {
+  id: string
+  sourceName: string
+  url: string
+  enabled: boolean
+  memo: string
+  lines: RakumartLineDraft[]
+}
+
+type RakumartItemDraft = {
+  id: string
+  itemName: string
+  required: boolean
+  memo: string
+  sources: RakumartSourceDraft[]
+}
+
+type RakumartRecipeDraft = {
+  enabled: boolean
+  stopBeforeSubmit: boolean
+  remarkMode: RakumartRemarkMode
+  remarkTemplate: string
+  items: RakumartItemDraft[]
+}
+
+type RakumartRecipeModalState = {
+  product: Product
+  draft: RakumartRecipeDraft
+  exists: boolean
+}
+
+type RakumartRecipeDbLine = {
+  options?: unknown
+  quantity_multiplier?: number | string | null
+  sort_order?: number | null
+  memo?: string | null
+}
+
+type RakumartRecipeDbSource = {
+  source_name?: string | null
+  url?: string | null
+  priority?: number | null
+  enabled?: boolean | null
+  memo?: string | null
+  rakumart_order_lines?: RakumartRecipeDbLine[] | null
+}
+
+type RakumartRecipeDbItem = {
+  item_name?: string | null
+  sort_order?: number | null
+  required?: boolean | null
+  memo?: string | null
+  rakumart_order_sources?: RakumartRecipeDbSource[] | null
+}
+
+type RakumartRecipeDbRow = {
+  enabled?: boolean | null
+  stop_before_submit?: boolean | null
+  remark_mode?: string | null
+  remark_template?: string | null
+  rakumart_order_items?: RakumartRecipeDbItem[] | null
+}
+
 type ProductImageDraft = {
   file: File
   previewUrl: string
@@ -533,6 +611,198 @@ function createBulkRow(): BulkProductRow {
 
 function createBulkRows(count = INITIAL_BULK_ROW_COUNT): BulkProductRow[] {
   return Array.from({ length: count }, () => createBulkRow())
+}
+
+
+function createDraftId() {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`
+}
+
+function createRakumartOptionDraft(group = '', value = ''): RakumartOptionDraft {
+  return {
+    id: createDraftId(),
+    group,
+    value,
+  }
+}
+
+function createRakumartLineDraft(): RakumartLineDraft {
+  return {
+    id: createDraftId(),
+    options: [],
+    quantityMultiplier: '1',
+    memo: '',
+  }
+}
+
+function createRakumartSourceDraft(): RakumartSourceDraft {
+  return {
+    id: createDraftId(),
+    sourceName: '',
+    url: '',
+    enabled: true,
+    memo: '',
+    lines: [createRakumartLineDraft()],
+  }
+}
+
+function createRakumartItemDraft(): RakumartItemDraft {
+  return {
+    id: createDraftId(),
+    itemName: '',
+    required: true,
+    memo: '',
+    sources: [createRakumartSourceDraft()],
+  }
+}
+
+function createEmptyRakumartRecipeDraft(): RakumartRecipeDraft {
+  return {
+    enabled: true,
+    stopBeforeSubmit: true,
+    remarkMode: 'manual',
+    remarkTemplate: '',
+    items: [createRakumartItemDraft()],
+  }
+}
+
+function parseRakumartOptions(value: unknown): RakumartOptionDraft[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value
+    .map((option) => {
+      if (!option || typeof option !== 'object') {
+        return null
+      }
+
+      const row = option as Record<string, unknown>
+      const group = String(row.group ?? '').trim()
+      const optionValue = String(row.value ?? '').trim()
+
+      if (!group && !optionValue) {
+        return null
+      }
+
+      return createRakumartOptionDraft(group, optionValue)
+    })
+    .filter((option): option is RakumartOptionDraft => Boolean(option))
+}
+
+function rakumartRecipeDbRowToDraft(row: RakumartRecipeDbRow): RakumartRecipeDraft {
+  const items = [...(row.rakumart_order_items ?? [])]
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0))
+    .map((item) => ({
+      id: createDraftId(),
+      itemName: item.item_name ?? '',
+      required: item.required ?? true,
+      memo: item.memo ?? '',
+      sources: [...(item.rakumart_order_sources ?? [])]
+        .sort((a, b) => Number(a.priority ?? 0) - Number(b.priority ?? 0))
+        .map((source) => ({
+          id: createDraftId(),
+          sourceName: source.source_name ?? '',
+          url: source.url ?? '',
+          enabled: source.enabled ?? true,
+          memo: source.memo ?? '',
+          lines: [...(source.rakumart_order_lines ?? [])]
+            .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0))
+            .map((line) => ({
+              id: createDraftId(),
+              options: parseRakumartOptions(line.options),
+              quantityMultiplier: String(line.quantity_multiplier ?? 1),
+              memo: line.memo ?? '',
+            })),
+        })),
+    }))
+
+  return {
+    enabled: row.enabled ?? false,
+    stopBeforeSubmit: row.stop_before_submit ?? true,
+    remarkMode:
+      row.remark_mode === 'none' || row.remark_mode === 'template'
+        ? row.remark_mode
+        : 'manual',
+    remarkTemplate: row.remark_template ?? '',
+    items: items.length ? items : [createRakumartItemDraft()],
+  }
+}
+
+function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
+  if (draft.items.length === 0) {
+    throw new Error('構成品を1件以上追加してください。')
+  }
+
+  return {
+    enabled: draft.enabled,
+    stop_before_submit: draft.stopBeforeSubmit,
+    remark_mode: draft.remarkMode,
+    remark_template: draft.remarkTemplate.trim() || null,
+    items: draft.items.map((item, itemIndex) => {
+      const itemName = item.itemName.trim()
+      if (!itemName) {
+        throw new Error(`構成品${itemIndex + 1}の名前を入力してください。`)
+      }
+      if (item.sources.length === 0) {
+        throw new Error(`${itemName} に仕入先を1件以上追加してください。`)
+      }
+
+      return {
+        item_name: itemName,
+        required: item.required,
+        memo: item.memo.trim() || null,
+        sources: item.sources.map((source, sourceIndex) => {
+          const url = source.url.trim()
+          if (!url) {
+            throw new Error(`${itemName} の仕入先${sourceIndex + 1}にURLを入力してください。`)
+          }
+          if (source.lines.length === 0) {
+            throw new Error(`${itemName} の仕入先${sourceIndex + 1}に発注明細を1件以上追加してください。`)
+          }
+
+          return {
+            source_name: source.sourceName.trim() || null,
+            url,
+            enabled: source.enabled,
+            memo: source.memo.trim() || null,
+            lines: source.lines.map((line, lineIndex) => {
+              const quantityMultiplier = Number(line.quantityMultiplier)
+              if (!Number.isFinite(quantityMultiplier) || quantityMultiplier <= 0) {
+                throw new Error(
+                  `${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}の数量倍率を確認してください。`,
+                )
+              }
+
+              const options = line.options
+                .map((option, optionIndex) => {
+                  const group = option.group.trim()
+                  const value = option.value.trim()
+                  if (!group && !value) {
+                    return null
+                  }
+                  if (!group || !value) {
+                    throw new Error(
+                      `${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}・規格${optionIndex + 1}は「規格軸」と「値」の両方を入力してください。`,
+                    )
+                  }
+                  return { group, value }
+                })
+                .filter((option): option is { group: string; value: string } => Boolean(option))
+
+              return {
+                options,
+                quantity_multiplier: quantityMultiplier,
+                memo: line.memo.trim() || null,
+              }
+            }),
+          }
+        }),
+      }
+    }),
+  }
 }
 
 function splitBulkLine(line: string) {
@@ -1943,7 +2213,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     { key: 'image', label: '画像', width: 86, className: 'image-cell sticky-image-cell' },
     { key: 'product_code', label: '商品コード', width: 240, className: 'sticky-code-cell' },
   ]
-  const actionColumn: ColumnSpec = { key: 'actions', label: '操作', width: 122 }
+  const actionColumn: ColumnSpec = { key: 'actions_recipe', label: '操作', width: 238 }
   const neColumns = getNeColumnSpecs()
 
   const viewColumns: Record<TableView, ColumnSpec[]> = {
@@ -2121,6 +2391,10 @@ function App() {
   const [imageCacheVersion, setImageCacheVersion] = useState(() => Date.now())
   const [imagePreview, setImagePreview] = useState<ProductImagePreview | null>(null)
   const [deliverySlipPreview, setDeliverySlipPreview] = useState<DeliverySlipPreviewData | null>(null)
+  const [rakumartRecipeModal, setRakumartRecipeModal] = useState<RakumartRecipeModalState | null>(null)
+  const [rakumartRecipeLoading, setRakumartRecipeLoading] = useState(false)
+  const [rakumartRecipeSaving, setRakumartRecipeSaving] = useState(false)
+  const [rakumartRecipeMessage, setRakumartRecipeMessage] = useState('')
   const [imageDrafts, setImageDrafts] = useState<Record<string, ProductImageDraft>>({})
   const imageDraftsRef = useRef<Record<string, ProductImageDraft>>({})
 
@@ -3670,6 +3944,360 @@ function App() {
     )
   }
 
+  function updateRakumartRecipeDraft(
+    updater: (draft: RakumartRecipeDraft) => RakumartRecipeDraft,
+  ) {
+    setRakumartRecipeModal((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        draft: updater(prev.draft),
+      }
+    })
+  }
+
+  function updateRakumartItem(itemId: string, patch: Partial<RakumartItemDraft>) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId ? { ...item, ...patch } : item,
+      ),
+    }))
+  }
+
+  function updateRakumartSource(
+    itemId: string,
+    sourceId: string,
+    patch: Partial<RakumartSourceDraft>,
+  ) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId ? { ...source, ...patch } : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  function updateRakumartLine(
+    itemId: string,
+    sourceId: string,
+    lineId: string,
+    patch: Partial<RakumartLineDraft>,
+  ) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId
+                  ? {
+                      ...source,
+                      lines: source.lines.map((line) =>
+                        line.id === lineId ? { ...line, ...patch } : line,
+                      ),
+                    }
+                  : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  function updateRakumartOption(
+    itemId: string,
+    sourceId: string,
+    lineId: string,
+    optionId: string,
+    patch: Partial<RakumartOptionDraft>,
+  ) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId
+                  ? {
+                      ...source,
+                      lines: source.lines.map((line) =>
+                        line.id === lineId
+                          ? {
+                              ...line,
+                              options: line.options.map((option) =>
+                                option.id === optionId ? { ...option, ...patch } : option,
+                              ),
+                            }
+                          : line,
+                      ),
+                    }
+                  : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  function addRakumartItem() {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: [...draft.items, createRakumartItemDraft()],
+    }))
+  }
+
+  function removeRakumartItem(itemId: string) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.filter((item) => item.id !== itemId),
+    }))
+  }
+
+  function addRakumartSource(itemId: string) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? { ...item, sources: [...item.sources, createRakumartSourceDraft()] }
+          : item,
+      ),
+    }))
+  }
+
+  function removeRakumartSource(itemId: string, sourceId: string) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? { ...item, sources: item.sources.filter((source) => source.id !== sourceId) }
+          : item,
+      ),
+    }))
+  }
+
+  function addRakumartLine(itemId: string, sourceId: string) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId
+                  ? { ...source, lines: [...source.lines, createRakumartLineDraft()] }
+                  : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  function removeRakumartLine(itemId: string, sourceId: string, lineId: string) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId
+                  ? { ...source, lines: source.lines.filter((line) => line.id !== lineId) }
+                  : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  function addRakumartOption(itemId: string, sourceId: string, lineId: string) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId
+                  ? {
+                      ...source,
+                      lines: source.lines.map((line) =>
+                        line.id === lineId
+                          ? { ...line, options: [...line.options, createRakumartOptionDraft()] }
+                          : line,
+                      ),
+                    }
+                  : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  function removeRakumartOption(
+    itemId: string,
+    sourceId: string,
+    lineId: string,
+    optionId: string,
+  ) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId
+                  ? {
+                      ...source,
+                      lines: source.lines.map((line) =>
+                        line.id === lineId
+                          ? {
+                              ...line,
+                              options: line.options.filter((option) => option.id !== optionId),
+                            }
+                          : line,
+                      ),
+                    }
+                  : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  async function openRakumartRecipe(product: Product) {
+    setRakumartRecipeMessage('')
+    setRakumartRecipeLoading(true)
+    setRakumartRecipeModal({
+      product,
+      draft: createEmptyRakumartRecipeDraft(),
+      exists: false,
+    })
+
+    const { data, error } = await supabase
+      .from('rakumart_order_recipes')
+      .select(`
+        enabled,
+        stop_before_submit,
+        remark_mode,
+        remark_template,
+        rakumart_order_items (
+          item_name,
+          sort_order,
+          required,
+          memo,
+          rakumart_order_sources (
+            source_name,
+            url,
+            priority,
+            enabled,
+            memo,
+            rakumart_order_lines (
+              options,
+              quantity_multiplier,
+              sort_order,
+              memo
+            )
+          )
+        )
+      `)
+      .eq('product_code', product.product_code)
+      .maybeSingle()
+
+    if (error) {
+      setRakumartRecipeMessage(`読み込み失敗: ${error.message}`)
+      setRakumartRecipeLoading(false)
+      return
+    }
+
+    setRakumartRecipeModal({
+      product,
+      draft: data
+        ? rakumartRecipeDbRowToDraft(data as unknown as RakumartRecipeDbRow)
+        : createEmptyRakumartRecipeDraft(),
+      exists: Boolean(data),
+    })
+    setRakumartRecipeLoading(false)
+  }
+
+  function closeRakumartRecipe() {
+    if (rakumartRecipeSaving) return
+    setRakumartRecipeModal(null)
+    setRakumartRecipeMessage('')
+    setRakumartRecipeLoading(false)
+  }
+
+  async function saveRakumartRecipe() {
+    if (!rakumartRecipeModal) return
+
+    let payload: ReturnType<typeof serializeRakumartRecipeDraft>
+    try {
+      payload = serializeRakumartRecipeDraft(rakumartRecipeModal.draft)
+    } catch (error) {
+      setRakumartRecipeMessage(error instanceof Error ? error.message : '入力内容を確認してください。')
+      return
+    }
+
+    setRakumartRecipeSaving(true)
+    setRakumartRecipeMessage('')
+
+    const { error } = await supabase.rpc('save_rakumart_order_recipe', {
+      p_product_code: rakumartRecipeModal.product.product_code,
+      p_recipe: payload,
+    })
+
+    if (error) {
+      setRakumartRecipeMessage(`保存失敗: ${error.message}`)
+      setRakumartRecipeSaving(false)
+      return
+    }
+
+    setRakumartRecipeModal((prev) => prev ? { ...prev, exists: true } : prev)
+    setRakumartRecipeMessage('発注レシピを保存しました。')
+    setRakumartRecipeSaving(false)
+  }
+
+  async function deleteRakumartRecipe() {
+    if (!rakumartRecipeModal?.exists || rakumartRecipeSaving) return
+
+    const shouldDelete = window.confirm(
+      `${rakumartRecipeModal.product.product_code} の発注レシピを削除しますか？`,
+    )
+    if (!shouldDelete) return
+
+    setRakumartRecipeSaving(true)
+    setRakumartRecipeMessage('')
+
+    const { error } = await supabase
+      .from('rakumart_order_recipes')
+      .delete()
+      .eq('product_code', rakumartRecipeModal.product.product_code)
+
+    if (error) {
+      setRakumartRecipeMessage(`削除失敗: ${error.message}`)
+      setRakumartRecipeSaving(false)
+      return
+    }
+
+    setRakumartRecipeSaving(false)
+    setRakumartRecipeModal(null)
+    setMessage(`発注レシピを削除しました：${rakumartRecipeModal.product.product_code}`)
+  }
+
   function openDeliverySlipPreview(product: Product, draft: EditableProduct) {
     setDeliverySlipPreview({
       productCode: product.product_code,
@@ -3746,18 +4374,38 @@ function App() {
           >
             キャンセル
           </button>
+
+          <button
+            type="button"
+            className="secondary small recipe-button"
+            onClick={() => void openRakumartRecipe(product)}
+            disabled={isSaving || rakumartRecipeLoading || rakumartRecipeSaving}
+          >
+            レシピ
+          </button>
         </div>
       )
     }
 
     return (
-      <button
-        className="small edit-button"
-        onClick={() => startEdit(product)}
-        disabled={Boolean(savingCode)}
-      >
-        編集
-      </button>
+      <div className="row-actions">
+        <button
+          type="button"
+          className="secondary small recipe-button"
+          onClick={() => void openRakumartRecipe(product)}
+          disabled={Boolean(savingCode) || rakumartRecipeLoading || rakumartRecipeSaving}
+        >
+          レシピ
+        </button>
+
+        <button
+          className="small edit-button"
+          onClick={() => startEdit(product)}
+          disabled={Boolean(savingCode)}
+        >
+          編集
+        </button>
+      </div>
     )
   }
 
@@ -4704,6 +5352,456 @@ function App() {
 
 
             <DeliverySlipPreview preview={deliverySlipPreview} />
+          </section>
+        </div>
+      )}
+
+      {rakumartRecipeModal && (
+        <div className="modal-backdrop" onClick={closeRakumartRecipe}>
+          <section
+            className="modal-card rakumart-recipe-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="発注レシピ"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="modal-head rakumart-recipe-head">
+              <div>
+                <p className="eyebrow">Rakumart Order Recipe</p>
+                <h2>発注レシピ</h2>
+                <div className="rakumart-recipe-product-ident">
+                  <strong>{rakumartRecipeModal.product.product_code}</strong>
+                  <span>{rakumartRecipeModal.product.product_name || '商品名なし'}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="secondary small"
+                onClick={closeRakumartRecipe}
+                disabled={rakumartRecipeSaving}
+              >
+                閉じる
+              </button>
+            </div>
+
+            {rakumartRecipeLoading ? (
+              <div className="rakumart-recipe-loading">発注レシピを読み込んでいます...</div>
+            ) : (
+              <div className="rakumart-recipe-body">
+                <section className="rakumart-legacy-reference">
+                  <div className="rakumart-section-head">
+                    <div>
+                      <strong>既存の発注情報</strong>
+                      <span>参照用です。この欄の値は発注レシピ保存では変更しません。</span>
+                    </div>
+                  </div>
+
+                  <div className="rakumart-legacy-grid">
+                    <div className="rakumart-legacy-links">
+                      <span className="rakumart-field-label">発注URL</span>
+                      {[rakumartRecipeModal.product.order_url_1, rakumartRecipeModal.product.order_url_2, rakumartRecipeModal.product.order_url_3]
+                        .map((url, index) => ({ url: String(url ?? '').trim(), index }))
+                        .filter((row) => row.url)
+                        .map((row) => (
+                          <a key={row.index} href={row.url} target="_blank" rel="noreferrer">
+                            発注URL{row.index + 1} ↗
+                          </a>
+                        ))}
+                      {!rakumartRecipeModal.product.order_url_1 &&
+                        !rakumartRecipeModal.product.order_url_2 &&
+                        !rakumartRecipeModal.product.order_url_3 && <span className="muted">なし</span>}
+                    </div>
+
+                    <div>
+                      <span className="rakumart-field-label">サイズ</span>
+                      <p>{rakumartRecipeModal.product.order_size || '—'}</p>
+                    </div>
+
+                    <div>
+                      <span className="rakumart-field-label">カラー</span>
+                      <p>{rakumartRecipeModal.product.order_color || '—'}</p>
+                    </div>
+
+                    <div className="rakumart-legacy-instructions">
+                      <span className="rakumart-field-label">発注指示</span>
+                      {rakumartRecipeModal.product.order_simple_instruction && (
+                        <p>{rakumartRecipeModal.product.order_simple_instruction}</p>
+                      )}
+                      {rakumartRecipeModal.product.order_detail_instruction && (
+                        <p>{rakumartRecipeModal.product.order_detail_instruction}</p>
+                      )}
+                      {rakumartRecipeModal.product.order_quantity_condition && (
+                        <p>{rakumartRecipeModal.product.order_quantity_condition}</p>
+                      )}
+                      {rakumartRecipeModal.product.order_note && (
+                        <p>{rakumartRecipeModal.product.order_note}</p>
+                      )}
+                      {!rakumartRecipeModal.product.order_simple_instruction &&
+                        !rakumartRecipeModal.product.order_detail_instruction &&
+                        !rakumartRecipeModal.product.order_quantity_condition &&
+                        !rakumartRecipeModal.product.order_note && <p>—</p>}
+                    </div>
+                  </div>
+                </section>
+
+                <section className="rakumart-recipe-settings">
+                  <div className="rakumart-section-head">
+                    <div>
+                      <strong>実行設定</strong>
+                      <span>Playwright側が参照するレシピ全体の設定です。</span>
+                    </div>
+                  </div>
+
+                  <div className="rakumart-settings-grid">
+                    <label className="rakumart-checkbox-card">
+                      <input
+                        type="checkbox"
+                        checked={rakumartRecipeModal.draft.enabled}
+                        onChange={(event) =>
+                          updateRakumartRecipeDraft((draft) => ({ ...draft, enabled: event.target.checked }))
+                        }
+                      />
+                      <span>
+                        <strong>自動発注を有効</strong>
+                        <small>OFFならレシピを残したまま実行対象から外せます。</small>
+                      </span>
+                    </label>
+
+                    <label className="rakumart-checkbox-card">
+                      <input
+                        type="checkbox"
+                        checked={rakumartRecipeModal.draft.stopBeforeSubmit}
+                        onChange={(event) =>
+                          updateRakumartRecipeDraft((draft) => ({ ...draft, stopBeforeSubmit: event.target.checked }))
+                        }
+                      />
+                      <span>
+                        <strong>提出直前で停止</strong>
+                        <small>初期運用ではON推奨。最終提出は人が行います。</small>
+                      </span>
+                    </label>
+
+                    <label className="rakumart-setting-field">
+                      <span>備考</span>
+                      <select
+                        value={rakumartRecipeModal.draft.remarkMode}
+                        onChange={(event) =>
+                          updateRakumartRecipeDraft((draft) => ({
+                            ...draft,
+                            remarkMode: event.target.value as RakumartRemarkMode,
+                          }))
+                        }
+                      >
+                        <option value="manual">手動入力</option>
+                        <option value="template">テンプレート</option>
+                        <option value="none">備考なし</option>
+                      </select>
+                    </label>
+                  </div>
+
+                  {rakumartRecipeModal.draft.remarkMode === 'template' && (
+                    <label className="rakumart-template-field">
+                      <span>備考テンプレート</span>
+                      <textarea
+                        value={rakumartRecipeModal.draft.remarkTemplate}
+                        onChange={(event) =>
+                          updateRakumartRecipeDraft((draft) => ({ ...draft, remarkTemplate: event.target.value }))
+                        }
+                        placeholder="将来、相対番号を取得して自動生成する備考テンプレートを入力"
+                      />
+                    </label>
+                  )}
+                </section>
+
+                <section className="rakumart-items-section">
+                  <div className="rakumart-section-head rakumart-section-head--actions">
+                    <div>
+                      <strong>発注構成品</strong>
+                      <span>本体＋袋なら2件。同じ商品の代替ショップは同じ構成品内に追加します。</span>
+                    </div>
+                    <button type="button" className="secondary small recipe-add-button" onClick={addRakumartItem}>
+                      ＋ 構成品を追加
+                    </button>
+                  </div>
+
+                  <div className="rakumart-items-list">
+                    {rakumartRecipeModal.draft.items.map((item, itemIndex) => (
+                      <article key={item.id} className="rakumart-item-card">
+                        <div className="rakumart-item-head">
+                          <div className="rakumart-number-title">
+                            <span>{itemIndex + 1}</span>
+                            <strong>構成品</strong>
+                          </div>
+                          <button
+                            type="button"
+                            className="secondary small danger-button"
+                            onClick={() => removeRakumartItem(item.id)}
+                          >
+                            構成品を削除
+                          </button>
+                        </div>
+
+                        <div className="rakumart-item-fields">
+                          <label className="rakumart-grow-field">
+                            <span>構成品名</span>
+                            <input
+                              value={item.itemName}
+                              onChange={(event) => updateRakumartItem(item.id, { itemName: event.target.value })}
+                              placeholder="例：スカーフ本体 / ジッパー袋"
+                            />
+                          </label>
+
+                          <label className="rakumart-inline-check">
+                            <input
+                              type="checkbox"
+                              checked={item.required}
+                              onChange={(event) => updateRakumartItem(item.id, { required: event.target.checked })}
+                            />
+                            必須
+                          </label>
+
+                          <label className="rakumart-grow-field">
+                            <span>構成品メモ</span>
+                            <input
+                              value={item.memo}
+                              onChange={(event) => updateRakumartItem(item.id, { memo: event.target.value })}
+                              placeholder="任意"
+                            />
+                          </label>
+                        </div>
+
+                        <div className="rakumart-sources-list">
+                          {item.sources.map((source, sourceIndex) => (
+                            <section key={source.id} className="rakumart-source-card">
+                              <div className="rakumart-source-head">
+                                <div>
+                                  <strong>
+                                    {sourceIndex === 0 ? '仕入先 1（優先）' : `代替仕入先 ${sourceIndex + 1}`}
+                                  </strong>
+                                  <span>上から優先順。Playwrightは有効な仕入先を優先順位順に使用します。</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="secondary small danger-button"
+                                  onClick={() => removeRakumartSource(item.id, source.id)}
+                                >
+                                  仕入先を削除
+                                </button>
+                              </div>
+
+                              <div className="rakumart-source-fields">
+                                <label>
+                                  <span>仕入先名</span>
+                                  <input
+                                    value={source.sourceName}
+                                    onChange={(event) =>
+                                      updateRakumartSource(item.id, source.id, { sourceName: event.target.value })
+                                    }
+                                    placeholder="任意：メイン / 予備ショップなど"
+                                  />
+                                </label>
+
+                                <label className="rakumart-source-url-field">
+                                  <span>ラクマート商品URL</span>
+                                  <input
+                                    value={source.url}
+                                    onChange={(event) =>
+                                      updateRakumartSource(item.id, source.id, { url: event.target.value })
+                                    }
+                                    placeholder="https://www.rakumart.com/ProductDetails?..."
+                                  />
+                                </label>
+
+                                <label className="rakumart-inline-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={source.enabled}
+                                    onChange={(event) =>
+                                      updateRakumartSource(item.id, source.id, { enabled: event.target.checked })
+                                    }
+                                  />
+                                  有効
+                                </label>
+                              </div>
+
+                              <label className="rakumart-source-memo-field">
+                                <span>仕入先メモ</span>
+                                <input
+                                  value={source.memo}
+                                  onChange={(event) =>
+                                    updateRakumartSource(item.id, source.id, { memo: event.target.value })
+                                  }
+                                  placeholder="ショップ固有の注意など（任意）"
+                                />
+                              </label>
+
+                              <div className="rakumart-lines-wrap">
+                                <div className="rakumart-lines-head">
+                                  <div>
+                                    <strong>発注明細</strong>
+                                    <span>1明細 = 1つの規格組み合わせ。数量は「発注予定数 × 数量倍率」です。</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="secondary small recipe-add-button"
+                                    onClick={() => addRakumartLine(item.id, source.id)}
+                                  >
+                                    ＋ 明細を追加
+                                  </button>
+                                </div>
+
+                                <div className="rakumart-lines-list">
+                                  {source.lines.map((line, lineIndex) => (
+                                    <div key={line.id} className="rakumart-line-card">
+                                      <div className="rakumart-line-head">
+                                        <strong>明細 {lineIndex + 1}</strong>
+                                        <button
+                                          type="button"
+                                          className="secondary small danger-button"
+                                          onClick={() => removeRakumartLine(item.id, source.id, line.id)}
+                                        >
+                                          削除
+                                        </button>
+                                      </div>
+
+                                      <div className="rakumart-options-block">
+                                        <div className="rakumart-options-head">
+                                          <span>規格</span>
+                                          <button
+                                            type="button"
+                                            className="secondary small recipe-mini-add-button"
+                                            onClick={() => addRakumartOption(item.id, source.id, line.id)}
+                                          >
+                                            ＋ 規格軸
+                                          </button>
+                                        </div>
+
+                                        {line.options.length === 0 && (
+                                          <p className="rakumart-no-options">規格指定なし</p>
+                                        )}
+
+                                        {line.options.map((option) => (
+                                          <div key={option.id} className="rakumart-option-row">
+                                            <input
+                                              value={option.group}
+                                              onChange={(event) =>
+                                                updateRakumartOption(item.id, source.id, line.id, option.id, {
+                                                  group: event.target.value,
+                                                })
+                                              }
+                                              placeholder="規格軸 例：颜色"
+                                            />
+                                            <span>:</span>
+                                            <input
+                                              value={option.value}
+                                              onChange={(event) =>
+                                                updateRakumartOption(item.id, source.id, line.id, option.id, {
+                                                  value: event.target.value,
+                                                })
+                                              }
+                                              placeholder="値 例：白色"
+                                            />
+                                            <button
+                                              type="button"
+                                              className="secondary small danger-button rakumart-option-remove"
+                                              onClick={() =>
+                                                removeRakumartOption(item.id, source.id, line.id, option.id)
+                                              }
+                                            >
+                                              ×
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+
+                                      <div className="rakumart-line-bottom">
+                                        <label className="rakumart-quantity-field">
+                                          <span>数量倍率</span>
+                                          <input
+                                            type="number"
+                                            min="0.0001"
+                                            step="0.0001"
+                                            value={line.quantityMultiplier}
+                                            onChange={(event) =>
+                                              updateRakumartLine(item.id, source.id, line.id, {
+                                                quantityMultiplier: event.target.value,
+                                              })
+                                            }
+                                          />
+                                          <small>発注予定数 × {line.quantityMultiplier || '?'}</small>
+                                        </label>
+
+                                        <label className="rakumart-grow-field">
+                                          <span>明細メモ</span>
+                                          <input
+                                            value={line.memo}
+                                            onChange={(event) =>
+                                              updateRakumartLine(item.id, source.id, line.id, { memo: event.target.value })
+                                            }
+                                            placeholder="任意"
+                                          />
+                                        </label>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </section>
+                          ))}
+
+                          <button
+                            type="button"
+                            className="secondary recipe-add-source-button"
+                            onClick={() => addRakumartSource(item.id)}
+                          >
+                            ＋ 代替仕入先を追加
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+
+                {rakumartRecipeMessage && (
+                  <p className="modal-message rakumart-recipe-message">{rakumartRecipeMessage}</p>
+                )}
+
+                <div className="rakumart-recipe-footer">
+                  <div>
+                    {rakumartRecipeModal.exists && (
+                      <button
+                        type="button"
+                        className="secondary danger-button"
+                        onClick={() => void deleteRakumartRecipe()}
+                        disabled={rakumartRecipeSaving}
+                      >
+                        レシピを削除
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="rakumart-recipe-footer-actions">
+                    <button
+                      type="button"
+                      className="save-button"
+                      onClick={() => void saveRakumartRecipe()}
+                      disabled={rakumartRecipeSaving}
+                    >
+                      {rakumartRecipeSaving ? '保存中...' : 'レシピを保存'}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={closeRakumartRecipe}
+                      disabled={rakumartRecipeSaving}
+                    >
+                      閉じる
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         </div>
       )}
