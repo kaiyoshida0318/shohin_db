@@ -4179,6 +4179,22 @@ function App() {
     }))
   }
 
+  async function fetchRakumartRecipe(productCode: string) {
+    const { data, error } = await supabase.rpc('get_rakumart_order_recipe', {
+      p_product_code: productCode,
+    })
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    if (!data) {
+      return null
+    }
+
+    return data as unknown as RakumartRecipeDbRow
+  }
+
   async function openRakumartRecipe(product: Product) {
     setRakumartRecipeMessage('')
     setRakumartRecipeLoading(true)
@@ -4188,50 +4204,23 @@ function App() {
       exists: false,
     })
 
-    const { data, error } = await supabase
-      .from('rakumart_order_recipes')
-      .select(`
-        enabled,
-        stop_before_submit,
-        remark_mode,
-        remark_template,
-        rakumart_order_items (
-          item_name,
-          sort_order,
-          required,
-          memo,
-          rakumart_order_sources (
-            source_name,
-            url,
-            priority,
-            enabled,
-            memo,
-            rakumart_order_lines (
-              options,
-              quantity_multiplier,
-              sort_order,
-              memo
-            )
-          )
-        )
-      `)
-      .eq('product_code', product.product_code)
-      .maybeSingle()
+    try {
+      const data = await fetchRakumartRecipe(product.product_code)
 
-    if (error) {
-      setRakumartRecipeMessage(`読み込み失敗: ${error.message}`)
+      setRakumartRecipeModal({
+        product,
+        draft: data
+          ? rakumartRecipeDbRowToDraft(data)
+          : createEmptyRakumartRecipeDraft(),
+        exists: Boolean(data),
+      })
+    } catch (error) {
+      setRakumartRecipeMessage(
+        `読み込み失敗: ${error instanceof Error ? error.message : '不明なエラー'}`,
+      )
+    } finally {
       setRakumartRecipeLoading(false)
-      return
     }
-
-    setRakumartRecipeModal({
-      product,
-      draft: data
-        ? rakumartRecipeDbRowToDraft(data as unknown as RakumartRecipeDbRow)
-        : createEmptyRakumartRecipeDraft(),
-      exists: Boolean(data),
-    })
-    setRakumartRecipeLoading(false)
   }
 
   function closeRakumartRecipe() {
@@ -4255,8 +4244,9 @@ function App() {
     setRakumartRecipeSaving(true)
     setRakumartRecipeMessage('')
 
+    const productCode = rakumartRecipeModal.product.product_code
     const { error } = await supabase.rpc('save_rakumart_order_recipe', {
-      p_product_code: rakumartRecipeModal.product.product_code,
+      p_product_code: productCode,
       p_recipe: payload,
     })
 
@@ -4266,9 +4256,30 @@ function App() {
       return
     }
 
-    setRakumartRecipeModal((prev) => prev ? { ...prev, exists: true } : prev)
-    setRakumartRecipeMessage('発注レシピを保存しました。')
-    setRakumartRecipeSaving(false)
+    try {
+      // 「保存成功」と表示する前にDBから同じレシピを再取得して、永続化を確認する。
+      const saved = await fetchRakumartRecipe(productCode)
+      if (!saved) {
+        throw new Error('保存後のレシピをDBから取得できませんでした。')
+      }
+
+      setRakumartRecipeModal((prev) =>
+        prev
+          ? {
+              ...prev,
+              draft: rakumartRecipeDbRowToDraft(saved),
+              exists: true,
+            }
+          : prev,
+      )
+      setRakumartRecipeMessage('発注レシピを保存しました。')
+    } catch (error) {
+      setRakumartRecipeMessage(
+        `保存後の確認に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
+      )
+    } finally {
+      setRakumartRecipeSaving(false)
+    }
   }
 
   async function deleteRakumartRecipe() {

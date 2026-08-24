@@ -129,6 +129,12 @@ begin
   end if;
 end $$;
 
+-- RLSポリシーだけでなく authenticated ロールへのテーブル権限も明示します。
+grant select, insert, update, delete on table public.rakumart_order_recipes to authenticated;
+grant select, insert, update, delete on table public.rakumart_order_items to authenticated;
+grant select, insert, update, delete on table public.rakumart_order_sources to authenticated;
+grant select, insert, update, delete on table public.rakumart_order_lines to authenticated;
+
 create or replace function public.touch_rakumart_order_recipe_updated_at()
 returns trigger
 language plpgsql
@@ -285,6 +291,79 @@ end;
 $$;
 
 grant execute on function public.save_rakumart_order_recipe(text, jsonb) to authenticated;
+
+-- PostgREST の多段リレーション展開に依存せず、編集画面用レシピを1つのJSONとして返します。
+-- 保存RPCと同じテーブル構造から組み立てるため、保存後の再読込確認にも使用します。
+create or replace function public.get_rakumart_order_recipe(
+  p_product_code text
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_recipe jsonb;
+begin
+  if p_product_code is null or btrim(p_product_code) = '' then
+    raise exception 'product_code is required';
+  end if;
+
+  select jsonb_build_object(
+    'enabled', r.enabled,
+    'stop_before_submit', r.stop_before_submit,
+    'remark_mode', r.remark_mode,
+    'remark_template', r.remark_template,
+    'rakumart_order_items', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'item_name', i.item_name,
+          'sort_order', i.sort_order,
+          'required', i.required,
+          'memo', i.memo,
+          'rakumart_order_sources', coalesce((
+            select jsonb_agg(
+              jsonb_build_object(
+                'source_name', s.source_name,
+                'url', s.url,
+                'priority', s.priority,
+                'enabled', s.enabled,
+                'memo', s.memo,
+                'rakumart_order_lines', coalesce((
+                  select jsonb_agg(
+                    jsonb_build_object(
+                      'options', l.options,
+                      'quantity_multiplier', l.quantity_multiplier,
+                      'sort_order', l.sort_order,
+                      'memo', l.memo
+                    )
+                    order by l.sort_order
+                  )
+                  from public.rakumart_order_lines l
+                  where l.source_id = s.id
+                ), '[]'::jsonb)
+              )
+              order by s.priority
+            )
+            from public.rakumart_order_sources s
+            where s.item_id = i.id
+          ), '[]'::jsonb)
+        )
+        order by i.sort_order
+      )
+      from public.rakumart_order_items i
+      where i.recipe_id = r.id
+    ), '[]'::jsonb)
+  )
+  into v_recipe
+  from public.rakumart_order_recipes r
+  where r.product_code = p_product_code;
+
+  return v_recipe;
+end;
+$$;
+
+grant execute on function public.get_rakumart_order_recipe(text) to authenticated;
 
 -- Playwright / OrderBoard 向け実行プラン取得。
 -- 商品コードと発注予定数を渡すと、数量倍率を反映した実数量つきJSONを返します。
