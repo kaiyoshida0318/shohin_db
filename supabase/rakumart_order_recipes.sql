@@ -285,3 +285,93 @@ end;
 $$;
 
 grant execute on function public.save_rakumart_order_recipe(text, jsonb) to authenticated;
+
+-- Playwright / OrderBoard 向け実行プラン取得。
+-- 商品コードと発注予定数を渡すと、数量倍率を反映した実数量つきJSONを返します。
+-- 代替仕入先は priority 順です。Playwright側で上から順に在庫・選択肢を確認します。
+create or replace function public.get_rakumart_order_execution_plan(
+  p_product_code text,
+  p_order_quantity numeric
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_plan jsonb;
+begin
+  if p_product_code is null or btrim(p_product_code) = '' then
+    raise exception 'product_code is required';
+  end if;
+
+  if p_order_quantity is null or p_order_quantity <= 0 then
+    raise exception 'order_quantity must be greater than 0';
+  end if;
+
+  select jsonb_build_object(
+    'recipe_id', r.id,
+    'product_code', r.product_code,
+    'order_quantity', p_order_quantity,
+    'stop_before_submit', r.stop_before_submit,
+    'remark_mode', r.remark_mode,
+    'remark_template', r.remark_template,
+    'items', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'item_id', i.id,
+          'item_name', i.item_name,
+          'required', i.required,
+          'memo', i.memo,
+          'sort_order', i.sort_order,
+          'sources', coalesce((
+            select jsonb_agg(
+              jsonb_build_object(
+                'source_id', s.id,
+                'source_name', s.source_name,
+                'url', s.url,
+                'priority', s.priority,
+                'memo', s.memo,
+                'lines', coalesce((
+                  select jsonb_agg(
+                    jsonb_build_object(
+                      'line_id', l.id,
+                      'options', l.options,
+                      'quantity_multiplier', l.quantity_multiplier,
+                      'quantity', l.quantity_multiplier * p_order_quantity,
+                      'sort_order', l.sort_order,
+                      'memo', l.memo
+                    )
+                    order by l.sort_order
+                  )
+                  from public.rakumart_order_lines l
+                  where l.source_id = s.id
+                ), '[]'::jsonb)
+              )
+              order by s.priority
+            )
+            from public.rakumart_order_sources s
+            where s.item_id = i.id
+              and s.enabled = true
+          ), '[]'::jsonb)
+        )
+        order by i.sort_order
+      )
+      from public.rakumart_order_items i
+      where i.recipe_id = r.id
+    ), '[]'::jsonb)
+  )
+  into v_plan
+  from public.rakumart_order_recipes r
+  where r.product_code = p_product_code
+    and r.enabled = true;
+
+  if v_plan is null then
+    raise exception 'enabled Rakumart order recipe not found for product_code: %', p_product_code;
+  end if;
+
+  return v_plan;
+end;
+$$;
+
+grant execute on function public.get_rakumart_order_execution_plan(text, numeric) to authenticated;

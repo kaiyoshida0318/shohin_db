@@ -100,3 +100,21 @@ Playwright向けの構造化された発注設定を商品ごとに保持でき�
 - 新しい発注レシピは「構成品 → 仕入先候補 → 発注明細（規格・数量倍率）」で管理します。
 - レシピ保存は `save_rakumart_order_recipe` RPCで1トランザクションにまとめています。
 - 初期運用は「提出直前で停止」をONにし、最終提出と相対番号を使う備考入力は手動前提です。
+
+## ラクマート発注レシピ
+
+商品一覧の「オーダー用」表示でのみ、各商品の操作欄に `レシピ` ボタンを表示します。
+「オーダー状況」「NE情報」「紙出し用」「カスタム」「すべて」では表示しません。
+
+Supabase の `supabase/rakumart_order_recipes.sql` を SQL Editor で実行すると、発注レシピ4テーブルと保存RPCに加えて、Playwright / OrderBoard向けの `get_rakumart_order_execution_plan` RPCが作成されます。
+
+例: 発注予定数30で実行プランを取得
+
+```sql
+select public.get_rakumart_order_execution_plan(
+  'scarf-24-01-45cm-io',
+  30
+);
+```
+
+返却JSONでは各明細に `quantity_multiplier` と、発注予定数を掛けた `quantity` が含まれます。代替仕入先は `priority` 順で返るため、Playwright側は上から順に利用可否を確認できます。

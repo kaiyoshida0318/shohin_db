@@ -4375,28 +4375,32 @@ function App() {
             キャンセル
           </button>
 
-          <button
-            type="button"
-            className="secondary small recipe-button"
-            onClick={() => void openRakumartRecipe(product)}
-            disabled={isSaving || rakumartRecipeLoading || rakumartRecipeSaving}
-          >
-            レシピ
-          </button>
+          {tableView === 'purchase' && (
+            <button
+              type="button"
+              className="secondary small recipe-button"
+              onClick={() => void openRakumartRecipe(product)}
+              disabled={isSaving || rakumartRecipeLoading || rakumartRecipeSaving}
+            >
+              レシピ
+            </button>
+          )}
         </div>
       )
     }
 
     return (
       <div className="row-actions">
-        <button
-          type="button"
-          className="secondary small recipe-button"
-          onClick={() => void openRakumartRecipe(product)}
-          disabled={Boolean(savingCode) || rakumartRecipeLoading || rakumartRecipeSaving}
-        >
-          レシピ
-        </button>
+        {tableView === 'purchase' && (
+          <button
+            type="button"
+            className="secondary small recipe-button"
+            onClick={() => void openRakumartRecipe(product)}
+            disabled={Boolean(savingCode) || rakumartRecipeLoading || rakumartRecipeSaving}
+          >
+            レシピ
+          </button>
+        )}
 
         <button
           className="small edit-button"
