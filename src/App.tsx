@@ -129,10 +129,14 @@ type RakumartRecipeDraft = {
   items: RakumartItemDraft[]
 }
 
+type RakumartLegacyUrlRelation = 'separate' | 'alternatives' | 'manual'
+
 type RakumartRecipeModalState = {
   product: Product
   draft: RakumartRecipeDraft
   exists: boolean
+  legacySeeded: boolean
+  legacyRelation: RakumartLegacyUrlRelation | null
 }
 
 type RakumartRecipeDbLine = {
@@ -668,6 +672,82 @@ function createEmptyRakumartRecipeDraft(): RakumartRecipeDraft {
   }
 }
 
+function getRakumartLegacyOrderUrls(product: Product) {
+  return [product.order_url_1, product.order_url_2, product.order_url_3]
+    .map((url) => String(url ?? '').trim())
+    .filter(Boolean)
+}
+
+function createRakumartLegacyOptions(product: Product) {
+  const values = [product.order_size, product.order_color]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+
+  return [...new Set(values)].map((value) => createRakumartOptionDraft('', value))
+}
+
+function createRakumartLegacyLine(product: Product, includeLegacyOptions: boolean) {
+  return {
+    ...createRakumartLineDraft(),
+    options: includeLegacyOptions ? createRakumartLegacyOptions(product) : [],
+  }
+}
+
+function createRakumartRecipeDraftFromLegacy(
+  product: Product,
+  relation: Exclude<RakumartLegacyUrlRelation, 'manual'>,
+): RakumartRecipeDraft {
+  const urls = getRakumartLegacyOrderUrls(product)
+  if (urls.length === 0) {
+    return createEmptyRakumartRecipeDraft()
+  }
+
+  const base = createEmptyRakumartRecipeDraft()
+  const itemName = product.product_name?.trim() || '商品本体'
+
+  if (relation === 'alternatives') {
+    return {
+      ...base,
+      items: [
+        {
+          id: createDraftId(),
+          itemName,
+          required: true,
+          memo: '',
+          sources: urls.map((url, index) => ({
+            id: createDraftId(),
+            sourceName: index === 0 ? 'メイン' : `代替${index}`,
+            url,
+            enabled: true,
+            memo: '',
+            lines: [createRakumartLegacyLine(product, true)],
+          })),
+        },
+      ],
+    }
+  }
+
+  return {
+    ...base,
+    items: urls.map((url, index) => ({
+      id: createDraftId(),
+      itemName: index === 0 ? itemName : `構成品${index + 1}`,
+      required: true,
+      memo: '',
+      sources: [
+        {
+          id: createDraftId(),
+          sourceName: '',
+          url,
+          enabled: true,
+          memo: '',
+          lines: [createRakumartLegacyLine(product, index === 0)],
+        },
+      ],
+    })),
+  }
+}
+
 function parseRakumartOptions(value: unknown): RakumartOptionDraft[] {
   if (!Array.isArray(value)) {
     return []
@@ -776,21 +856,24 @@ function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
                 )
               }
 
-              const options = line.options
-                .map((option, optionIndex) => {
+              const options = line.options.reduce<Array<{ group?: string; value: string }>>(
+                (result, option, optionIndex) => {
                   const group = option.group.trim()
                   const value = option.value.trim()
                   if (!group && !value) {
-                    return null
+                    return result
                   }
-                  if (!group || !value) {
+                  if (!value) {
                     throw new Error(
-                      `${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}・規格${optionIndex + 1}は「規格軸」と「値」の両方を入力してください。`,
+                      `${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}・規格${optionIndex + 1}の「規格値」を入力してください。`,
                     )
                   }
-                  return { group, value }
-                })
-                .filter((option): option is { group: string; value: string } => Boolean(option))
+
+                  result.push(group ? { group, value } : { value })
+                  return result
+                },
+                [],
+              )
 
               return {
                 options,
@@ -4202,18 +4285,30 @@ function App() {
       product,
       draft: createEmptyRakumartRecipeDraft(),
       exists: false,
+      legacySeeded: false,
+      legacyRelation: null,
     })
 
     try {
       const data = await fetchRakumartRecipe(product.product_code)
+      const legacyUrls = getRakumartLegacyOrderUrls(product)
+      const shouldAutoSeed = !data && legacyUrls.length === 1
 
       setRakumartRecipeModal({
         product,
         draft: data
           ? rakumartRecipeDbRowToDraft(data)
-          : createEmptyRakumartRecipeDraft(),
+          : shouldAutoSeed
+            ? createRakumartRecipeDraftFromLegacy(product, 'separate')
+            : createEmptyRakumartRecipeDraft(),
         exists: Boolean(data),
+        legacySeeded: shouldAutoSeed,
+        legacyRelation: shouldAutoSeed ? 'separate' : null,
       })
+
+      if (shouldAutoSeed) {
+        setRakumartRecipeMessage('既存の発注URL・規格値から、未保存のたたき台を作成しました。内容を確認して保存してください。')
+      }
     } catch (error) {
       setRakumartRecipeMessage(
         `読み込み失敗: ${error instanceof Error ? error.message : '不明なエラー'}`,
@@ -4221,6 +4316,34 @@ function App() {
     } finally {
       setRakumartRecipeLoading(false)
     }
+  }
+
+  function applyRakumartLegacySeed(relation: RakumartLegacyUrlRelation) {
+    setRakumartRecipeModal((prev) => {
+      if (!prev || prev.exists) return prev
+
+      if (relation === 'manual') {
+        return {
+          ...prev,
+          draft: createEmptyRakumartRecipeDraft(),
+          legacySeeded: false,
+          legacyRelation: 'manual',
+        }
+      }
+
+      return {
+        ...prev,
+        draft: createRakumartRecipeDraftFromLegacy(prev.product, relation),
+        legacySeeded: true,
+        legacyRelation: relation,
+      }
+    })
+
+    setRakumartRecipeMessage(
+      relation === 'manual'
+        ? '空のレシピに切り替えました。'
+        : '既存の商品DB情報から未保存のたたき台を作成しました。内容を確認して保存してください。',
+    )
   }
 
   function closeRakumartRecipe() {
@@ -4269,6 +4392,8 @@ function App() {
               ...prev,
               draft: rakumartRecipeDbRowToDraft(saved),
               exists: true,
+              legacySeeded: false,
+              legacyRelation: null,
             }
           : prev,
       )
@@ -5460,6 +5585,61 @@ function App() {
                   </div>
                 </section>
 
+                {!rakumartRecipeModal.exists && (
+                  <section className="rakumart-recipe-settings">
+                    <div className="rakumart-section-head">
+                      <div>
+                        <strong>初回レシピ作成</strong>
+                        <span>既存の商品DB情報から、初回だけたたき台を作れます。自動保存はしません。</span>
+                      </div>
+                    </div>
+
+                    {getRakumartLegacyOrderUrls(rakumartRecipeModal.product).length === 0 ? (
+                      <p className="muted">発注URL1〜3が未登録のため、手動でレシピを作成してください。</p>
+                    ) : getRakumartLegacyOrderUrls(rakumartRecipeModal.product).length === 1 ? (
+                      <div className="rakumart-recipe-actions">
+                        <span className="muted">発注URLが1件なので、本体1件としてたたき台を生成します。</span>
+                        <button
+                          type="button"
+                          className="secondary small"
+                          onClick={() => applyRakumartLegacySeed('separate')}
+                        >
+                          既存情報から再生成
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="muted">
+                          発注URLが複数あります。URL同士の関係だけ選ぶと、構成品・仕入先を自動で組みます。
+                        </p>
+                        <div className="rakumart-recipe-actions">
+                          <button
+                            type="button"
+                            className={rakumartRecipeModal.legacyRelation === 'separate' ? 'small' : 'secondary small'}
+                            onClick={() => applyRakumartLegacySeed('separate')}
+                          >
+                            全部発注する
+                          </button>
+                          <button
+                            type="button"
+                            className={rakumartRecipeModal.legacyRelation === 'alternatives' ? 'small' : 'secondary small'}
+                            onClick={() => applyRakumartLegacySeed('alternatives')}
+                          >
+                            代替仕入先
+                          </button>
+                          <button
+                            type="button"
+                            className={rakumartRecipeModal.legacyRelation === 'manual' ? 'small' : 'secondary small'}
+                            onClick={() => applyRakumartLegacySeed('manual')}
+                          >
+                            手動で作る
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </section>
+                )}
+
                 <section className="rakumart-recipe-settings">
                   <div className="rakumart-section-head">
                     <div>
@@ -5655,7 +5835,7 @@ function App() {
                                 <div className="rakumart-lines-head">
                                   <div>
                                     <strong>発注明細</strong>
-                                    <span>1明細 = 1つの規格組み合わせ。数量は「発注予定数 × 数量倍率」です。</span>
+                                    <span>1明細 = 1つの規格組み合わせ。規格軸は任意で、数量は「発注予定数 × 数量倍率」です。</span>
                                   </div>
                                   <button
                                     type="button"
@@ -5688,9 +5868,13 @@ function App() {
                                             className="secondary small recipe-mini-add-button"
                                             onClick={() => addRakumartOption(item.id, source.id, line.id)}
                                           >
-                                            ＋ 規格軸
+                                            ＋ 規格を追加
                                           </button>
                                         </div>
+
+                                        <p className="rakumart-no-options">
+                                          規格値だけでOK。Playwrightはまず規格値で探し、同じ値が複数ある場合だけ規格軸で絞り込みます。
+                                        </p>
 
                                         {line.options.length === 0 && (
                                           <p className="rakumart-no-options">規格指定なし</p>
@@ -5699,23 +5883,23 @@ function App() {
                                         {line.options.map((option) => (
                                           <div key={option.id} className="rakumart-option-row">
                                             <input
-                                              value={option.group}
-                                              onChange={(event) =>
-                                                updateRakumartOption(item.id, source.id, line.id, option.id, {
-                                                  group: event.target.value,
-                                                })
-                                              }
-                                              placeholder="規格軸 例：颜色"
-                                            />
-                                            <span>:</span>
-                                            <input
                                               value={option.value}
                                               onChange={(event) =>
                                                 updateRakumartOption(item.id, source.id, line.id, option.id, {
                                                   value: event.target.value,
                                                 })
                                               }
-                                              placeholder="値 例：白色"
+                                              placeholder="規格値 例：白色"
+                                            />
+                                            <span>/</span>
+                                            <input
+                                              value={option.group}
+                                              onChange={(event) =>
+                                                updateRakumartOption(item.id, source.id, line.id, option.id, {
+                                                  group: event.target.value,
+                                                })
+                                              }
+                                              placeholder="規格軸（任意）例：颜色"
                                             />
                                             <button
                                               type="button"

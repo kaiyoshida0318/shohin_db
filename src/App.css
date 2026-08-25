@@ -3623,7 +3623,7 @@ button.secondary.recipe-button:hover {
 
 .rakumart-option-row {
   display: grid;
-  grid-template-columns: minmax(150px, 0.8fr) auto minmax(200px, 1.2fr) 34px;
+  grid-template-columns: minmax(220px, 1.2fr) auto minmax(150px, 0.8fr) 34px;
   align-items: center;
   gap: 8px;
 }
@@ -3681,6 +3681,18 @@ button.secondary.recipe-button:hover {
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 -12px 30px rgba(15, 23, 42, 0.06);
   backdrop-filter: blur(8px);
+}
+
+.rakumart-recipe-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rakumart-recipe-actions > .muted {
+  margin-right: auto;
 }
 
 .rakumart-recipe-footer-actions {
