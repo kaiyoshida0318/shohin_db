@@ -41,6 +41,7 @@ type Product = {
   delivery_line_4: string | null
   rack_number: string | null
   rack_level: string | null
+  paper_sort_sub: boolean | null
   sticker_color: string | null
 
   order_url_1: string | null
@@ -263,6 +264,7 @@ type EditableProduct = {
   delivery_line_4: string
   rack_number: string
   rack_level: string
+  paper_sort_sub: boolean
   sticker_color: string
 
   order_url_1: string
@@ -288,6 +290,7 @@ type EditableProduct = {
 }
 
 type EditableProductKey = keyof EditableProduct
+type EditableTextProductKey = Exclude<EditableProductKey, 'paper_sort_sub'>
 
 type SessionUser = {
   email?: string
@@ -411,7 +414,7 @@ const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
   (column) => column.key,
 )
 
-const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
+const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   product_name: '商品名',
   floor: '階数',
   special_notes: '2行目',
@@ -1727,6 +1730,7 @@ function productToDraft(product: Product): EditableProduct {
     delivery_line_4: product.delivery_line_4 ?? '',
     rack_number: product.rack_number ?? '',
     rack_level: product.rack_level ?? '',
+    paper_sort_sub: Boolean(product.paper_sort_sub),
     sticker_color: product.sticker_color ?? '',
     order_url_1: product.order_url_1 ?? '',
     order_url_2: product.order_url_2 ?? '',
@@ -1801,6 +1805,7 @@ function normalizeDraft(draft: EditableProduct) {
     delivery_line_4: draft.delivery_line_4.trim() || null,
     rack_number: draft.rack_number.trim() || null,
     rack_level: draft.rack_level.trim() || null,
+    paper_sort_sub: Boolean(draft.paper_sort_sub),
     sticker_color: draft.sticker_color.trim() || null,
     order_url_1: draft.order_url_1.trim() || null,
     order_url_2: draft.order_url_2.trim() || null,
@@ -2287,6 +2292,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
+      { key: 'paper_sort_sub', label: '紙出しサブ', width: 104 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
       { key: 'order_memo_1', label: 'オーダー1', width: 145 },
@@ -2315,6 +2321,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'floor', label: '階数', width: 87 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
+      { key: 'paper_sort_sub', label: '紙出しサブ', width: 104 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
     ],
@@ -2348,6 +2355,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'floor', label: '階数', width: 87 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
+      { key: 'paper_sort_sub', label: '紙出しサブ', width: 104 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
       { key: 'special_notes', label: '特記事項', width: 171 },
       { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
@@ -3483,7 +3491,7 @@ function App() {
   function updateDraft(
     productCode: string,
     key: EditableProductKey,
-    value: string,
+    value: string | boolean,
   ) {
     const product = productByCode.get(productCode)
 
@@ -3856,10 +3864,29 @@ function App() {
     setSavingCode(null)
   }
 
+  function renderPaperSortSubCell(product: Product, draft: EditableProduct) {
+    const isEditing = editingCodes.has(product.product_code)
+
+    return (
+      <div className="paper-sort-sub-cell" title="チェック時、単価0円の付属品は伝票の棚ソート判定から除外します">
+        <input
+          type="checkbox"
+          className="paper-sort-sub-checkbox"
+          checked={Boolean(draft.paper_sort_sub)}
+          disabled={!isEditing}
+          onChange={(event) =>
+            updateDraft(product.product_code, 'paper_sort_sub', event.target.checked)
+          }
+          aria-label={`${product.product_code} を紙出しサブにする`}
+        />
+      </div>
+    )
+  }
+
   function renderTextCell(
     product: Product,
     draft: EditableProduct,
-    key: EditableProductKey,
+    key: EditableTextProductKey,
     options: {
       className?: string
       inputClassName?: string
@@ -3899,7 +3926,7 @@ function App() {
   function renderUrlTextCell(
     product: Product,
     draft: EditableProduct,
-    key: EditableProductKey,
+    key: EditableTextProductKey,
   ) {
     const isEditing = editingCodes.has(product.product_code)
 
@@ -3929,8 +3956,8 @@ function App() {
   function renderOrderMemoCell(
     product: Product,
     draft: EditableProduct,
-    orderKey: EditableProductKey,
-    urlKey: EditableProductKey,
+    orderKey: EditableTextProductKey,
+    urlKey: EditableTextProductKey,
   ) {
     const isEditing = editingCodes.has(product.product_code)
     const orderLabel = EDIT_FIELD_PLACEHOLDERS[orderKey]
@@ -4723,6 +4750,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+        <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
@@ -4756,6 +4784,7 @@ function App() {
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+        <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
       </>
@@ -4800,6 +4829,7 @@ function App() {
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+        <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '2行目' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>

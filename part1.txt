@@ -38,6 +38,7 @@ type Product = {
   picking_advice: string | null
   rack_number: string | null
   rack_level: string | null
+  paper_sort_sub: boolean | null
   sticker_color: string | null
 
   order_url_1: string | null
@@ -176,6 +177,7 @@ type EditableProduct = {
   picking_advice: string
   rack_number: string
   rack_level: string
+  paper_sort_sub: boolean
   sticker_color: string
 
   order_url_1: string
@@ -201,6 +203,7 @@ type EditableProduct = {
 }
 
 type EditableProductKey = keyof EditableProduct
+type EditableTextProductKey = Exclude<EditableProductKey, 'paper_sort_sub'>
 
 type SessionUser = {
   email?: string
@@ -320,7 +323,7 @@ const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
   (column) => column.key,
 )
 
-const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
+const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   product_name: '商品名',
   floor: '階数',
   special_notes: '特記事項',
