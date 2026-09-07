@@ -39,7 +39,6 @@ type Product = {
   rack_number: string | null
   rack_level: string | null
   sticker_color: string | null
-  size_conversion_value: number | null
 
   order_url_1: string | null
   order_url_2: string | null
@@ -178,7 +177,6 @@ type EditableProduct = {
   rack_number: string
   rack_level: string
   sticker_color: string
-  size_conversion_value: string
 
   order_url_1: string
   order_url_2: string
@@ -330,7 +328,6 @@ const EDIT_FIELD_PLACEHOLDERS: Record<EditableProductKey, string> = {
   rack_number: '棚番号-位置',
   rack_level: '棚番号-段',
   sticker_color: 'シールカラー',
-  size_conversion_value: '茶大：1、定形：0.3',
   order_url_1: '発注URL1',
   order_url_2: '発注URL2',
   order_url_3: '発注URL3',
