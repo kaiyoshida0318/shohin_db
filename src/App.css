@@ -3728,3 +3728,25 @@ button.secondary.recipe-button:hover {
   cursor: default;
   opacity: 0.75;
 }
+
+.paper-sort-sub-readonly {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid #c3c8d0;
+  border-radius: 4px;
+  background: #f7f8fa;
+  color: transparent;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.paper-sort-sub-readonly.is-checked {
+  border-color: #343a46;
+  background: #343a46;
+  color: #ffffff;
+}

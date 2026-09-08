@@ -316,6 +316,7 @@ const SORTABLE_COLUMN_KEYS = [
   'rack_number',
   'rack_level',
   'sticker_color',
+  'paper_sort_sub',
   'order_memo_1',
   'order_memo_2',
   'order_memo_3',
@@ -2215,6 +2216,8 @@ function getProductSortValue(product: Product, key: SortableColumnKey): string |
       return product.rack_level
     case 'sticker_color':
       return product.sticker_color
+    case 'paper_sort_sub':
+      return product.paper_sort_sub ? 1 : 0
     case 'order_memo_1':
       return product.order_memo_1
     case 'order_memo_2':
@@ -2252,7 +2255,7 @@ function compareProductsBySort(productA: Product, productB: Product, config: Exc
     return -1
   }
 
-  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant']
+  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant', 'paper_sort_sub']
   const baseResult = numericColumns.includes(config.key)
     ? Number(valueA) - Number(valueB)
     : String(valueA).localeCompare(String(valueB), 'ja', { numeric: true, sensitivity: 'base' })
@@ -3866,14 +3869,28 @@ function App() {
 
   function renderPaperSortSubCell(product: Product, draft: EditableProduct) {
     const isEditing = editingCodes.has(product.product_code)
+    const isSubProduct = Boolean(draft.paper_sort_sub)
+
+    if (!isEditing) {
+      return (
+        <div className="paper-sort-sub-cell" title="チェック時、単価0円の付属品は伝票の棚ソート判定から除外します">
+          <span
+            className={`paper-sort-sub-readonly ${isSubProduct ? 'is-checked' : ''}`}
+            role="img"
+            aria-label={`${product.product_code} は${isSubProduct ? '' : '非'}サブ商品`}
+          >
+            {isSubProduct ? '✓' : ''}
+          </span>
+        </div>
+      )
+    }
 
     return (
       <div className="paper-sort-sub-cell" title="チェック時、単価0円の付属品は伝票の棚ソート判定から除外します">
         <input
           type="checkbox"
           className="paper-sort-sub-checkbox"
-          checked={Boolean(draft.paper_sort_sub)}
-          disabled={!isEditing}
+          checked={isSubProduct}
           onChange={(event) =>
             updateDraft(product.product_code, 'paper_sort_sub', event.target.checked)
           }

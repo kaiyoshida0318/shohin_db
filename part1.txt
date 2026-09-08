@@ -229,6 +229,7 @@ const SORTABLE_COLUMN_KEYS = [
   'rack_number',
   'rack_level',
   'sticker_color',
+  'paper_sort_sub',
   'order_memo_1',
   'order_memo_2',
   'order_memo_3',
