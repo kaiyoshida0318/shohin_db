@@ -399,10 +399,10 @@ type BulkFieldColumn = {
 const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'product_name', label: '商品名', placeholder: '商品名' },
   { key: 'floor', label: '階数', placeholder: '階数' },
-  { key: 'shipping_floor', label: '配送方-階数', placeholder: '例: PKT2-3F' },
   { key: 'rack_number', label: '棚番号-位置', placeholder: '棚番号-位置' },
   { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
   { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
+  { key: 'shipping_floor', label: '配送-階-特記', placeholder: '例: PKT2-3F RPR' },
   { key: 'special_notes', label: '特記事項', placeholder: '2行目' },
   { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: '3行目' },
   { key: 'delivery_line_4', label: '4行目', placeholder: '4行目' },
@@ -424,7 +424,7 @@ const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
 const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   product_name: '商品名',
   floor: '階数',
-  shipping_floor: '配送方-階数',
+  shipping_floor: '配送-階-特記',
   special_notes: '2行目',
   picking_advice: '3行目',
   delivery_line_4: '4行目',
@@ -488,7 +488,7 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
     'name',
   ],
   floor: ['階数', 'フロア', 'floor'],
-  shipping_floor: ['配送方-階数', '配送方法-階数', '配送方階数', '配送方法階数', 'shipping_floor', 'shippingFloor'],
+  shipping_floor: ['配送-階-特記', '配送方-階数', '配送方法-階数', '配送方階数', '配送方法階数', '配送階特記', 'shipping_floor', 'shippingFloor'],
   rack_number: [
     '棚番号-位置',
     '棚番号位置',
@@ -2306,13 +2306,13 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'product_name', label: '商品名', width: 219 },
       ...neColumns,
       { key: 'floor', label: '階数', width: 87 },
-      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       { key: 'special_notes', label: '特記事項', width: 171 },
       { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
       { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
+      { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
       { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
       { key: 'order_memo_1', label: 'オーダー1', width: 145 },
@@ -2339,10 +2339,10 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'picking_advice', label: '3行目', width: 175 },
       { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'floor', label: '階数', width: 87 },
-      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
+      { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
       { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
     ],
@@ -2368,17 +2368,17 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     ],
     ne: [
       { key: 'product_name', label: '商品名', width: 219 },
-      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
+      { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
       ...neColumns,
     ],
     custom: [
       { key: 'product_name', label: '商品名', width: 219 },
       ...neColumns,
       { key: 'floor', label: '階数', width: 87 },
-      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
+      { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
       { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
       { key: 'special_notes', label: '特記事項', width: 171 },
       { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
@@ -2467,6 +2467,7 @@ function App() {
   const [bulkImageDrafts, setBulkImageDrafts] = useState<Record<string, ProductImageDraft>>({})
   const bulkImageDraftsRef = useRef<Record<string, ProductImageDraft>>({})
   const [bulkShouldUpdateExisting, setBulkShouldUpdateExisting] = useState(false)
+  const [bulkUpdateOnly, setBulkUpdateOnly] = useState(false)
   const [selectedBulkFields, setSelectedBulkFields] = useState<BulkFieldKey[]>(
     DEFAULT_BULK_FIELD_KEYS,
   )
@@ -2698,9 +2699,11 @@ function App() {
   const bulkInsertableCount = bulkSummary.insertRows.length
   const bulkUpdateableCount = bulkSummary.updateRows.length
   const bulkExistingCount = bulkSummary.existingCount
-  const bulkActionableCount = bulkShouldUpdateExisting
-    ? bulkSummary.uniqueRows.length
-    : bulkInsertableCount
+  const bulkActionableCount = bulkUpdateOnly
+    ? bulkUpdateableCount
+    : bulkShouldUpdateExisting
+      ? bulkSummary.uniqueRows.length
+      : bulkInsertableCount
 
   const filteredProducts = useMemo(() => {
     const q = debouncedKeyword.trim().toLowerCase()
@@ -3044,6 +3047,7 @@ function App() {
     clearBulkImageDrafts()
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
+    setBulkUpdateOnly(false)
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
     setCsvColumnMapping(null)
     setIsCsvDragOver(false)
@@ -3056,6 +3060,7 @@ function App() {
     clearBulkImageDrafts()
     setBulkRows(createBulkRows())
     setBulkShouldUpdateExisting(false)
+    setBulkUpdateOnly(false)
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
     setCsvColumnMapping(null)
     setIsCsvDragOver(false)
@@ -3683,9 +3688,11 @@ function App() {
   }
 
   async function createBulkProducts() {
-    const targetRows = bulkShouldUpdateExisting
-      ? bulkSummary.uniqueRows
-      : bulkSummary.insertRows
+    const targetRows = bulkUpdateOnly
+      ? bulkSummary.updateRows
+      : bulkShouldUpdateExisting
+        ? bulkSummary.uniqueRows
+        : bulkSummary.insertRows
     const targetCodeSet = new Set(targetRows.map((row) => row.product_code))
 
     if (bulkSummary.filledCount === 0) {
@@ -3699,9 +3706,11 @@ function App() {
 
     if (targetRows.length === 0) {
       setModalMessage(
-        bulkShouldUpdateExisting
-          ? '入力内重複のため追加/更新対象がありません。'
-          : 'すべて既存商品コード、または入力内重複のため追加対象がありません。既存も更新する場合はチェックを入れてください。',
+        bulkUpdateOnly
+          ? `更新対象の既存商品がありません。未登録の商品コードは追加せずスキップします。`
+          : bulkShouldUpdateExisting
+            ? '入力内重複のため追加/更新対象がありません。'
+            : 'すべて既存商品コード、または入力内重複のため追加対象がありません。既存も更新する場合はチェックを入れてください。',
       )
       return
     }
@@ -3764,14 +3773,14 @@ function App() {
       return productPayload
     })
 
-    const { error } = bulkShouldUpdateExisting
+    const { error } = bulkUpdateOnly || bulkShouldUpdateExisting
       ? await supabase
           .from('products')
           .upsert(payload, { onConflict: 'product_code' })
       : await supabase.from('products').insert(payload)
 
     if (error) {
-      setModalMessage(`一括追加/更新失敗: ${error.message}`)
+      setModalMessage(`${bulkUpdateOnly ? '一括更新' : '一括追加/更新'}失敗: ${error.message}`)
       setLoading(false)
       return
     }
@@ -3815,9 +3824,11 @@ function App() {
 
     closeCreateModal()
     setMessage(
-      bulkShouldUpdateExisting
-        ? `${bulkInsertableCount}件追加、${bulkUpdateableCount}件更新しました。画像：${imageRows.length}件`
-        : `${bulkInsertableCount}件追加しました。既存商品のスキップ：${bulkExistingCount}件 / 画像：${imageRows.length}件`,
+      bulkUpdateOnly
+        ? `${bulkUpdateableCount}件更新しました。未登録商品のスキップ：${bulkInsertableCount}件 / 画像：${imageRows.length}件`
+        : bulkShouldUpdateExisting
+          ? `${bulkInsertableCount}件追加、${bulkUpdateableCount}件更新しました。画像：${imageRows.length}件`
+          : `${bulkInsertableCount}件追加しました。既存商品のスキップ：${bulkExistingCount}件 / 画像：${imageRows.length}件`,
     )
     setLoading(false)
   }
@@ -4784,13 +4795,13 @@ function App() {
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         {renderNeInfoColumns(product)}
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '2行目' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
         <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
@@ -4822,10 +4833,10 @@ function App() {
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
       </>
@@ -4868,10 +4879,10 @@ function App() {
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         {renderNeInfoColumns(product)}
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '2行目' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
@@ -6162,17 +6173,30 @@ function App() {
                 </div>
               )}
 
-              <label className="bulk-update-option">
-                <input
-                  type="checkbox"
-                  checked={bulkShouldUpdateExisting}
-                  onChange={(event) =>
-                    setBulkShouldUpdateExisting(event.target.checked)
-                  }
-                />
-                <span>既存の商品コードも更新する</span>
-                <small>ONにすると、既存商品の対象列だけを入力内容で上書きします。対象外の列は触りません。</small>
-              </label>
+              <div className="bulk-update-options">
+                <label className="bulk-update-option">
+                  <input
+                    type="checkbox"
+                    checked={bulkShouldUpdateExisting || bulkUpdateOnly}
+                    disabled={bulkUpdateOnly}
+                    onChange={(event) =>
+                      setBulkShouldUpdateExisting(event.target.checked)
+                    }
+                  />
+                  <span>既存の商品コードも更新する</span>
+                  <small>ONにすると、既存商品の対象列だけを入力内容で上書きします。対象外の列は触りません。</small>
+                </label>
+
+                <label className="bulk-update-option bulk-update-option--update-only">
+                  <input
+                    type="checkbox"
+                    checked={bulkUpdateOnly}
+                    onChange={(event) => setBulkUpdateOnly(event.target.checked)}
+                  />
+                  <span>更新のみ（商品追加しない）</span>
+                  <small>ONにすると、商品DBに存在する商品コードだけ更新します。CSV内の未登録商品コードは追加せずスキップします。</small>
+                </label>
+              </div>
 
               <div className="bulk-row-toolbar">
                 <strong>商品入力行</strong>
@@ -6290,9 +6314,10 @@ function App() {
 
               <div className="bulk-preview">
                 <span>入力済み：{bulkSummary.filledCount}件</span>
-                <span>追加予定：{bulkInsertableCount}件</span>
-                <span>更新予定：{bulkShouldUpdateExisting ? bulkUpdateableCount : 0}件</span>
-                <span>既存スキップ：{bulkShouldUpdateExisting ? 0 : bulkExistingCount}件</span>
+                <span>追加予定：{bulkUpdateOnly ? 0 : bulkInsertableCount}件</span>
+                <span>更新予定：{bulkUpdateOnly || bulkShouldUpdateExisting ? bulkUpdateableCount : 0}件</span>
+                <span>既存スキップ：{bulkUpdateOnly || bulkShouldUpdateExisting ? 0 : bulkExistingCount}件</span>
+                {bulkUpdateOnly && <span>未登録スキップ：{bulkInsertableCount}件</span>}
                 <span>画像待ち：{bulkImageDraftCount}件</span>
                 {bulkSummary.duplicateCodes.length > 0 && (
                   <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
@@ -6308,10 +6333,12 @@ function App() {
                   disabled={loading || bulkActionableCount === 0}
                 >
                   {loading
-                    ? '一括追加/更新中...'
-                    : bulkShouldUpdateExisting
-                      ? `${bulkInsertableCount}件追加 / ${bulkUpdateableCount}件更新`
-                      : `${bulkInsertableCount}件を追加`}
+                    ? bulkUpdateOnly ? '一括更新中...' : '一括追加/更新中...'
+                    : bulkUpdateOnly
+                      ? `${bulkUpdateableCount}件を更新（追加なし）`
+                      : bulkShouldUpdateExisting
+                        ? `${bulkInsertableCount}件追加 / ${bulkUpdateableCount}件更新`
+                        : `${bulkInsertableCount}件を追加`}
                 </button>
 
                 <button className="secondary" onClick={closeCreateModal}>

@@ -3750,3 +3750,13 @@ button.secondary.recipe-button:hover {
   background: #343a46;
   color: #ffffff;
 }
+
+.bulk-update-options {
+  display: grid;
+  gap: 8px;
+}
+
+.bulk-update-option--update-only {
+  border-color: #bfd7ff;
+  background: #f6f9ff;
+}
