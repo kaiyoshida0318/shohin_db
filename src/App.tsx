@@ -27,6 +27,7 @@ type Product = {
   product_code: string
   product_name: string | null
   floor: string | null
+  shipping_floor: string | null
 
   free_stock: number | null
   reorder_point: number | null
@@ -258,6 +259,7 @@ const DEFAULT_NE_SYNC_FIELDS: NeSyncFieldState = {
 type EditableProduct = {
   product_name: string
   floor: string
+  shipping_floor: string
 
   special_notes: string
   picking_advice: string
@@ -313,6 +315,7 @@ const SORTABLE_COLUMN_KEYS = [
   'stock_constant',
   'orderboard_classification',
   'floor',
+  'shipping_floor',
   'rack_number',
   'rack_level',
   'sticker_color',
@@ -345,6 +348,7 @@ type BulkProductRow = {
   product_code: string
   product_name: string
   floor: string
+  shipping_floor: string
   special_notes: string
   picking_advice: string
   delivery_line_4: string
@@ -366,6 +370,7 @@ type CleanBulkProductRow = {
   product_code: string
   product_name: string
   floor: string
+  shipping_floor: string
   special_notes: string
   picking_advice: string
   delivery_line_4: string
@@ -394,6 +399,7 @@ type BulkFieldColumn = {
 const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'product_name', label: '商品名', placeholder: '商品名' },
   { key: 'floor', label: '階数', placeholder: '階数' },
+  { key: 'shipping_floor', label: '配送方-階数', placeholder: '例: PKT2-3F' },
   { key: 'rack_number', label: '棚番号-位置', placeholder: '棚番号-位置' },
   { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
   { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
@@ -418,6 +424,7 @@ const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
 const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   product_name: '商品名',
   floor: '階数',
+  shipping_floor: '配送方-階数',
   special_notes: '2行目',
   picking_advice: '3行目',
   delivery_line_4: '4行目',
@@ -481,6 +488,7 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
     'name',
   ],
   floor: ['階数', 'フロア', 'floor'],
+  shipping_floor: ['配送方-階数', '配送方法-階数', '配送方階数', '配送方法階数', 'shipping_floor', 'shippingFloor'],
   rack_number: [
     '棚番号-位置',
     '棚番号位置',
@@ -565,6 +573,7 @@ function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
     product_code: productCode,
     product_name: '',
     floor: '',
+    shipping_floor: '',
     special_notes: '',
     picking_advice: '',
     delivery_line_4: '',
@@ -596,6 +605,7 @@ function createBulkRow(): BulkProductRow {
     product_code: '',
     product_name: '',
     floor: '',
+    shipping_floor: '',
     special_notes: '',
     picking_advice: '',
     delivery_line_4: '',
@@ -1180,6 +1190,7 @@ function buildBulkSummary(
       product_code: row.product_code.trim(),
       product_name: row.product_name.trim(),
       floor: row.floor.trim(),
+      shipping_floor: row.shipping_floor.trim(),
       special_notes: row.special_notes.trim(),
       picking_advice: row.picking_advice.trim(),
       delivery_line_4: row.delivery_line_4.trim(),
@@ -1726,6 +1737,7 @@ function productToDraft(product: Product): EditableProduct {
   return {
     product_name: product.product_name ?? '',
     floor: product.floor ?? '',
+    shipping_floor: product.shipping_floor ?? '',
     special_notes: product.special_notes ?? '',
     picking_advice: product.picking_advice ?? '',
     delivery_line_4: product.delivery_line_4 ?? '',
@@ -1761,6 +1773,7 @@ function buildProductSearchText(product: Product) {
     product.product_code,
     product.product_name,
     product.floor,
+    product.shipping_floor,
     formatClassification(product.orderboard_classification),
     formatNumericValue(product.free_stock),
     formatNumericValue(product.reorder_point),
@@ -1801,6 +1814,7 @@ function normalizeDraft(draft: EditableProduct) {
   return {
     product_name: draft.product_name.trim() || null,
     floor: draft.floor.trim() || null,
+    shipping_floor: draft.shipping_floor.trim() || null,
     special_notes: draft.special_notes.trim() || null,
     picking_advice: draft.picking_advice.trim() || null,
     delivery_line_4: draft.delivery_line_4.trim() || null,
@@ -2210,6 +2224,8 @@ function getProductSortValue(product: Product, key: SortableColumnKey): string |
       return product.product_name
     case 'floor':
       return product.floor
+    case 'shipping_floor':
+      return product.shipping_floor
     case 'rack_number':
       return product.rack_number
     case 'rack_level':
@@ -2290,6 +2306,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'product_name', label: '商品名', width: 219 },
       ...neColumns,
       { key: 'floor', label: '階数', width: 87 },
+      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       { key: 'special_notes', label: '特記事項', width: 171 },
       { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
       { key: 'delivery_line_4', label: '4行目', width: 175 },
@@ -2322,6 +2339,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'picking_advice', label: '3行目', width: 175 },
       { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'floor', label: '階数', width: 87 },
+      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
@@ -2350,12 +2368,14 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     ],
     ne: [
       { key: 'product_name', label: '商品名', width: 219 },
+      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       ...neColumns,
     ],
     custom: [
       { key: 'product_name', label: '商品名', width: 219 },
       ...neColumns,
       { key: 'floor', label: '階数', width: 87 },
+      { key: 'shipping_floor', label: '配送方-階数', width: 126 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
       { key: 'sticker_color', label: 'シールカラー', width: 116 },
@@ -3693,6 +3713,7 @@ function App() {
           product_code: row.product_code.trim(),
           product_name: row.product_name.trim(),
           floor: row.floor.trim(),
+          shipping_floor: row.shipping_floor.trim(),
           special_notes: row.special_notes.trim(),
           picking_advice: row.picking_advice.trim(),
           delivery_line_4: row.delivery_line_4.trim(),
@@ -4747,10 +4768,11 @@ function App() {
     )
   }
 
-  function renderNeColumns(product: Product) {
+  function renderNeColumns(product: Product, draft: EditableProduct) {
     return (
       <>
         <td><DisplayText value={product.product_name} className="product-name-text" /></td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         {renderNeInfoColumns(product)}
       </>
     )
@@ -4762,6 +4784,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         {renderNeInfoColumns(product)}
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '2行目' })}</td>
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
@@ -4799,6 +4822,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
@@ -4844,6 +4868,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
         {renderNeInfoColumns(product)}
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
@@ -5354,7 +5379,7 @@ function App() {
                       {tableView === 'pick' && renderPickColumns(product, draft)}
                       {tableView === 'order' && renderOrderColumns(product, draft)}
                       {tableView === 'purchase' && renderPurchaseColumns(product, draft)}
-                      {tableView === 'ne' && renderNeColumns(product)}
+                      {tableView === 'ne' && renderNeColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
                       <td>{renderActions(product, draft)}</td>

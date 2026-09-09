@@ -22,3 +22,16 @@
 - URL1だけ: 商品本体 + URL1 + サイズ/カラーを「規格値」として候補化。
 - URL1/URL2が本体+袋: 「全部発注する」を選択 → 2構成品に分離。
 - URL1/URL3が同商品の別ショップ: 「代替仕入先」を選択 → 1構成品の仕入先候補としてまとめる。
+
+## 配送方-階数
+
+NE受注明細の商品名補完用に `products.shipping_floor` を追加しています。画面表示名は **配送方-階数** です。
+
+初回のみ Supabase SQL Editor で `supabase/product_shipping_floor.sql` を実行してください。
+
+例:
+- `PKT2-3F`
+- `NP-2F`
+- `TAK-3F`
+
+TimerRunner / ne-sync-worker 側では、受注明細の商品名に同じ文字列が無い場合だけ ` | 【PKT2-3F】` のように追記します。
