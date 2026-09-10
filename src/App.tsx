@@ -324,6 +324,8 @@ const SORTABLE_COLUMN_KEYS = [
   'rack_level',
   'sticker_color',
   'paper_sort_sub',
+  'order_out',
+  'no_1688_shop',
   'order_memo_1',
   'order_memo_2',
   'order_memo_3',
@@ -2279,6 +2281,10 @@ function getProductSortValue(product: Product, key: SortableColumnKey): string |
       return product.sticker_color
     case 'paper_sort_sub':
       return product.paper_sort_sub ? 1 : 0
+    case 'order_out':
+      return product.order_out ? 1 : 0
+    case 'no_1688_shop':
+      return product.no_1688_shop ? 1 : 0
     case 'order_memo_1':
       return product.order_memo_1
     case 'order_memo_2':
@@ -2316,7 +2322,7 @@ function compareProductsBySort(productA: Product, productB: Product, config: Exc
     return -1
   }
 
-  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant', 'paper_sort_sub']
+  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant', 'paper_sort_sub', 'order_out', 'no_1688_shop']
   const baseResult = numericColumns.includes(config.key)
     ? Number(valueA) - Number(valueB)
     : String(valueA).localeCompare(String(valueB), 'ja', { numeric: true, sensitivity: 'base' })
