@@ -36,6 +36,8 @@ type Product = {
   monthly_by_year?: unknown | null
   monthlyByYear?: unknown | null
   orderboard_classification: string | null
+  order_out: boolean | null
+  no_1688_shop: boolean | null
 
   special_notes: string | null
   picking_advice: string | null
@@ -278,6 +280,8 @@ type EditableProduct = {
   order_detail_instruction: string
   order_quantity_condition: string
   order_note: string
+  order_out: boolean
+  no_1688_shop: boolean
 
   order_memo_1: string
   rakumart_url_1: string
@@ -292,7 +296,7 @@ type EditableProduct = {
 }
 
 type EditableProductKey = keyof EditableProduct
-type EditableTextProductKey = Exclude<EditableProductKey, 'paper_sort_sub'>
+type EditableTextProductKey = Exclude<EditableProductKey, 'paper_sort_sub' | 'order_out' | 'no_1688_shop'>
 
 type SessionUser = {
   email?: string
@@ -1754,6 +1758,8 @@ function productToDraft(product: Product): EditableProduct {
     order_detail_instruction: product.order_detail_instruction ?? '',
     order_quantity_condition: product.order_quantity_condition ?? '',
     order_note: product.order_note ?? '',
+    order_out: Boolean(product.order_out),
+    no_1688_shop: Boolean(product.no_1688_shop),
     order_memo_1: product.order_memo_1 ?? '',
     rakumart_url_1: product.rakumart_url_1 ?? '',
     order_memo_2: product.order_memo_2 ?? '',
@@ -1831,6 +1837,8 @@ function normalizeDraft(draft: EditableProduct) {
     order_detail_instruction: draft.order_detail_instruction.trim() || null,
     order_quantity_condition: draft.order_quantity_condition.trim() || null,
     order_note: draft.order_note.trim() || null,
+    order_out: Boolean(draft.order_out),
+    no_1688_shop: Boolean(draft.no_1688_shop),
     order_memo_1: draft.order_memo_1.trim() || null,
     rakumart_url_1: draft.rakumart_url_1.trim() || null,
     order_memo_2: draft.order_memo_2.trim() || null,
@@ -2356,6 +2364,8 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     ],
     purchase: [
       { key: 'product_name', label: '商品名', width: 219 },
+      { key: 'order_out', label: 'out', width: 78 },
+      { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
       { key: 'order_url_1', label: '発注URL1', width: 113 },
       { key: 'order_url_2', label: '発注URL2', width: 113 },
       { key: 'order_url_3', label: '発注URL3', width: 113 },
@@ -3932,6 +3942,42 @@ function App() {
     )
   }
 
+  function renderOrderExclusionFlagCell(
+    product: Product,
+    draft: EditableProduct,
+    key: 'order_out' | 'no_1688_shop',
+    label: string,
+  ) {
+    const isEditing = editingCodes.has(product.product_code)
+    const checked = Boolean(draft[key])
+
+    if (!isEditing) {
+      return (
+        <div className="paper-sort-sub-cell" title={checked ? `${label}：OrderBoardから除外` : label}>
+          <span
+            className={`paper-sort-sub-readonly ${checked ? 'is-checked' : ''}`}
+            role="img"
+            aria-label={`${product.product_code} ${label} ${checked ? 'ON' : 'OFF'}`}
+          >
+            {checked ? '✓' : ''}
+          </span>
+        </div>
+      )
+    }
+
+    return (
+      <div className="paper-sort-sub-cell" title={`${label}をONにするとOrderBoardの一覧・発注対象から除外します`}>
+        <input
+          type="checkbox"
+          className="paper-sort-sub-checkbox"
+          checked={checked}
+          onChange={(event) => updateDraft(product.product_code, key, event.target.checked)}
+          aria-label={`${product.product_code} ${label}`}
+        />
+      </div>
+    )
+  }
+
   function renderTextCell(
     product: Product,
     draft: EditableProduct,
@@ -4860,6 +4906,8 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
+        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
