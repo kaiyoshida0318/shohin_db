@@ -3760,3 +3760,16 @@ button.secondary.recipe-button:hover {
   border-color: #bfd7ff;
   background: #f6f9ff;
 }
+
+.bulk-input-table td.bulk-checkbox-cell {
+  min-width: 96px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.bulk-input-table input.bulk-checkbox-input {
+  width: 22px;
+  height: 22px;
+  margin: 0 auto;
+  cursor: pointer;
+}

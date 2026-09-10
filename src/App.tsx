@@ -368,6 +368,8 @@ type BulkProductRow = {
   order_detail_instruction: string
   order_quantity_condition: string
   order_note: string
+  order_out: boolean
+  no_1688_shop: boolean
 }
 
 type CleanBulkProductRow = {
@@ -390,6 +392,8 @@ type CleanBulkProductRow = {
   order_detail_instruction: string
   order_quantity_condition: string
   order_note: string
+  order_out: boolean
+  no_1688_shop: boolean
 }
 
 type BulkFieldKey = Exclude<keyof CleanBulkProductRow, 'product_code'>
@@ -398,6 +402,7 @@ type BulkFieldColumn = {
   key: BulkFieldKey
   label: string
   placeholder: string
+  inputType?: 'text' | 'checkbox'
 }
 
 const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
@@ -419,11 +424,13 @@ const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'order_detail_instruction', label: '▲具体指示', placeholder: '▲具体指示' },
   { key: 'order_quantity_condition', label: '数量条件指定', placeholder: '数量条件指定' },
   { key: 'order_note', label: '補足情報', placeholder: '補足情報' },
+  { key: 'order_out', label: 'out', placeholder: '', inputType: 'checkbox' },
+  { key: 'no_1688_shop', label: '1688ショップなし', placeholder: '', inputType: 'checkbox' },
 ]
 
-const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS.map(
-  (column) => column.key,
-)
+const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS
+  .filter((column) => column.inputType !== 'checkbox')
+  .map((column) => column.key)
 
 const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   product_name: '商品名',
@@ -559,6 +566,8 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
     'quantityCondition',
   ],
   order_note: ['補足情報', '補足', 'order_note', 'orderNote', 'purchase_note', 'purchaseNote'],
+  order_out: ['out', 'order_out', 'orderOut', '取扱終了', '廃番'],
+  no_1688_shop: ['1688ショップなし', '1688ショップ無し', 'no_1688_shop', 'no1688shop'],
 }
 
 type BulkSummary = {
@@ -593,6 +602,8 @@ function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
     order_detail_instruction: '',
     order_quantity_condition: '',
     order_note: '',
+    order_out: false,
+    no_1688_shop: false,
   }
 }
 
@@ -625,6 +636,8 @@ function createBulkRow(): BulkProductRow {
     order_detail_instruction: '',
     order_quantity_condition: '',
     order_note: '',
+    order_out: false,
+    no_1688_shop: false,
   }
 }
 
@@ -1077,6 +1090,16 @@ function getCsvMappingMessage(mapping: CsvColumnMapping) {
   return `${mapping.filename} に未識別列が ${unassignedCount} 列あります。全CSV列を確認して、必要な列だけ割り当ててください。`
 }
 
+function isBulkBooleanField(key: BulkFieldKey): key is 'order_out' | 'no_1688_shop' {
+  return key === 'order_out' || key === 'no_1688_shop'
+}
+
+function parseBulkBoolean(value: string) {
+  const normalized = value.trim().toLowerCase()
+
+  return ['1', 'true', 'yes', 'y', 'on', '✓', '○', '〇', 'あり', '有', '有り'].includes(normalized)
+}
+
 function buildCsvImportResult(
   dataRows: string[][],
   productCodeIndex: number | null,
@@ -1099,7 +1122,13 @@ function buildCsvImportResult(
       )
 
       mappedFields.forEach(({ key, index }) => {
-        row[key] = cells[index]?.trim() ?? ''
+        const value = cells[index]?.trim() ?? ''
+
+        if (isBulkBooleanField(key)) {
+          row[key] = parseBulkBoolean(value)
+        } else {
+          row[key] = value
+        }
       })
 
       return row
@@ -1174,7 +1203,13 @@ function parseClipboardRows(
       const row = createEmptyCleanBulkProductRow(cells[0]?.trim() ?? '')
 
       selectedFields.forEach((key, fieldIndex) => {
-        row[key] = cells[fieldIndex + 1]?.trim() ?? ''
+        const value = cells[fieldIndex + 1]?.trim() ?? ''
+
+        if (isBulkBooleanField(key)) {
+          row[key] = parseBulkBoolean(value)
+        } else {
+          row[key] = value
+        }
       })
 
       return row
@@ -1210,6 +1245,8 @@ function buildBulkSummary(
       order_detail_instruction: row.order_detail_instruction.trim(),
       order_quantity_condition: row.order_quantity_condition.trim(),
       order_note: row.order_note.trim(),
+      order_out: row.order_out,
+      no_1688_shop: row.no_1688_shop,
     }))
     .filter((row) => row.product_code)
 
@@ -2375,6 +2412,8 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'order_detail_instruction', label: '▲具体指示', width: 120 },
       { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
       { key: 'order_note', label: '補足情報', width: 121 },
+      { key: 'order_out', label: 'out', width: 78 },
+      { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
     ],
     ne: [
       { key: 'product_name', label: '商品名', width: 219 },
@@ -3270,7 +3309,7 @@ function App() {
   function updateBulkRow(
     rowId: string,
     key: keyof Omit<BulkProductRow, 'id'>,
-    value: string,
+    value: string | boolean,
   ) {
     setBulkRows((prev) =>
       prev.map((row) =>
@@ -3338,7 +3377,11 @@ function App() {
         }
 
         selectedBulkFields.forEach((key) => {
-          next[targetIndex][key] = pastedRow[key]
+          if (isBulkBooleanField(key)) {
+            next[targetIndex][key] = Boolean(pastedRow[key])
+          } else {
+            next[targetIndex][key] = pastedRow[key]
+          }
         })
       })
 
@@ -3748,6 +3791,8 @@ function App() {
           order_detail_instruction: row.order_detail_instruction.trim(),
           order_quantity_condition: row.order_quantity_condition.trim(),
           order_note: row.order_note.trim(),
+          order_out: row.order_out,
+          no_1688_shop: row.no_1688_shop,
         }
 
         return { row, cleanRow }
@@ -3768,15 +3813,19 @@ function App() {
 
     const now = new Date().toISOString()
     const payload = targetBulkRows.map(({ row, cleanRow }) => {
-      const productPayload: Record<string, string | null> = {
+      const productPayload: Record<string, string | boolean | null> = {
         product_code: cleanRow.product_code,
         updated_at: now,
       }
-      const hasImageOnlyChange = Boolean(bulkImageDrafts[row.id]) && selectedBulkFields.every((key) => !cleanRow[key])
+      const hasImageOnlyChange = Boolean(bulkImageDrafts[row.id]) && selectedBulkFields.every((key) => {
+        return !isBulkBooleanField(key) && !cleanRow[key]
+      })
 
       if (!hasImageOnlyChange) {
         selectedBulkFields.forEach((key) => {
-          productPayload[key] = cleanRow[key] || null
+          productPayload[key] = isBulkBooleanField(key)
+            ? cleanRow[key]
+            : cleanRow[key] || null
         })
       }
 
@@ -4917,6 +4966,8 @@ function App() {
         <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
         <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
         <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
+        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
+        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
       </>
     )
   }
@@ -5134,7 +5185,7 @@ function App() {
 
         <button className="secondary utility-button" onClick={openImageImportModal}>画像インポート</button>
 
-        <button className="primary-action-button" onClick={openCreateModal}>商品追加/更新</button>
+        <button className="primary-action-button" onClick={openCreateModal}>一括追加/更新</button>
       </section>
 
       {isNeSyncPanelOpen && (
@@ -6092,13 +6143,13 @@ function App() {
             className="modal-card"
             role="dialog"
             aria-modal="true"
-            aria-label="商品追加/更新"
+            aria-label="一括追加/更新"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="modal-head">
               <div>
-                <p className="eyebrow">Product Add / Update</p>
-                <h2>商品追加/更新</h2>
+                <p className="eyebrow">Bulk Add / Update</p>
+                <h2>一括追加/更新</h2>
               </div>
 
               <button className="secondary small" onClick={closeCreateModal}>
@@ -6335,14 +6386,26 @@ function App() {
                         </td>
 
                         {selectedBulkColumns.map((column) => (
-                          <td key={column.key}>
-                            <input
-                              value={row[column.key]}
-                              onChange={(e) =>
-                                updateBulkRow(row.id, column.key, e.target.value)
-                              }
-                              placeholder={column.placeholder}
-                            />
+                          <td key={column.key} className={column.inputType === 'checkbox' ? 'bulk-checkbox-cell' : undefined}>
+                            {column.inputType === 'checkbox' ? (
+                              <input
+                                type="checkbox"
+                                className="bulk-checkbox-input"
+                                checked={Boolean(row[column.key])}
+                                onChange={(e) =>
+                                  updateBulkRow(row.id, column.key, e.target.checked)
+                                }
+                                aria-label={`${row.product_code || `行${index + 1}`} ${column.label}`}
+                              />
+                            ) : (
+                              <input
+                                value={String(row[column.key] ?? '')}
+                                onChange={(e) =>
+                                  updateBulkRow(row.id, column.key, e.target.value)
+                                }
+                                placeholder={column.placeholder}
+                              />
+                            )}
                           </td>
                         ))}
 
