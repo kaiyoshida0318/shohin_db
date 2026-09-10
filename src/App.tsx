@@ -2401,8 +2401,6 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     ],
     purchase: [
       { key: 'product_name', label: '商品名', width: 219 },
-      { key: 'order_out', label: 'out', width: 78 },
-      { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
       { key: 'order_url_1', label: '発注URL1', width: 113 },
       { key: 'order_url_2', label: '発注URL2', width: 113 },
       { key: 'order_url_3', label: '発注URL3', width: 113 },
@@ -2411,6 +2409,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
       { key: 'order_simple_instruction', label: '■簡潔指示', width: 120 },
       { key: 'order_detail_instruction', label: '▲具体指示', width: 120 },
       { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
+      // 発注除外フラグは「補足情報」の直後にだけ表示する。
       { key: 'order_note', label: '補足情報', width: 121 },
       { key: 'order_out', label: 'out', width: 78 },
       { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
@@ -4955,8 +4954,6 @@ function App() {
     return (
       <>
         <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
-        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
         <td>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
@@ -4966,6 +4963,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
         <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
         <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
+        {/* 発注除外フラグは補足情報の右側に1組だけ表示する。 */}
         <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
         <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
       </>
