@@ -16,6 +16,27 @@ const MIN_COLUMN_WIDTH = 64
 const MAX_COLUMN_WIDTH = 720
 const NE_SYNC_WORKER_URL = 'https://ne-sync-worker.kaiyoshida0318.workers.dev'
 const NE_SYNC_FIELDS_STORAGE_KEY = 'shohin-db-ne-sync-fields-v1'
+// カスタムビューで表示する列（このPCのブラウザに保存）
+const CUSTOM_COLUMNS_STORAGE_KEY = 'shohin-db-custom-columns-v1'
+const DEFAULT_CUSTOM_COLUMN_KEYS = [
+  'product_name',
+  'free_stock',
+  'reorder_point',
+  'stock_constant',
+  'monthly_sales',
+  'orderboard_classification',
+  'floor',
+  'special_notes',
+  'picking_advice',
+  'delivery_line_4',
+  'rack_number',
+  'rack_level',
+  'sticker_color',
+  'shipping_floor',
+  'paper_sort_sub',
+  'order_memo_1',
+  'updated_at',
+]
 const NE_SYNC_MONTHS_STORAGE_KEY = 'shohin-db-ne-sync-months-v1'
 const NE_SYNC_MONTH_MIN_YEAR = 2025
 const AUTH_API_BASE_URL = String(import.meta.env.VITE_AUTH_API_BASE_URL ?? '').replace(/\/+$/, '')
@@ -2454,12 +2475,73 @@ function getNeColumnSpecs(): ColumnSpec[] {
   ]
 }
 
+// 「すべて」ビューの列。カスタムビューはここからチェックした列だけを同じ順番で表示する
+function getAllViewColumnSpecs(): ColumnSpec[] {
+  return [
+    { key: 'product_name', label: '商品名', width: 219 },
+    ...getNeColumnSpecs(),
+    { key: 'floor', label: '階数', width: 87 },
+    { key: 'special_notes', label: '特記事項', width: 171 },
+    { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
+    { key: 'delivery_line_4', label: '4行目', width: 175 },
+    { key: 'rack_number', label: '棚番号-位置', width: 126 },
+    { key: 'rack_level', label: '棚番号-段', width: 114 },
+    { key: 'sticker_color', label: 'シールカラー', width: 116 },
+    { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
+    { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
+    { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
+    { key: 'order_memo_1', label: 'オーダー1', width: 145 },
+    { key: 'order_memo_2', label: 'オーダー2', width: 145 },
+    { key: 'order_memo_3', label: 'オーダー3', width: 145 },
+    { key: 'order_memo_4', label: 'オーダー4', width: 145 },
+    { key: 'order_memo_5', label: 'オーダー5', width: 145 },
+    { key: 'order_url_1', label: '発注URL1', width: 113 },
+    { key: 'order_url_2', label: '発注URL2', width: 113 },
+    { key: 'order_url_3', label: '発注URL3', width: 113 },
+    { key: 'order_size', label: 'サイズ', width: 110 },
+    { key: 'order_color', label: 'カラー', width: 110 },
+    { key: 'order_simple_instruction', label: '■簡潔指示', width: 120 },
+    { key: 'order_detail_instruction', label: '▲具体指示', width: 120 },
+    { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
+    { key: 'order_note', label: '補足情報', width: 121 },
+    { key: 'product_info_synced_at', label: '商品同期', width: 134 },
+    { key: 'order_status_synced_at', label: 'オーダー同期', width: 134 },
+    { key: 'updated_at', label: '更新日', width: 134 },
+  ]
+}
+
+// カスタム列の候補：「すべて」の列＋オーダー用ビューだけにある発注除外フラグ（補足情報の直後）
+function getCustomColumnCandidateSpecs(): ColumnSpec[] {
+  return getAllViewColumnSpecs().flatMap((column) =>
+    column.key === 'order_note'
+      ? [
+          column,
+          { key: 'order_out', label: 'out', width: 78 },
+          { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
+        ]
+      : [column],
+  )
+}
+
+function normalizeCustomColumnKeys(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return DEFAULT_CUSTOM_COLUMN_KEYS
+  }
+
+  const validKeys = new Set(getCustomColumnCandidateSpecs().map((column) => column.key))
+  return value.filter((key): key is string => typeof key === 'string' && validKeys.has(key))
+}
+
 // 操作列は編集モード中（保存/元に戻す）と、発注用ビュー（レシピ）のときだけ表示する
 function shouldShowActionsColumn(tableView: TableView, isEditMode: boolean) {
   return isEditMode || tableView === 'purchase'
 }
 
-function getViewColumnSpecs(tableView: TableView, isEditMode = false): ColumnSpec[] {
+function getViewColumnSpecs(
+  tableView: TableView,
+  isEditMode = false,
+  customColumnKeys: string[] = DEFAULT_CUSTOM_COLUMN_KEYS,
+): ColumnSpec[] {
   const baseColumns: ColumnSpec[] = [
     { key: 'image', label: '画像', width: 72, className: 'image-cell sticky-image-cell' },
     { key: 'product_code', label: '商品コード', width: 240, className: 'sticky-code-cell' },
@@ -2469,39 +2551,10 @@ function getViewColumnSpecs(tableView: TableView, isEditMode = false): ColumnSpe
     : { key: 'actions_recipe_view', label: '操作', width: 104, className: 'sticky-actions-cell' }
   const showActions = shouldShowActionsColumn(tableView, isEditMode)
   const neColumns = getNeColumnSpecs()
+  const customColumnKeySet = new Set(customColumnKeys)
 
   const viewColumns: Record<TableView, ColumnSpec[]> = {
-    all: [
-      { key: 'product_name', label: '商品名', width: 219 },
-      ...neColumns,
-      { key: 'floor', label: '階数', width: 87 },
-      { key: 'special_notes', label: '特記事項', width: 171 },
-      { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
-      { key: 'delivery_line_4', label: '4行目', width: 175 },
-      { key: 'rack_number', label: '棚番号-位置', width: 126 },
-      { key: 'rack_level', label: '棚番号-段', width: 114 },
-      { key: 'sticker_color', label: 'シールカラー', width: 116 },
-      { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
-      { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
-      { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
-      { key: 'order_memo_1', label: 'オーダー1', width: 145 },
-      { key: 'order_memo_2', label: 'オーダー2', width: 145 },
-      { key: 'order_memo_3', label: 'オーダー3', width: 145 },
-      { key: 'order_memo_4', label: 'オーダー4', width: 145 },
-      { key: 'order_memo_5', label: 'オーダー5', width: 145 },
-      { key: 'order_url_1', label: '発注URL1', width: 113 },
-      { key: 'order_url_2', label: '発注URL2', width: 113 },
-      { key: 'order_url_3', label: '発注URL3', width: 113 },
-      { key: 'order_size', label: 'サイズ', width: 110 },
-      { key: 'order_color', label: 'カラー', width: 110 },
-      { key: 'order_simple_instruction', label: '■簡潔指示', width: 120 },
-      { key: 'order_detail_instruction', label: '▲具体指示', width: 120 },
-      { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
-      { key: 'order_note', label: '補足情報', width: 121 },
-      { key: 'product_info_synced_at', label: '商品同期', width: 134 },
-      { key: 'order_status_synced_at', label: 'オーダー同期', width: 134 },
-      { key: 'updated_at', label: '更新日', width: 134 },
-    ],
+    all: getAllViewColumnSpecs(),
     pick: [
       { key: 'product_name', label: '商品名', width: 219 },
       { key: 'special_notes', label: '2行目', width: 171 },
@@ -2543,26 +2596,21 @@ function getViewColumnSpecs(tableView: TableView, isEditMode = false): ColumnSpe
       { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
       ...neColumns,
     ],
-    custom: [
-      { key: 'product_name', label: '商品名', width: 219 },
-      ...neColumns,
-      { key: 'floor', label: '階数', width: 87 },
-      { key: 'rack_number', label: '棚番号-位置', width: 126 },
-      { key: 'rack_level', label: '棚番号-段', width: 114 },
-      { key: 'sticker_color', label: 'シールカラー', width: 116 },
-      { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
-      { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
-      { key: 'special_notes', label: '特記事項', width: 171 },
-      { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
-      { key: 'delivery_line_4', label: '4行目', width: 175 },
-      { key: 'order_memo_1', label: 'オーダー1', width: 145 },
-      { key: 'updated_at', label: '更新日', width: 134 },
-    ],
+    custom: getCustomColumnCandidateSpecs().filter((column) => customColumnKeySet.has(column.key)),
   }
 
   return showActions
     ? [...baseColumns, ...viewColumns[tableView], actionColumn]
     : [...baseColumns, ...viewColumns[tableView]]
+}
+
+const VIEW_LABELS: Record<TableView, string> = {
+  order: 'オーダー状況',
+  purchase: 'オーダー用',
+  pick: '紙出し用',
+  ne: 'NE情報',
+  custom: 'カスタム',
+  all: 'すべて',
 }
 
 function ViewButton({
@@ -2637,6 +2685,20 @@ function App() {
   })
   const [isNeSyncPanelOpen, setIsNeSyncPanelOpen] = useState(false)
   const [isColumnWidthMenuOpen, setIsColumnWidthMenuOpen] = useState(false)
+  const [columnSettingsTab, setColumnSettingsTab] = useState<'width' | 'custom'>('width')
+  const [customColumnKeys, setCustomColumnKeys] = useState<string[]>(() =>
+    normalizeCustomColumnKeys(
+      safeParseJson<unknown>(window.localStorage.getItem(CUSTOM_COLUMNS_STORAGE_KEY), DEFAULT_CUSTOM_COLUMN_KEYS),
+    ),
+  )
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CUSTOM_COLUMNS_STORAGE_KEY, JSON.stringify(customColumnKeys))
+    } catch {
+      // 保存できない環境（プライベートモード等）では、このセッション中だけ有効
+    }
+  }, [customColumnKeys])
   const columnWidthMenuRef = useRef<HTMLDivElement | null>(null)
   const columnWidthMenuButtonRef = useRef<HTMLButtonElement | null>(null)
 
@@ -5070,7 +5132,11 @@ function App() {
     )
   }
 
-  const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView, isEditMode), [tableView, isEditMode])
+  const currentColumnSpecs = useMemo(
+    () => getViewColumnSpecs(tableView, isEditMode, customColumnKeys),
+    [tableView, isEditMode, customColumnKeys],
+  )
+  const customColumnCandidates = useMemo(() => getCustomColumnCandidateSpecs(), [])
   const showActionsColumn = shouldShowActionsColumn(tableView, isEditMode)
   const actionColumnSpec = showActionsColumn ? currentColumnSpecs[currentColumnSpecs.length - 1] : null
   const dataColumnSpecs = showActionsColumn ? currentColumnSpecs.slice(0, -1) : currentColumnSpecs
@@ -5391,27 +5457,97 @@ function App() {
     )
   }
 
+  // 列キーごとのセル（カスタムビュー用。「すべて」ビューと同じ表示・編集方法）
+  function renderCellByKey(key: string, product: Product, draft: EditableProduct) {
+    switch (key) {
+      case 'product_name':
+        return <td key={key}>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
+      case 'free_stock':
+        return <td key={key}><DisplayText value={formatNumericValue(product.free_stock)} className="mono-text number-text" /></td>
+      case 'reorder_point':
+        return <td key={key}><DisplayText value={formatNumericValue(product.reorder_point)} className="mono-text number-text" /></td>
+      case 'stock_constant':
+        return <td key={key}><DisplayText value={formatNumericValue(product.stock_constant)} className="mono-text number-text" /></td>
+      case 'monthly_sales':
+        return <td key={key}><MonthlySalesByYear monthlySales={getProductMonthlySales(product)} /></td>
+      case 'orderboard_classification':
+        return <td key={key} className="centered-table-cell"><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text centered-cell-text" /></td>
+      case 'floor':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
+      case 'special_notes':
+        return <td key={key}>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '2行目' })}</td>
+      case 'picking_advice':
+        return <td key={key}>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
+      case 'delivery_line_4':
+        return <td key={key}>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
+      case 'rack_number':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
+      case 'rack_level':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
+      case 'sticker_color':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+      case 'shipping_floor':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
+      case 'paper_sort_sub':
+        return <td key={key} className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
+      case 'delivery_preview':
+        return <td key={key}>{renderDeliveryPreviewButton(product, draft)}</td>
+      case 'order_memo_1':
+        return <td key={key}>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
+      case 'order_memo_2':
+        return <td key={key}>{renderOrderMemoCell(product, draft, 'order_memo_2', 'rakumart_url_2')}</td>
+      case 'order_memo_3':
+        return <td key={key}>{renderOrderMemoCell(product, draft, 'order_memo_3', 'rakumart_url_3')}</td>
+      case 'order_memo_4':
+        return <td key={key}>{renderOrderMemoCell(product, draft, 'order_memo_4', 'rakumart_url_4')}</td>
+      case 'order_memo_5':
+        return <td key={key}>{renderOrderMemoCell(product, draft, 'order_memo_5', 'rakumart_url_5')}</td>
+      case 'order_url_1':
+        return <td key={key}>{renderUrlTextCell(product, draft, 'order_url_1')}</td>
+      case 'order_url_2':
+        return <td key={key}>{renderUrlTextCell(product, draft, 'order_url_2')}</td>
+      case 'order_url_3':
+        return <td key={key}>{renderUrlTextCell(product, draft, 'order_url_3')}</td>
+      case 'order_size':
+        return <td key={key}>{renderTextCell(product, draft, 'order_size', { inputClassName: 'small-text-input' })}</td>
+      case 'order_color':
+        return <td key={key}>{renderTextCell(product, draft, 'order_color', { inputClassName: 'small-text-input' })}</td>
+      case 'order_simple_instruction':
+        return <td key={key}>{renderTextCell(product, draft, 'order_simple_instruction', { className: 'note-text', multiline: true, placeholder: '■簡潔指示' })}</td>
+      case 'order_detail_instruction':
+        return <td key={key}>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
+      case 'order_quantity_condition':
+        return <td key={key}>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
+      case 'order_note':
+        return <td key={key}>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
+      case 'order_out':
+        return <td key={key} className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
+      case 'no_1688_shop':
+        return <td key={key} className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
+      case 'product_info_synced_at':
+        return <td key={key}>{formatDateTime(product.product_info_synced_at)}</td>
+      case 'order_status_synced_at':
+        return <td key={key}>{formatDateTime(product.order_status_synced_at)}</td>
+      case 'updated_at':
+        return <td key={key}>{formatDateTime(product.updated_at)}</td>
+      default:
+        return <td key={key} />
+    }
+  }
+
   function renderCustomColumns(product: Product, draft: EditableProduct) {
-    return (
-      <>
-        <td>{renderTextCell(product, draft, 'product_name', { className: 'product-name-text', inputClassName: 'product-name-input' })}</td>
-        {renderNeInfoColumns(product)}
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
-        <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
-        <td>{renderTextCell(product, draft, 'special_notes', { className: 'note-text', multiline: true, placeholder: '2行目' })}</td>
-        <td>{renderTextCell(product, draft, 'picking_advice', { className: 'note-text', multiline: true, placeholder: '3行目' })}</td>
-        <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
-        <td>{renderOrderMemoCell(product, draft, 'order_memo_1', 'rakumart_url_1')}</td>
-        <td>{formatDateTime(product.updated_at)}</td>
-      </>
+    return <>{customViewColumnSpecs.map((column) => renderCellByKey(column.key, product, draft))}</>
+  }
+
+  function toggleCustomColumn(key: string) {
+    setCustomColumnKeys((prev) =>
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
     )
   }
 
   const tableColSpan = currentColumnSpecs.length + 1 + (isEditMode ? 2 : 0)
+  const customColumnKeySet = new Set(customColumnKeys)
+  const customViewColumnSpecs = customColumnCandidates.filter((column) => customColumnKeySet.has(column.key))
 
   function renderSelectAllCheckbox() {
     return (
@@ -5515,8 +5651,8 @@ function App() {
               onClick={() => setIsColumnWidthMenuOpen((open) => !open)}
               aria-haspopup="menu"
               aria-expanded={isColumnWidthMenuOpen}
-              aria-label="列幅設定"
-              title="列幅設定"
+              aria-label="表示設定（推奨幅・カスタム列）"
+              title="表示設定（推奨幅・カスタム列）"
             >
               ⚙
             </button>
@@ -5528,9 +5664,25 @@ function App() {
                 ref={columnWidthMenuRef}
               >
                 <div className="column-settings-menu-head">
-                  <div>
-                    <strong>推奨幅の設定</strong>
-                    <span>表示中のビューごとにSupabaseで共有します</span>
+                  <div className="column-settings-tabs" role="tablist" aria-label="表示設定">
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={columnSettingsTab === 'width'}
+                      className={columnSettingsTab === 'width' ? 'column-settings-tab active' : 'column-settings-tab'}
+                      onClick={() => setColumnSettingsTab('width')}
+                    >
+                      推奨幅
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={columnSettingsTab === 'custom'}
+                      className={columnSettingsTab === 'custom' ? 'column-settings-tab active' : 'column-settings-tab'}
+                      onClick={() => setColumnSettingsTab('custom')}
+                    >
+                      カスタム列
+                    </button>
                   </div>
                   <button
                     type="button"
@@ -5542,75 +5694,125 @@ function App() {
                   </button>
                 </div>
 
-                <div className="column-width-list">
-                  <div className="column-width-list-head" aria-hidden="true">
-                    <span>列名</span>
-                    <span>推奨幅</span>
-                    <span>現在</span>
-                  </div>
-                  {currentColumnSpecs.map((column) => {
-                    const recommendedWidthInput = getRecommendedColumnWidthInput(column)
-                    const currentWidth = getColumnWidth(column)
+                {columnSettingsTab === 'width' ? (
+                  <>
+                    <p className="column-settings-description">
+                      表示中のビュー（{VIEW_LABELS[tableView]}）の推奨幅。Supabaseで共有します。
+                    </p>
+                    <div className="column-width-list">
+                      <div className="column-width-list-head" aria-hidden="true">
+                        <span>列名</span>
+                        <span>推奨幅</span>
+                        <span>現在</span>
+                      </div>
+                      {currentColumnSpecs.map((column) => {
+                        const recommendedWidthInput = getRecommendedColumnWidthInput(column)
+                        const currentWidth = getColumnWidth(column)
 
-                    return (
-                      <label className="column-width-row" key={column.key}>
-                        <span className="column-width-label" title={column.label}>
-                          {column.label}
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={recommendedWidthInput}
-                          onChange={(event) => updateRecommendedColumnWidthInput(column, event.target.value)}
-                          onBlur={() => commitRecommendedColumnWidthInput(column)}
-                          onKeyDown={(event) => {
-                            if (event.key === 'Enter') {
-                              event.currentTarget.blur()
-                            }
-                          }}
-                          disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
-                          aria-label={`${column.label}の推奨幅`}
-                        />
-                        <span className="column-width-current">{currentWidth}px</span>
-                      </label>
-                    )
-                  })}
-                </div>
+                        return (
+                          <label className="column-width-row" key={column.key}>
+                            <span className="column-width-label" title={column.label}>
+                              {column.label}
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={recommendedWidthInput}
+                              onChange={(event) => updateRecommendedColumnWidthInput(column, event.target.value)}
+                              onBlur={() => commitRecommendedColumnWidthInput(column)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                  event.currentTarget.blur()
+                                }
+                              }}
+                              disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
+                              aria-label={`${column.label}の推奨幅`}
+                            />
+                            <span className="column-width-current">{currentWidth}px</span>
+                          </label>
+                        )
+                      })}
+                    </div>
 
-                <div className="column-settings-actions">
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={captureCurrentWidthsAsRecommended}
-                    disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
-                    role="menuitem"
-                  >
-                    現在の幅を共有へ反映
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={saveEditedRecommendedWidths}
-                    disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving || !sharedColumnWidthsDirty}
-                    role="menuitem"
-                  >
-                    {sharedColumnWidthsSaving ? '共有保存中' : '数値を共有保存'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={applyRecommendedColumnWidths}
-                    disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
-                    role="menuitem"
-                  >
-                    共有推奨幅を適用
-                  </button>
-                </div>
-                <small>
-                  {sharedColumnWidthsLoading
-                    ? '共有推奨幅を取得しています…'
-                    : `入力中は補正しません。確定時に${MIN_COLUMN_WIDTH}〜${MAX_COLUMN_WIDTH}pxへ補正します。現在幅はこのPCに保存されます。`}
-                </small>
+                    <div className="column-settings-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={captureCurrentWidthsAsRecommended}
+                        disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
+                        role="menuitem"
+                      >
+                        現在の幅を共有へ反映
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={saveEditedRecommendedWidths}
+                        disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving || !sharedColumnWidthsDirty}
+                        role="menuitem"
+                      >
+                        {sharedColumnWidthsSaving ? '共有保存中' : '数値を共有保存'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={applyRecommendedColumnWidths}
+                        disabled={sharedColumnWidthsLoading || sharedColumnWidthsSaving}
+                        role="menuitem"
+                      >
+                        共有推奨幅を適用
+                      </button>
+                    </div>
+                    <small>
+                      {sharedColumnWidthsLoading
+                        ? '共有推奨幅を取得しています…'
+                        : `入力中は補正しません。確定時に${MIN_COLUMN_WIDTH}〜${MAX_COLUMN_WIDTH}pxへ補正します。現在幅はこのPCに保存されます。`}
+                    </small>
+                  </>
+                ) : (
+                  <>
+                    <p className="column-settings-description">
+                      「カスタム」ビューに出す列を選びます（画像・商品コードは固定）。このPCに保存されます。
+                    </p>
+                    <div className="custom-column-list">
+                      {customColumnCandidates.map((column) => (
+                        <label className="custom-column-row" key={column.key}>
+                          <input
+                            type="checkbox"
+                            checked={customColumnKeySet.has(column.key)}
+                            onChange={() => toggleCustomColumn(column.key)}
+                          />
+                          <span>{column.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="column-settings-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => setCustomColumnKeys(customColumnCandidates.map((column) => column.key))}
+                      >
+                        すべて選択
+                      </button>
+                      <button type="button" className="secondary" onClick={() => setCustomColumnKeys([])}>
+                        すべて解除
+                      </button>
+                      <button type="button" className="secondary" onClick={() => setCustomColumnKeys(DEFAULT_CUSTOM_COLUMN_KEYS)}>
+                        初期値に戻す
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTableView('custom')
+                          setIsColumnWidthMenuOpen(false)
+                        }}
+                      >
+                        カスタムを表示
+                      </button>
+                    </div>
+                    <small>選択中 {customViewColumnSpecs.length} / {customColumnCandidates.length} 列。並び順は「すべて」ビューと同じです。</small>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -5834,11 +6036,11 @@ function App() {
               <ViewButton active={tableView === 'purchase'} onClick={() => setTableView('purchase')}>
                 オーダー用
               </ViewButton>
-              <ViewButton active={tableView === 'ne'} onClick={() => setTableView('ne')}>
-                NE情報
-              </ViewButton>
               <ViewButton active={tableView === 'pick'} onClick={() => setTableView('pick')}>
                 紙出し用
+              </ViewButton>
+              <ViewButton active={tableView === 'ne'} onClick={() => setTableView('ne')}>
+                NE情報
               </ViewButton>
               <ViewButton active={tableView === 'custom'} onClick={() => setTableView('custom')}>
                 カスタム
