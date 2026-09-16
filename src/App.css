@@ -161,7 +161,8 @@ h2 {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
-  padding: 0 28px 16px;
+  --page-gutter: 16px;
+  padding: 0 var(--page-gutter) 8px;
   display: flex;
   flex-direction: column;
 }
@@ -192,8 +193,8 @@ h2 {
 .topbar {
   width: auto;
   max-width: none;
-  margin: 0 -28px 18px;
-  padding: 12px 28px;
+  margin: 0 calc(var(--page-gutter, 28px) * -1) 8px;
+  padding: 8px var(--page-gutter, 28px);
   border-radius: 0;
   background: rgba(255, 255, 255, 0.96);
   border-bottom: 1px solid #dce5f1;
@@ -243,7 +244,7 @@ h2 {
 .toolbar {
   width: 100%;
   max-width: none;
-  margin: 0 auto 12px;
+  margin: 0 auto 8px;
   padding: 8px 12px;
   border-radius: 10px;
   background: #fff;
@@ -1335,8 +1336,8 @@ tr:hover td:last-child {
   }
 
   .topbar {
-    margin-right: -28px;
-    margin-left: -28px;
+    margin-right: calc(var(--page-gutter, 28px) * -1);
+    margin-left: calc(var(--page-gutter, 28px) * -1);
     align-items: center;
     flex-direction: row;
   }
@@ -1853,9 +1854,14 @@ body.is-column-resizing * {
 
 /* Column width fix: keep resized columns strict and hide overflowed values. */
 .products-table {
-  width: var(--products-table-width);
+  width: max(var(--products-table-width), 100%);
   min-width: var(--products-table-width);
   table-layout: fixed;
+}
+
+/* 余白を埋めるだけの列。各列は指定幅のまま、残りをこの列が受け持つ */
+.products-table .filler-cell {
+  padding: 0;
 }
 
 .products-table th,

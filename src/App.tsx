@@ -5014,6 +5014,8 @@ function App() {
 
   const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView, isEditMode), [tableView, isEditMode])
   const showActionsColumn = shouldShowActionsColumn(tableView, isEditMode)
+  const actionColumnSpec = showActionsColumn ? currentColumnSpecs[currentColumnSpecs.length - 1] : null
+  const dataColumnSpecs = showActionsColumn ? currentColumnSpecs.slice(0, -1) : currentColumnSpecs
 
   function getRecommendedColumnWidth(column: ColumnSpec) {
     return recommendedColumnWidthsByView[tableView]?.[column.key] ?? column.width
@@ -5351,7 +5353,7 @@ function App() {
     )
   }
 
-  const tableColSpan = currentColumnSpecs.length + (isEditMode ? 2 : 0)
+  const tableColSpan = currentColumnSpecs.length + 1 + (isEditMode ? 2 : 0)
 
   function renderSelectAllCheckbox() {
     return (
@@ -5882,9 +5884,14 @@ function App() {
             <table className={tableClassName} style={tableStyle}>
               <colgroup>
                 {isEditMode && <col key="__select__" style={{ width: `${SELECT_COLUMN_WIDTH}px` }} />}
-                {currentColumnSpecs.map((column) => (
+                {dataColumnSpecs.map((column) => (
                   <col key={column.key} style={{ width: `${getColumnWidth(column)}px` }} />
                 ))}
+                {/* 列幅の合計が画面幅より狭いとき、余白を埋める列（操作・チェック列を右端に寄せる） */}
+                <col key="__filler__" className="filler-col" />
+                {actionColumnSpec && (
+                  <col key={actionColumnSpec.key} style={{ width: `${getColumnWidth(actionColumnSpec)}px` }} />
+                )}
                 {isEditMode && <col key="__select_right__" style={{ width: `${SELECT_COLUMN_WIDTH}px` }} />}
               </colgroup>
               <thead>
@@ -5892,7 +5899,9 @@ function App() {
                   {isEditMode && (
                     <th className="select-cell sticky-select-cell">{renderSelectAllCheckbox()}</th>
                   )}
-                  {currentColumnSpecs.map((column) => renderColumnHeader(column))}
+                  {dataColumnSpecs.map((column) => renderColumnHeader(column))}
+                  <th className="filler-cell" aria-hidden="true" />
+                  {actionColumnSpec && renderColumnHeader(actionColumnSpec)}
                   {isEditMode && (
                     <th className="select-cell sticky-select-cell-right">{renderSelectAllCheckbox()}</th>
                   )}
@@ -5952,6 +5961,7 @@ function App() {
                       {tableView === 'ne' && renderNeColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
+                      <td className="filler-cell" aria-hidden="true" />
                       {showActionsColumn && (
                         <td className="sticky-actions-cell">{renderActions(product, draft)}</td>
                       )}
