@@ -540,8 +540,8 @@ const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
   { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
   { key: 'shipping_floor', label: '配送-階-特記', placeholder: '例: PKT2-3F RPR' },
-  { key: 'special_notes', label: '特記事項', placeholder: '2行目' },
-  { key: 'picking_advice', label: 'ピック時アドバイス', placeholder: '3行目' },
+  { key: 'special_notes', label: '2行目', placeholder: '2行目' },
+  { key: 'picking_advice', label: '3行目', placeholder: '3行目' },
   { key: 'delivery_line_4', label: '4行目', placeholder: '4行目' },
   { key: 'order_url_1', label: '発注URL1', placeholder: '発注URL1' },
   { key: 'order_url_2', label: '発注URL2', placeholder: '発注URL2' },
@@ -2481,8 +2481,8 @@ function getAllViewColumnSpecs(): ColumnSpec[] {
     { key: 'product_name', label: '商品名', width: 219 },
     ...getNeColumnSpecs(),
     { key: 'floor', label: '階数', width: 87 },
-    { key: 'special_notes', label: '特記事項', width: 171 },
-    { key: 'picking_advice', label: 'ピック時アドバイス', width: 175 },
+    { key: 'special_notes', label: '2行目', width: 171 },
+    { key: 'picking_advice', label: '3行目', width: 175 },
     { key: 'delivery_line_4', label: '4行目', width: 175 },
     { key: 'rack_number', label: '棚番号-位置', width: 126 },
     { key: 'rack_level', label: '棚番号-段', width: 114 },
@@ -2504,23 +2504,17 @@ function getAllViewColumnSpecs(): ColumnSpec[] {
     { key: 'order_detail_instruction', label: '▲具体指示', width: 120 },
     { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
     { key: 'order_note', label: '補足情報', width: 121 },
+    { key: 'order_out', label: 'out', width: 78 },
+    { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
     { key: 'product_info_synced_at', label: '商品同期', width: 134 },
     { key: 'order_status_synced_at', label: 'オーダー同期', width: 134 },
     { key: 'updated_at', label: '更新日', width: 134 },
   ]
 }
 
-// カスタム列の候補：「すべて」の列＋オーダー用ビューだけにある発注除外フラグ（補足情報の直後）
+// カスタム列の候補は「すべて」ビューの全列
 function getCustomColumnCandidateSpecs(): ColumnSpec[] {
-  return getAllViewColumnSpecs().flatMap((column) =>
-    column.key === 'order_note'
-      ? [
-          column,
-          { key: 'order_out', label: 'out', width: 78 },
-          { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
-        ]
-      : [column],
-  )
+  return getAllViewColumnSpecs()
 }
 
 function normalizeCustomColumnKeys(value: unknown): string[] {
@@ -5399,6 +5393,8 @@ function App() {
         <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
         <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
         <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
+        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
+        <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
         <td>{formatDateTime(product.product_info_synced_at)}</td>
         <td>{formatDateTime(product.order_status_synced_at)}</td>
         <td>{formatDateTime(product.updated_at)}</td>
