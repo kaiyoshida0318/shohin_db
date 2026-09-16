@@ -155,25 +155,31 @@ h2 {
   gap: 16px;
 }
 
+/* ページ自体はスクロールさせない（トップバー・検索窓は常に表示）。
+   スクロールするのは .layout--full の中だけ。 */
 .app-page {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   padding: 0 28px 16px;
   display: flex;
   flex-direction: column;
 }
 
-/* 商品一覧カードを画面の残り高さいっぱいに広げ、ページ全体ではなく表の中だけをスクロールさせる */
 .app-page > .layout--full {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
 }
 
 .app-page > .layout--full > .table-card {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  height: 100%;
 }
 
 .topbar {
@@ -413,7 +419,7 @@ select {
 .table-wrap {
   overflow: auto;
   flex: 1 1 auto;
-  min-height: 240px;
+  min-height: 0;
 }
 
 table {
