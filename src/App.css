@@ -1806,8 +1806,12 @@ body.is-column-resizing * {
 }
 
 
+.sticky-image-cell {
+  left: var(--select-column-width, 0px);
+}
+
 .sticky-code-cell {
-  left: var(--image-column-width, 86px);
+  left: calc(var(--select-column-width, 0px) + var(--image-column-width, 86px));
 }
 
 /* Column width fix: keep resized columns strict and hide overflowed values. */
@@ -3772,4 +3776,176 @@ button.secondary.recipe-button:hover {
   height: 22px;
   margin: 0 auto;
   cursor: pointer;
+}
+
+/* 検索窓：左=従来検索 / 右=商品コード後方一致 */
+.search-group {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .search-group {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 編集モード：チェック列 */
+.products-table .select-cell {
+  width: 44px;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sticky-select-cell {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #fff;
+}
+
+th.sticky-select-cell {
+  z-index: 5;
+  background: #f8fafc;
+}
+
+tr.is-editing .sticky-select-cell {
+  background: #eff6ff !important;
+}
+
+tr.is-editing.is-dirty .sticky-select-cell {
+  background: #fff7ed !important;
+}
+
+.products-table tbody tr:not(.is-editing):hover .sticky-select-cell {
+  background: #eef6ff;
+}
+
+.row-select-checkbox {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  accent-color: #2563eb;
+  vertical-align: middle;
+}
+
+/* 未保存の変更がある行は左端のラインもオレンジに */
+tr.is-editing.is-dirty td:first-child {
+  box-shadow: inset 4px 0 0 #f97316;
+}
+
+.edit-mode-status {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+button.end-edit-button {
+  border: 1px solid #f97316;
+  color: #c2410c;
+  background: #fff7ed;
+}
+
+/* 列ヘッダーの一括入力ボタン */
+.bulk-column-trigger {
+  margin-top: 4px;
+}
+
+.bulk-column-button {
+  max-width: 100%;
+  padding: 2px 8px;
+  border: 1px dashed #93c5fd;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.bulk-column-button:hover:not(:disabled) {
+  background: #dbeafe;
+  opacity: 1;
+}
+
+.bulk-column-button:disabled {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* 一括入力ダイアログ */
+.modal-card.bulk-column-modal {
+  width: min(480px, calc(100vw - 40px));
+  padding: 24px;
+}
+
+.bulk-column-modal h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.bulk-column-target {
+  margin: 0 0 16px;
+  color: #475569;
+  font-size: 13px;
+}
+
+.bulk-column-warning {
+  display: block;
+  margin-top: 4px;
+  color: #c2410c;
+  font-weight: 700;
+}
+
+.bulk-column-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.bulk-column-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+textarea.bulk-column-input {
+  resize: vertical;
+  font: inherit;
+}
+
+.bulk-column-apply,
+.bulk-column-bool label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.bulk-column-apply input,
+.bulk-column-bool input {
+  width: auto;
+  margin: 0;
+}
+
+.bulk-column-bool {
+  display: grid;
+  gap: 10px;
+}
+
+.bulk-column-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
 }

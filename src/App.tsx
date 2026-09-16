@@ -302,6 +302,94 @@ type SessionUser = {
   email?: string
 }
 
+type BulkColumnEditKind = 'text' | 'multiline' | 'url' | 'boolean' | 'order_memo'
+
+type BulkColumnEditConfig = {
+  kind: BulkColumnEditKind
+  key: EditableProductKey
+  label: string
+  urlKey?: EditableTextProductKey
+}
+
+type BulkColumnEditState = {
+  config: BulkColumnEditConfig
+  value: string
+  boolValue: boolean
+  urlValue: string
+  applyMain: boolean
+  applyUrl: boolean
+}
+
+const SELECT_COLUMN_WIDTH = 44
+
+const BULK_TEXT_COLUMN_KEYS = new Set<string>([
+  'product_name',
+  'floor',
+  'shipping_floor',
+  'rack_number',
+  'rack_level',
+  'sticker_color',
+  'order_size',
+  'order_color',
+])
+
+const BULK_MULTILINE_COLUMN_KEYS = new Set<string>([
+  'special_notes',
+  'picking_advice',
+  'delivery_line_4',
+  'order_simple_instruction',
+  'order_detail_instruction',
+  'order_quantity_condition',
+  'order_note',
+])
+
+const BULK_URL_COLUMN_KEYS = new Set<string>(['order_url_1', 'order_url_2', 'order_url_3'])
+const BULK_BOOLEAN_COLUMN_KEYS = new Set<string>(['paper_sort_sub', 'order_out', 'no_1688_shop'])
+const BULK_ORDER_MEMO_URL_KEYS: Record<string, EditableTextProductKey> = {
+  order_memo_1: 'rakumart_url_1',
+  order_memo_2: 'rakumart_url_2',
+  order_memo_3: 'rakumart_url_3',
+  order_memo_4: 'rakumart_url_4',
+  order_memo_5: 'rakumart_url_5',
+}
+
+// 編集モード中、列ヘッダーの「一括入力」で書き換えられる列の設定を返す。
+// NE情報ビューの商品名は表示専用なので対象外。
+function getBulkColumnEditConfig(column: ColumnSpec, tableView: TableView): BulkColumnEditConfig | null {
+  const key = column.key
+
+  if (tableView === 'ne' && key === 'product_name') {
+    return null
+  }
+
+  if (BULK_TEXT_COLUMN_KEYS.has(key)) {
+    return { kind: 'text', key: key as EditableProductKey, label: column.label }
+  }
+
+  if (BULK_MULTILINE_COLUMN_KEYS.has(key)) {
+    return { kind: 'multiline', key: key as EditableProductKey, label: column.label }
+  }
+
+  if (BULK_URL_COLUMN_KEYS.has(key)) {
+    return { kind: 'url', key: key as EditableProductKey, label: column.label }
+  }
+
+  if (BULK_BOOLEAN_COLUMN_KEYS.has(key)) {
+    return { kind: 'boolean', key: key as EditableProductKey, label: column.label }
+  }
+
+  if (BULK_ORDER_MEMO_URL_KEYS[key]) {
+    return {
+      kind: 'order_memo',
+      key: key as EditableProductKey,
+      label: column.label,
+      urlKey: BULK_ORDER_MEMO_URL_KEYS[key],
+    }
+  }
+
+  return null
+}
+
 type TableView = 'all' | 'pick' | 'order' | 'purchase' | 'ne' | 'custom'
 
 type ColumnSpec = {
@@ -2476,6 +2564,10 @@ function App() {
   const [editingCodes, setEditingCodes] = useState<Set<string>>(() => new Set())
   const [keyword, setKeyword] = useState('')
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
+  const [suffixKeyword, setSuffixKeyword] = useState('')
+  const [debouncedSuffixKeyword, setDebouncedSuffixKeyword] = useState('')
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [bulkColumnEdit, setBulkColumnEdit] = useState<BulkColumnEditState | null>(null)
   const [tableView, setTableView] = useState<TableView>('order')
   const [currentPage, setCurrentPage] = useState(1)
   const [sortConfig, setSortConfig] = useState<SortConfig>(null)
@@ -2693,14 +2785,15 @@ function App() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedKeyword(keyword)
+      setDebouncedSuffixKeyword(suffixKeyword)
     }, 220)
 
     return () => window.clearTimeout(timer)
-  }, [keyword])
+  }, [keyword, suffixKeyword])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedKeyword, tableView, sortConfig])
+  }, [debouncedKeyword, debouncedSuffixKeyword, tableView, sortConfig])
 
   useEffect(() => {
     setRowDrafts((prev) => {
@@ -2761,15 +2854,40 @@ function App() {
 
   const filteredProducts = useMemo(() => {
     const q = debouncedKeyword.trim().toLowerCase()
+    // 右側の検索窓：商品コードの後方一致（左側の検索とAND条件）
+    const suffix = debouncedSuffixKeyword.trim().toLowerCase()
 
-    if (!q) {
+    if (!q && !suffix) {
       return products
     }
 
-    return products.filter((product) =>
-      (productSearchTextByCode.get(product.product_code) ?? '').includes(q),
+    return products.filter((product) => {
+      if (q && !(productSearchTextByCode.get(product.product_code) ?? '').includes(q)) {
+        return false
+      }
+
+      if (suffix && !product.product_code.toLowerCase().endsWith(suffix)) {
+        return false
+      }
+
+      return true
+    })
+  }, [products, productSearchTextByCode, debouncedKeyword, debouncedSuffixKeyword])
+
+  const filteredSelectedCount = useMemo(() => {
+    if (editingCodes.size === 0) {
+      return 0
+    }
+
+    return filteredProducts.reduce(
+      (count, product) => count + (editingCodes.has(product.product_code) ? 1 : 0),
+      0,
     )
-  }, [products, productSearchTextByCode, debouncedKeyword])
+  }, [filteredProducts, editingCodes])
+
+  const allFilteredSelected =
+    filteredProducts.length > 0 && filteredSelectedCount === filteredProducts.length
+  const someFilteredSelected = filteredSelectedCount > 0 && !allFilteredSelected
 
 
 
@@ -2852,6 +2970,8 @@ function App() {
     setProducts([])
     setRowDrafts({})
     setEditingCodes(new Set())
+    setIsEditMode(false)
+    setBulkColumnEdit(null)
     setUser(null)
   }
 
@@ -3544,7 +3664,13 @@ function App() {
 
 
   function startEdit(product: Product) {
+    // 行のダブルクリック / 編集ボタン：編集モードに入り、その行を編集可能にする
+    setIsEditMode(true)
     setEditingCodes((prev) => {
+      if (prev.has(product.product_code)) {
+        return prev
+      }
+
       const next = new Set(prev)
       next.add(product.product_code)
       return next
@@ -3556,22 +3682,178 @@ function App() {
     setMessage('')
   }
 
-  function startBulkEdit() {
-    if (products.length === 0) {
+  function enterEditMode() {
+    setIsEditMode(true)
+    setMessage('編集モードにしました。左端のチェックで編集する商品を選んでください。')
+  }
+
+  function getDirtyCodes(codes: Iterable<string>) {
+    const dirtyCodes: string[] = []
+
+    for (const code of codes) {
+      const product = productByCode.get(code)
+
+      if (product && hasRowChanges(product, rowDrafts[code] ?? productToDraft(product))) {
+        dirtyCodes.push(code)
+      }
+    }
+
+    return dirtyCodes
+  }
+
+  function resetRowDrafts(codes: string[]) {
+    if (codes.length === 0) {
       return
     }
 
-    setEditingCodes(new Set(products.map((product) => product.product_code)))
+    removeImageDrafts(codes)
     setRowDrafts((prev) => {
       const next = { ...prev }
 
-      products.forEach((product) => {
-        next[product.product_code] = next[product.product_code] ?? productToDraft(product)
+      codes.forEach((code) => {
+        const product = productByCode.get(code)
+
+        if (product) {
+          next[code] = productToDraft(product)
+        }
       })
 
       return next
     })
-    setMessage(`${products.length}件を編集モードにしました。`)
+  }
+
+  function endEditMode() {
+    if (savingCode) {
+      return
+    }
+
+    const dirtyCodes = getDirtyCodes(editingCodes)
+
+    if (
+      dirtyCodes.length > 0 &&
+      !window.confirm(`未保存の変更が${dirtyCodes.length}件あります。破棄して編集モードを終了しますか？`)
+    ) {
+      return
+    }
+
+    resetRowDrafts(Array.from(editingCodes))
+    setEditingCodes(new Set())
+    setIsEditMode(false)
+    setBulkColumnEdit(null)
+    setMessage(
+      dirtyCodes.length > 0
+        ? `編集モードを終了しました。未保存の変更${dirtyCodes.length}件を破棄しました。`
+        : '編集モードを終了しました。',
+    )
+  }
+
+  function setRowsSelected(targetProducts: Product[], selected: boolean) {
+    if (targetProducts.length === 0 || savingCode) {
+      return
+    }
+
+    if (selected) {
+      setEditingCodes((prev) => {
+        const next = new Set(prev)
+        targetProducts.forEach((product) => next.add(product.product_code))
+        return next
+      })
+      setRowDrafts((prev) => {
+        const next = { ...prev }
+
+        targetProducts.forEach((product) => {
+          next[product.product_code] = next[product.product_code] ?? productToDraft(product)
+        })
+
+        return next
+      })
+      return
+    }
+
+    const targetCodes = targetProducts
+      .map((product) => product.product_code)
+      .filter((code) => editingCodes.has(code))
+    const dirtyCodes = getDirtyCodes(targetCodes)
+
+    if (
+      dirtyCodes.length > 0 &&
+      !window.confirm(`未保存の変更が${dirtyCodes.length}件あります。チェックを外すと変更は破棄されます。よろしいですか？`)
+    ) {
+      return
+    }
+
+    resetRowDrafts(targetCodes)
+    setEditingCodes((prev) => {
+      const next = new Set(prev)
+      targetCodes.forEach((code) => next.delete(code))
+      return next
+    })
+  }
+
+  function toggleAllFilteredSelection() {
+    setRowsSelected(filteredProducts, !allFilteredSelected)
+  }
+
+  function openBulkColumnEdit(config: BulkColumnEditConfig) {
+    if (editingCodes.size === 0) {
+      setMessage('一括入力するには、先に商品にチェックを入れてください。')
+      return
+    }
+
+    setBulkColumnEdit({
+      config,
+      value: '',
+      boolValue: true,
+      urlValue: '',
+      applyMain: true,
+      applyUrl: false,
+    })
+  }
+
+  function applyBulkColumnEdit() {
+    if (!bulkColumnEdit) {
+      return
+    }
+
+    const { config, value, boolValue, urlValue, applyMain, applyUrl } = bulkColumnEdit
+    const shouldApplyUrl = config.kind === 'order_memo' && applyUrl && Boolean(config.urlKey)
+    const shouldApplyMain = config.kind !== 'order_memo' || applyMain
+
+    if (!shouldApplyMain && !shouldApplyUrl) {
+      return
+    }
+
+    const targetCodes = Array.from(editingCodes).filter((code) => productByCode.has(code))
+
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+
+      targetCodes.forEach((code) => {
+        const product = productByCode.get(code)
+
+        if (!product) {
+          return
+        }
+
+        const draft: EditableProduct = { ...(next[code] ?? productToDraft(product)) }
+        const mutableDraft = draft as Record<EditableProductKey, string | boolean>
+
+        if (shouldApplyMain) {
+          mutableDraft[config.key] = config.kind === 'boolean' ? boolValue : value
+        }
+
+        if (shouldApplyUrl && config.urlKey) {
+          mutableDraft[config.urlKey] = urlValue
+        }
+
+        next[code] = draft
+      })
+
+      return next
+    })
+
+    setBulkColumnEdit(null)
+    setMessage(`${targetCodes.length}件の「${config.label}」に一括入力しました。保存するまで確定されません。`)
   }
 
   function updateDraft(
@@ -3599,17 +3881,9 @@ function App() {
   }
 
   function cancelEdit(product: Product) {
-    removeImageDrafts([product.product_code])
-    setRowDrafts((prev) => ({
-      ...prev,
-      [product.product_code]: productToDraft(product),
-    }))
-    setEditingCodes((prev) => {
-      const next = new Set(prev)
-      next.delete(product.product_code)
-      return next
-    })
-    setMessage(`編集をキャンセルしました：${product.product_code}`)
+    // 編集モード・チェックは維持したまま、この行の変更だけ元に戻す
+    resetRowDrafts([product.product_code])
+    setMessage(`変更を元に戻しました：${product.product_code}`)
   }
 
   function cancelAllEdits() {
@@ -3617,22 +3891,89 @@ function App() {
       return
     }
 
-    const cancelCount = editingCodes.size
+    const dirtyCodes = getDirtyCodes(editingCodes)
 
-    removeImageDrafts(Array.from(editingCodes))
+    if (dirtyCodes.length === 0) {
+      setMessage('元に戻す変更はありません。')
+      return
+    }
+
+    resetRowDrafts(dirtyCodes)
+    setMessage(`${dirtyCodes.length}件の変更を元に戻しました。`)
+  }
+
+  // 保存済みの値を即座に一覧へ反映し、下書きも保存後の値に揃える（=「編集可能」の色に戻る）
+  function applySavedRows(rows: Array<{ product_code: string } & Partial<Product>>) {
+    if (rows.length === 0) {
+      return
+    }
+
+    const rowByCode = new Map(rows.map((row) => [row.product_code, row]))
+    const nextProductByCode = new Map<string, Product>()
+
+    products.forEach((product) => {
+      const row = rowByCode.get(product.product_code)
+
+      if (row) {
+        nextProductByCode.set(product.product_code, { ...product, ...row })
+      }
+    })
+
+    setProducts((prev) =>
+      prev.map((product) => nextProductByCode.get(product.product_code) ?? product),
+    )
     setRowDrafts((prev) => {
       const next = { ...prev }
 
-      products.forEach((product) => {
-        if (editingCodes.has(product.product_code)) {
-          next[product.product_code] = productToDraft(product)
+      nextProductByCode.forEach((product, code) => {
+        next[code] = productToDraft(product)
+      })
+
+      return next
+    })
+  }
+
+  // 保存した行だけDBから取り直して反映する（全件再取得するとページが1に戻るため）
+  async function refreshProductsByCodes(codes: string[]) {
+    const refreshed: Product[] = []
+
+    for (let index = 0; index < codes.length; index += 200) {
+      const chunk = codes.slice(index, index + 200)
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .in('product_code', chunk)
+
+      if (error) {
+        return
+      }
+
+      refreshed.push(...((data ?? []) as Product[]))
+    }
+
+    if (refreshed.length === 0) {
+      return
+    }
+
+    const refreshedByCode = new Map(refreshed.map((product) => [product.product_code, product]))
+
+    setProducts((prev) =>
+      prev.map((product) => refreshedByCode.get(product.product_code) ?? product),
+    )
+    setRowDrafts((prev) => {
+      const next = { ...prev }
+
+      refreshedByCode.forEach((product, code) => {
+        const current = next[code]
+
+        // 再取得中にさらに編集された行は、その入力を優先して残す
+        if (!current || !isDraftDirty(product, current)) {
+          next[code] = productToDraft(product)
         }
       })
 
       return next
     })
-    setEditingCodes(new Set())
-    setMessage(`${cancelCount}件の編集をキャンセルしました。`)
   }
 
   async function saveAllEdits() {
@@ -3640,30 +3981,14 @@ function App() {
       return
     }
 
-    const editingProducts = products.filter((product) =>
-      editingCodes.has(product.product_code),
+    const dirtyProducts = products.filter(
+      (product) =>
+        editingCodes.has(product.product_code) &&
+        hasRowChanges(product, rowDrafts[product.product_code] ?? productToDraft(product)),
     )
-    const dirtyProducts = editingProducts.filter((product) =>
-      hasRowChanges(
-        product,
-        rowDrafts[product.product_code] ?? productToDraft(product),
-      ),
-    )
-    const cleanCount = editingProducts.length - dirtyProducts.length
 
     if (dirtyProducts.length === 0) {
-      removeImageDrafts(Array.from(editingCodes))
-      setRowDrafts((prev) => {
-        const next = { ...prev }
-
-        editingProducts.forEach((product) => {
-          next[product.product_code] = productToDraft(product)
-        })
-
-        return next
-      })
-      setEditingCodes(new Set())
-      setMessage(`${cleanCount}件の編集をキャンセルしました。変更はありません。`)
+      setMessage('保存する変更はありません。')
       return
     }
 
@@ -3671,20 +3996,25 @@ function App() {
     setMessage('')
 
     const now = new Date().toISOString()
-    const payload = dirtyProducts.map((product) => ({
+    const fieldDirtyProducts = dirtyProducts.filter((product) =>
+      isDraftDirty(product, rowDrafts[product.product_code] ?? productToDraft(product)),
+    )
+    const payload = fieldDirtyProducts.map((product) => ({
       product_code: product.product_code,
       ...normalizeDraft(rowDrafts[product.product_code] ?? productToDraft(product)),
       updated_at: now,
     }))
 
-    const { error } = await supabase
-      .from('products')
-      .upsert(payload, { onConflict: 'product_code' })
+    if (payload.length > 0) {
+      const { error } = await supabase
+        .from('products')
+        .upsert(payload, { onConflict: 'product_code' })
 
-    if (error) {
-      setMessage(`すべて保存失敗: ${error.message}`)
-      setSavingCode(null)
-      return
+      if (error) {
+        setMessage(`すべて保存失敗: ${error.message}`)
+        setSavingCode(null)
+        return
+      }
     }
 
     const imageProducts = dirtyProducts.filter((product) => imageDrafts[product.product_code])
@@ -3715,34 +4045,18 @@ function App() {
       setImageCacheVersion(Date.now())
     }
 
-    setRowDrafts((prev) => {
-      const next = { ...prev }
-
-      editingProducts.forEach((product) => {
-        if (!failedImageCodes.has(product.product_code)) {
-          next[product.product_code] = productToDraft(product)
-        }
-      })
-
-      return next
-    })
+    applySavedRows(payload)
 
     if (failedImageCodes.size > 0) {
-      setEditingCodes(new Set(failedImageCodes))
       setMessage(
-        `保存しましたが、画像アップロード失敗が${failedImageCodes.size}件あります。失敗行は編集モードのまま残しました。例：${failedImageNames.slice(0, 3).join('、')}`,
+        `保存しましたが、画像アップロード失敗が${failedImageCodes.size}件あります。失敗した画像は保存待ちのまま残しました。例：${failedImageNames.slice(0, 3).join('、')}`,
       )
     } else {
-      setEditingCodes(new Set())
-      setMessage(
-        cleanCount > 0
-          ? `${dirtyProducts.length}件保存、${cleanCount}件キャンセルしました。`
-          : `${dirtyProducts.length}件保存しました。`,
-      )
+      setMessage(`${dirtyProducts.length}件保存しました。編集モードは継続中です。`)
     }
 
-    await fetchProducts()
     setSavingCode(null)
+    await refreshProductsByCodes(payload.map((row) => row.product_code))
   }
 
   async function createBulkProducts() {
@@ -3954,13 +4268,9 @@ function App() {
     }
 
     setMessage(`保存しました：${product.product_code}`)
-    setEditingCodes((prev) => {
-      const next = new Set(prev)
-      next.delete(product.product_code)
-      return next
-    })
-    await fetchProducts()
+    applySavedRows([{ product_code: product.product_code, ...payload }])
     setSavingCode(null)
+    await refreshProductsByCodes([product.product_code])
   }
 
   function renderPaperSortSubCell(product: Product, draft: EditableProduct) {
@@ -4633,9 +4943,9 @@ function App() {
           <button
             className="secondary small cancel-button"
             onClick={() => cancelEdit(product)}
-            disabled={isSaving}
+            disabled={!dirty || isSaving}
           >
-            キャンセル
+            元に戻す
           </button>
 
           {tableView === 'purchase' && (
@@ -4820,11 +5130,13 @@ function App() {
     const sortable = isSortableColumn(column.key)
     const sorted = sortConfig?.key === column.key
     const sortLabel = sorted ? (sortConfig.direction === 'asc' ? '昇順' : '降順') : '未並び替え'
+    const bulkConfig = isEditMode ? getBulkColumnEditConfig(column, tableView) : null
     const className = [
       'resizable-header',
       column.className,
       sortable ? 'is-sortable' : '',
       sorted ? 'is-sorted' : '',
+      bulkConfig ? 'has-bulk-trigger' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -4850,6 +5162,19 @@ function App() {
         ) : (
           <span className="header-label">{column.label}</span>
         )}
+        {bulkConfig && (
+          <div className="bulk-column-trigger">
+            <button
+              type="button"
+              className="bulk-column-button"
+              onClick={() => openBulkColumnEdit(bulkConfig)}
+              disabled={editingCodes.size === 0 || Boolean(savingCode)}
+              title={`チェック中の商品の「${column.label}」をまとめて入力`}
+            >
+              一括入力
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className="column-resizer"
@@ -4861,8 +5186,11 @@ function App() {
     )
   }
 
-  const tableWidth = currentColumnSpecs.reduce((sum, column) => sum + getColumnWidth(column), 0)
+  const selectColumnWidth = isEditMode ? SELECT_COLUMN_WIDTH : 0
+  const tableWidth =
+    currentColumnSpecs.reduce((sum, column) => sum + getColumnWidth(column), 0) + selectColumnWidth
   const tableStyle = {
+    '--select-column-width': `${selectColumnWidth}px`,
     '--image-column-width': `${getColumnWidth(currentColumnSpecs[0])}px`,
     '--products-table-width': `${tableWidth}px`,
   } as CSSProperties
@@ -4996,7 +5324,25 @@ function App() {
     )
   }
 
-  const tableColSpan = currentColumnSpecs.length
+  const tableColSpan = currentColumnSpecs.length + (isEditMode ? 1 : 0)
+  const dirtyEditingCount = useMemo(() => {
+    if (!isEditMode) {
+      return 0
+    }
+
+    let count = 0
+
+    editingCodes.forEach((code) => {
+      const product = productByCode.get(code)
+      const draft = rowDrafts[code]
+
+      if (product && ((draft && isDraftDirty(product, draft)) || imageDrafts[code])) {
+        count += 1
+      }
+    })
+
+    return count
+  }, [isEditMode, editingCodes, productByCode, rowDrafts, imageDrafts])
   const tableClassName = `products-table products-table--${tableView}`
 
   if (!user) {
@@ -5164,23 +5510,45 @@ function App() {
       </header>
 
       <section className="toolbar">
-        <div className="search-box">
-          <input
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder="商品コード・商品名・2行目・3行目・棚番号で検索"
-          />
-          <button
-            type="button"
-            className="search-clear-button"
-            onClick={() => {
-              setKeyword('')
-              setDebouncedKeyword('')
-            }}
-            disabled={!keyword}
-          >
-            クリア
-          </button>
+        <div className="search-group">
+          <div className="search-box">
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="商品コード・商品名・2行目・3行目・棚番号で検索"
+            />
+            <button
+              type="button"
+              className="search-clear-button"
+              onClick={() => {
+                setKeyword('')
+                setDebouncedKeyword('')
+              }}
+              disabled={!keyword}
+            >
+              クリア
+            </button>
+          </div>
+
+          <div className="search-box search-box--suffix">
+            <input
+              value={suffixKeyword}
+              onChange={(e) => setSuffixKeyword(e.target.value)}
+              placeholder="商品コード 後方一致（例：14）"
+              title="商品コードの末尾が一致する商品に絞り込みます（左の検索と組み合わせ可）"
+            />
+            <button
+              type="button"
+              className="search-clear-button"
+              onClick={() => {
+                setSuffixKeyword('')
+                setDebouncedSuffixKeyword('')
+              }}
+              disabled={!suffixKeyword}
+            >
+              クリア
+            </button>
+          </div>
         </div>
 
         <button className="utility-button" onClick={fetchProducts} disabled={loading || Boolean(savingCode)}>
@@ -5414,30 +5782,39 @@ function App() {
             </div>
 
             <div className="table-actions">
+              {isEditMode && (
+                <span className="edit-mode-status">
+                  選択 {editingCodes.size}件 / 未保存 {dirtyEditingCount}件
+                </span>
+              )}
               <button
                 type="button"
-                className="small edit-button bulk-edit-button"
-                onClick={startBulkEdit}
-                disabled={products.length === 0 || Boolean(savingCode)}
+                className={`small bulk-edit-button ${isEditMode ? 'secondary end-edit-button' : 'edit-button'}`}
+                onClick={isEditMode ? endEditMode : enterEditMode}
+                disabled={Boolean(savingCode) || (!isEditMode && products.length === 0)}
               >
-                一括編集
+                {isEditMode ? '編集終了' : '編集モード'}
               </button>
-              <button
-                type="button"
-                className="small save-button save-all-button"
-                onClick={saveAllEdits}
-                disabled={editingCodes.size === 0 || Boolean(savingCode)}
-              >
-                {savingCode === '__bulk_save__' ? '保存中' : 'すべて保存'}
-              </button>
-              <button
-                type="button"
-                className="secondary small cancel-button cancel-all-button"
-                onClick={cancelAllEdits}
-                disabled={editingCodes.size === 0 || Boolean(savingCode)}
-              >
-                すべてキャンセル
-              </button>
+              {isEditMode && (
+                <>
+                  <button
+                    type="button"
+                    className="small save-button save-all-button"
+                    onClick={saveAllEdits}
+                    disabled={dirtyEditingCount === 0 || Boolean(savingCode)}
+                  >
+                    {savingCode === '__bulk_save__' ? '保存中' : 'すべて保存'}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary small cancel-button cancel-all-button"
+                    onClick={cancelAllEdits}
+                    disabled={dirtyEditingCount === 0 || Boolean(savingCode)}
+                  >
+                    すべて元に戻す
+                  </button>
+                </>
+              )}
             </div>
 
           </div>
@@ -5445,12 +5822,31 @@ function App() {
           <div className="table-wrap">
             <table className={tableClassName} style={tableStyle}>
               <colgroup>
+                {isEditMode && <col key="__select__" style={{ width: `${SELECT_COLUMN_WIDTH}px` }} />}
                 {currentColumnSpecs.map((column) => (
                   <col key={column.key} style={{ width: `${getColumnWidth(column)}px` }} />
                 ))}
               </colgroup>
               <thead>
                 <tr>
+                  {isEditMode && (
+                    <th className="select-cell sticky-select-cell">
+                      <input
+                        type="checkbox"
+                        className="row-select-checkbox"
+                        ref={(element) => {
+                          if (element) {
+                            element.indeterminate = someFilteredSelected
+                          }
+                        }}
+                        checked={allFilteredSelected}
+                        onChange={toggleAllFilteredSelection}
+                        disabled={filteredProducts.length === 0 || Boolean(savingCode)}
+                        title={`表示中の商品（検索結果 全${filteredProducts.length}件）をすべて${allFilteredSelected ? '選択解除' : '選択'}`}
+                        aria-label="表示中の商品をすべて選択"
+                      />
+                    </th>
+                  )}
                   {currentColumnSpecs.map((column) => renderColumnHeader(column))}
                 </tr>
               </thead>
@@ -5467,6 +5863,18 @@ function App() {
                       className={`${isEditing ? 'is-editing' : ''} ${dirty ? 'is-dirty' : ''}`}
                       onDoubleClick={(event) => handleRowDoubleClick(product, event)}
                     >
+                      {isEditMode && (
+                        <td className="select-cell sticky-select-cell">
+                          <input
+                            type="checkbox"
+                            className="row-select-checkbox"
+                            checked={isEditing}
+                            onChange={(event) => setRowsSelected([product], event.target.checked)}
+                            disabled={Boolean(savingCode)}
+                            aria-label={`${product.product_code} を編集対象にする`}
+                          />
+                        </td>
+                      )}
                       <td className="image-cell sticky-image-cell">
                         <ProductImageCell
                           product={product}
@@ -5514,6 +5922,136 @@ function App() {
         </div>
       </section>
 
+
+      {bulkColumnEdit && (
+        <div className="modal-backdrop" onClick={() => setBulkColumnEdit(null)}>
+          <section
+            className="modal-card bulk-column-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${bulkColumnEdit.config.label}を一括入力`}
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setBulkColumnEdit(null)
+              }
+            }}
+          >
+            <h2>「{bulkColumnEdit.config.label}」を一括入力</h2>
+            <p className="bulk-column-target">
+              チェック中の <strong>{editingCodes.size}件</strong> に適用します
+              {editingCodes.size > filteredSelectedCount && (
+                <span className="bulk-column-warning">
+                  （うち{editingCodes.size - filteredSelectedCount}件は現在の検索結果に表示されていません）
+                </span>
+              )}
+            </p>
+
+            {bulkColumnEdit.config.kind === 'boolean' ? (
+              <div className="bulk-column-bool">
+                <label>
+                  <input
+                    type="radio"
+                    name="bulk-column-bool"
+                    checked={bulkColumnEdit.boolValue}
+                    onChange={() => setBulkColumnEdit({ ...bulkColumnEdit, boolValue: true })}
+                  />
+                  ON（チェックあり）
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="bulk-column-bool"
+                    checked={!bulkColumnEdit.boolValue}
+                    onChange={() => setBulkColumnEdit({ ...bulkColumnEdit, boolValue: false })}
+                  />
+                  OFF（チェックなし）
+                </label>
+              </div>
+            ) : (
+              <div className="bulk-column-fields">
+                {bulkColumnEdit.config.kind === 'order_memo' && (
+                  <label className="bulk-column-apply">
+                    <input
+                      type="checkbox"
+                      checked={bulkColumnEdit.applyMain}
+                      onChange={(event) =>
+                        setBulkColumnEdit({ ...bulkColumnEdit, applyMain: event.target.checked })
+                      }
+                    />
+                    {bulkColumnEdit.config.label}を上書きする
+                  </label>
+                )}
+                {bulkColumnEdit.config.kind === 'multiline' ? (
+                  <textarea
+                    className="bulk-column-input"
+                    value={bulkColumnEdit.value}
+                    autoFocus
+                    rows={4}
+                    onChange={(event) => setBulkColumnEdit({ ...bulkColumnEdit, value: event.target.value })}
+                    placeholder="入力する値（空欄のまま適用すると空になります）"
+                  />
+                ) : (
+                  <input
+                    className="bulk-column-input"
+                    value={bulkColumnEdit.value}
+                    autoFocus
+                    disabled={bulkColumnEdit.config.kind === 'order_memo' && !bulkColumnEdit.applyMain}
+                    onChange={(event) => setBulkColumnEdit({ ...bulkColumnEdit, value: event.target.value })}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                        event.preventDefault()
+                        applyBulkColumnEdit()
+                      }
+                    }}
+                    placeholder="入力する値（空欄のまま適用すると空になります）"
+                  />
+                )}
+
+                {bulkColumnEdit.config.kind === 'order_memo' && bulkColumnEdit.config.urlKey && (
+                  <>
+                    <label className="bulk-column-apply">
+                      <input
+                        type="checkbox"
+                        checked={bulkColumnEdit.applyUrl}
+                        onChange={(event) =>
+                          setBulkColumnEdit({ ...bulkColumnEdit, applyUrl: event.target.checked })
+                        }
+                      />
+                      {EDIT_FIELD_PLACEHOLDERS[bulkColumnEdit.config.urlKey]}も上書きする
+                    </label>
+                    <input
+                      className="bulk-column-input"
+                      value={bulkColumnEdit.urlValue}
+                      disabled={!bulkColumnEdit.applyUrl}
+                      onChange={(event) => setBulkColumnEdit({ ...bulkColumnEdit, urlValue: event.target.value })}
+                      placeholder="URL（空欄のまま適用すると空になります）"
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="bulk-column-actions">
+              <button type="button" className="secondary" onClick={() => setBulkColumnEdit(null)}>
+                キャンセル
+              </button>
+              <button
+                type="button"
+                className="save-button"
+                onClick={applyBulkColumnEdit}
+                disabled={
+                  bulkColumnEdit.config.kind === 'order_memo' &&
+                  !bulkColumnEdit.applyMain &&
+                  !bulkColumnEdit.applyUrl
+                }
+              >
+                {editingCodes.size}件に適用
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       {isImageImportModalOpen && (
         <div className="modal-backdrop" onClick={closeImageImportModal}>
