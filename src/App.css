@@ -1860,8 +1860,21 @@ body.is-column-resizing * {
 }
 
 /* 余白を埋めるだけの列。各列は指定幅のまま、残りをこの列が受け持つ */
-.products-table .filler-cell {
+.products-table td.filler-cell,
+.products-table td.filler-cell:last-child {
+  position: static;
   padding: 0;
+  box-shadow: none;
+}
+
+.products-table th.filler-cell,
+.products-table th.filler-cell:last-child {
+  position: sticky;
+  top: 0;
+  right: auto;
+  z-index: 2;
+  padding: 0;
+  background: #f8fafc;
 }
 
 .products-table th,
@@ -4075,4 +4088,15 @@ tr.is-editing.is-dirty .sticky-select-cell-right {
 .products-table .resizable-header:hover .sort-indicator {
   width: 10px;
   opacity: 1;
+}
+
+/* 行ホバー色をセルごとにバラつかせず、行全体で統一する（固定列・余白列も含む） */
+.products-table tbody tr:not(.is-editing):hover > td,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-image-cell,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-code-cell,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-select-cell,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-select-cell-right,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-actions-cell,
+.products-table tbody tr:not(.is-editing):hover > td:last-child {
+  background: #f5f9ff;
 }

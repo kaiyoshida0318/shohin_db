@@ -5887,12 +5887,12 @@ function App() {
                 {dataColumnSpecs.map((column) => (
                   <col key={column.key} style={{ width: `${getColumnWidth(column)}px` }} />
                 ))}
-                {/* 列幅の合計が画面幅より狭いとき、余白を埋める列（操作・チェック列を右端に寄せる） */}
-                <col key="__filler__" className="filler-col" />
                 {actionColumnSpec && (
                   <col key={actionColumnSpec.key} style={{ width: `${getColumnWidth(actionColumnSpec)}px` }} />
                 )}
                 {isEditMode && <col key="__select_right__" style={{ width: `${SELECT_COLUMN_WIDTH}px` }} />}
+                {/* 列幅の合計が画面幅より狭いとき、表の一番右で余白を埋めるだけの列 */}
+                <col key="__filler__" className="filler-col" />
               </colgroup>
               <thead>
                 <tr>
@@ -5900,11 +5900,11 @@ function App() {
                     <th className="select-cell sticky-select-cell">{renderSelectAllCheckbox()}</th>
                   )}
                   {dataColumnSpecs.map((column) => renderColumnHeader(column))}
-                  <th className="filler-cell" aria-hidden="true" />
                   {actionColumnSpec && renderColumnHeader(actionColumnSpec)}
                   {isEditMode && (
                     <th className="select-cell sticky-select-cell-right">{renderSelectAllCheckbox()}</th>
                   )}
+                  <th className="filler-cell" aria-hidden="true" />
                 </tr>
               </thead>
 
@@ -5961,7 +5961,6 @@ function App() {
                       {tableView === 'ne' && renderNeColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
-                      <td className="filler-cell" aria-hidden="true" />
                       {showActionsColumn && (
                         <td className="sticky-actions-cell">{renderActions(product, draft)}</td>
                       )}
@@ -5977,6 +5976,7 @@ function App() {
                           />
                         </td>
                       )}
+                      <td className="filler-cell" aria-hidden="true" />
                     </tr>
                   )
                 })}
