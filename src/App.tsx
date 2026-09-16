@@ -322,6 +322,23 @@ type BulkColumnEditState = {
 
 const SELECT_COLUMN_WIDTH = 44
 
+type BulkMode = 'insert' | 'upsert' | 'update'
+
+const BULK_MODE_OPTIONS: Array<{ value: BulkMode; label: string; hint: string }> = [
+  { value: 'insert', label: '追加のみ', hint: '未登録の商品だけ追加。既存の商品コードはスキップします。' },
+  { value: 'upsert', label: '追加＋更新', hint: '未登録は追加、既存は選んだ列だけ上書きします。' },
+  { value: 'update', label: '更新のみ', hint: '既存の商品だけ、選んだ列を上書き。未登録はスキップします。' },
+]
+
+// モーダルの背景（カードの外側）をダブルクリックしたときだけ閉じる
+function closeOnBackdropDoubleClick(close: () => void) {
+  return (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.target === event.currentTarget) {
+      close()
+    }
+  }
+}
+
 const BULK_TEXT_COLUMN_KEYS = new Set<string>([
   'product_name',
   'floor',
@@ -2634,6 +2651,7 @@ function App() {
   )
   const [csvColumnMapping, setCsvColumnMapping] = useState<CsvColumnMapping | null>(null)
   const [isCsvDragOver, setIsCsvDragOver] = useState(false)
+  const [isBulkFieldPanelOpen, setIsBulkFieldPanelOpen] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
 
   const [isImageImportModalOpen, setIsImageImportModalOpen] = useState(false)
@@ -3214,11 +3232,15 @@ function App() {
 
   function handleBulkImageDragOver(event: DragEvent<HTMLDivElement>) {
     event.preventDefault()
+    event.stopPropagation()
     event.dataTransfer.dropEffect = 'copy'
+    setIsCsvDragOver(false)
   }
 
   function handleBulkImageDrop(event: DragEvent<HTMLDivElement>, rowId: string) {
     event.preventDefault()
+    event.stopPropagation()
+    setIsCsvDragOver(false)
     const files = Array.from(event.dataTransfer.files ?? [])
 
     if (files.length === 0) {
@@ -3246,6 +3268,7 @@ function App() {
     setSelectedBulkFields(DEFAULT_BULK_FIELD_KEYS)
     setCsvColumnMapping(null)
     setIsCsvDragOver(false)
+    setIsBulkFieldPanelOpen(false)
     setModalMessage('')
     setIsCreateModalOpen(true)
   }
@@ -3609,20 +3632,28 @@ function App() {
     setIsCsvDragOver(false)
 
     const droppedFiles = Array.from(event.dataTransfer.files)
-    const csvFile =
-      droppedFiles.find(
-        (file) =>
-          file.name.toLowerCase().endsWith('.csv') ||
-          file.type.includes('csv') ||
-          file.type === 'text/plain',
-      ) ?? droppedFiles[0]
+    const csvFile = droppedFiles.find(
+      (file) =>
+        file.name.toLowerCase().endsWith('.csv') ||
+        file.type.includes('csv') ||
+        file.type === 'text/plain',
+    )
 
     if (!csvFile) {
-      setModalMessage('CSVファイルをドロップしてください。')
+      setModalMessage(
+        droppedFiles.some(isSupportedProductImageFile)
+          ? '画像は各行の「画像」欄にドロップしてください。'
+          : 'CSVファイルをドロップしてください。',
+      )
       return
     }
 
     await importCsvFile(csvFile)
+  }
+
+  function setBulkMode(mode: BulkMode) {
+    setBulkUpdateOnly(mode === 'update')
+    setBulkShouldUpdateExisting(mode === 'upsert')
   }
 
   function updateCsvSourceColumnMapping(columnIndex: number, value: string) {
@@ -5612,11 +5643,7 @@ function App() {
         <div
           className="ne-sync-modal-backdrop"
           role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setIsNeSyncPanelOpen(false)
-            }
-          }}
+          onDoubleClick={closeOnBackdropDoubleClick(() => setIsNeSyncPanelOpen(false))}
         >
           <aside className="ne-sync-modal" role="dialog" aria-modal="true" aria-label="NE取得">
             <div className="ne-sync-modal-header">
@@ -5996,7 +6023,7 @@ function App() {
 
 
       {bulkColumnEdit && (
-        <div className="modal-backdrop" onClick={() => setBulkColumnEdit(null)}>
+        <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(() => setBulkColumnEdit(null))}>
           <section
             className="modal-card bulk-column-modal"
             role="dialog"
@@ -6126,7 +6153,7 @@ function App() {
       )}
 
       {isImageImportModalOpen && (
-        <div className="modal-backdrop" onClick={closeImageImportModal}>
+        <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(closeImageImportModal)}>
           <section
             className="modal-card image-import-modal"
             role="dialog"
@@ -6191,7 +6218,7 @@ function App() {
       )}
 
       {imagePreview && (
-        <div className="modal-backdrop" onClick={() => setImagePreview(null)}>
+        <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(() => setImagePreview(null))}>
           <section
             className="image-preview-card"
             role="dialog"
@@ -6216,7 +6243,7 @@ function App() {
       )}
 
       {deliverySlipPreview && (
-        <div className="modal-backdrop" onClick={() => setDeliverySlipPreview(null)}>
+        <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(() => setDeliverySlipPreview(null))}>
           <section
             className="modal-card delivery-preview-modal"
             role="dialog"
@@ -6243,7 +6270,7 @@ function App() {
       )}
 
       {rakumartRecipeModal && (
-        <div className="modal-backdrop" onClick={closeRakumartRecipe}>
+        <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(closeRakumartRecipe)}>
           <section
             className="modal-card rakumart-recipe-modal"
             role="dialog"
@@ -6752,78 +6779,107 @@ function App() {
       )}
 
       {isCreateModalOpen && (
-        <div className="modal-backdrop" onClick={closeCreateModal}>
+        <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(closeCreateModal)}>
           <section
-            className="modal-card"
+            className="modal-card bulk-create-modal"
             role="dialog"
             aria-modal="true"
             aria-label="一括追加/更新"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="modal-head">
-              <div>
-                <p className="eyebrow">Bulk Add / Update</p>
-                <h2>一括追加/更新</h2>
+            <div className="bulk-modal-head">
+              <h2>一括追加/更新</h2>
+
+              <div className="bulk-mode-switch" role="radiogroup" aria-label="反映方法">
+                {BULK_MODE_OPTIONS.map((option) => {
+                  const active = (bulkUpdateOnly ? 'update' : bulkShouldUpdateExisting ? 'upsert' : 'insert') === option.value
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      className={active ? 'bulk-mode-button active' : 'bulk-mode-button'}
+                      onClick={() => setBulkMode(option.value)}
+                      title={option.hint}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
               </div>
 
-              <button className="secondary small" onClick={closeCreateModal}>
+              <span className="bulk-mode-hint">
+                {BULK_MODE_OPTIONS.find((option) => option.value === (bulkUpdateOnly ? 'update' : bulkShouldUpdateExisting ? 'upsert' : 'insert'))?.hint}
+              </span>
+
+              <button type="button" className="secondary small bulk-modal-close" onClick={closeCreateModal}>
                 閉じる
               </button>
             </div>
 
-            <div className="modal-body">
-              <div className="bulk-field-selector">
-                <div className="bulk-field-selector-head">
-                  <strong>追加/更新の対象列</strong>
-                  <span>商品コードは固定です。外した列は入力欄から消えて、既存データも上書きしません。</span>
-                </div>
+            <div
+              className={isCsvDragOver ? 'bulk-modal-body is-csv-drag-over' : 'bulk-modal-body'}
+              onDragOver={handleCsvDragOver}
+              onDragLeave={handleCsvDragLeave}
+              onDrop={handleCsvDrop}
+            >
+              <div className="bulk-modal-toolbar">
+                <button
+                  type="button"
+                  className={isBulkFieldPanelOpen ? 'bulk-toolbar-button active' : 'bulk-toolbar-button'}
+                  onClick={() => setIsBulkFieldPanelOpen((open) => !open)}
+                  aria-expanded={isBulkFieldPanelOpen}
+                >
+                  対象列 {selectedBulkFields.length}/{BULK_FIELD_COLUMNS.length}
+                  <span className="bulk-toolbar-caret">{isBulkFieldPanelOpen ? '▲' : '▼'}</span>
+                </button>
 
-                <div className="bulk-field-buttons">
-                  {BULK_FIELD_COLUMNS.map((column) => {
-                    const selected = selectedBulkFields.includes(column.key)
-                    const locked = selected && selectedBulkFields.length === 1
-
-                    return (
-                      <button
-                        key={column.key}
-                        type="button"
-                        className={
-                          selected
-                            ? 'bulk-field-button active'
-                            : 'bulk-field-button'
-                        }
-                        onClick={() => toggleBulkField(column.key)}
-                        disabled={locked}
-                        title={locked ? '対象列は最低1列必要です' : undefined}
-                      >
-                        {selected ? '✓ ' : '+ '}
-                        {column.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div
-                className={isCsvDragOver ? 'bulk-csv-import is-drag-over' : 'bulk-csv-import'}
-                onDragOver={handleCsvDragOver}
-                onDragLeave={handleCsvDragLeave}
-                onDrop={handleCsvDrop}
-              >
-                <div>
-                  <strong>CSV読み込み</strong>
-                  <span>CSVを選択、またはここにドロップできます。列名が合わない場合は手動で割り当てできます。</span>
-                </div>
-
-                <label className="csv-upload-button">
-                  CSVを選択
+                <label className="bulk-toolbar-button" title="CSVを選択、またはこの画面にドロップ">
+                  CSV読み込み
                   <input
                     type="file"
                     accept=".csv,text/csv"
                     onChange={handleBulkCsvImport}
                   />
                 </label>
+                <span className="bulk-toolbar-note">CSVは画面にドロップでもOK</span>
+
+                <div className="bulk-row-actions">
+                  <button type="button" className="bulk-toolbar-button" onClick={() => addBulkRows(5)}>
+                    ＋5行
+                  </button>
+                  <button type="button" className="bulk-toolbar-button is-danger" onClick={clearBulkRows}>
+                    クリア
+                  </button>
+                </div>
               </div>
+
+              {isBulkFieldPanelOpen && (
+                <div className="bulk-field-panel">
+                  <div className="bulk-field-buttons">
+                    {BULK_FIELD_COLUMNS.map((column) => {
+                      const selected = selectedBulkFields.includes(column.key)
+                      const locked = selected && selectedBulkFields.length === 1
+
+                      return (
+                        <button
+                          key={column.key}
+                          type="button"
+                          className={selected ? 'bulk-field-button active' : 'bulk-field-button'}
+                          onClick={() => toggleBulkField(column.key)}
+                          disabled={locked}
+                          title={locked ? '対象列は最低1列必要です' : undefined}
+                        >
+                          {column.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <small>商品コードは固定。外した列は入力欄から消え、既存データも上書きしません。</small>
+                </div>
+              )}
 
               {csvColumnMapping && (
                 <div className="csv-mapping-panel">
@@ -6886,50 +6942,11 @@ function App() {
                 </div>
               )}
 
-              <div className="bulk-update-options">
-                <label className="bulk-update-option">
-                  <input
-                    type="checkbox"
-                    checked={bulkShouldUpdateExisting || bulkUpdateOnly}
-                    disabled={bulkUpdateOnly}
-                    onChange={(event) =>
-                      setBulkShouldUpdateExisting(event.target.checked)
-                    }
-                  />
-                  <span>既存の商品コードも更新する</span>
-                  <small>ONにすると、既存商品の対象列だけを入力内容で上書きします。対象外の列は触りません。</small>
-                </label>
-
-                <label className="bulk-update-option bulk-update-option--update-only">
-                  <input
-                    type="checkbox"
-                    checked={bulkUpdateOnly}
-                    onChange={(event) => setBulkUpdateOnly(event.target.checked)}
-                  />
-                  <span>更新のみ（商品追加しない）</span>
-                  <small>ONにすると、商品DBに存在する商品コードだけ更新します。CSV内の未登録商品コードは追加せずスキップします。</small>
-                </label>
-              </div>
-
-              <div className="bulk-row-toolbar">
-                <strong>商品入力行</strong>
-
-                <div className="bulk-row-actions">
-                  <button className="secondary small" onClick={() => addBulkRows(5)}>
-                    5行追加
-                  </button>
-
-                  <button className="secondary small danger-button" onClick={clearBulkRows}>
-                    クリア
-                  </button>
-                </div>
-              </div>
-
               <div className="bulk-table-wrap">
                 <table className="bulk-input-table bulk-input-table--wide">
                   <thead>
                     <tr>
-                      <th>No.</th>
+                      <th>#</th>
                       <th>画像</th>
                       <th>商品コード</th>
                       {selectedBulkColumns.map((column) => (
@@ -6961,7 +6978,7 @@ function App() {
                                 alt={row.product_code || '追加予定画像'}
                               />
                             ) : (
-                              <span>画像<br />Drop</span>
+                              <span>画像</span>
                             )}
 
                             <input
@@ -7000,7 +7017,10 @@ function App() {
                         </td>
 
                         {selectedBulkColumns.map((column) => (
-                          <td key={column.key} className={column.inputType === 'checkbox' ? 'bulk-checkbox-cell' : undefined}>
+                          <td
+                            key={column.key}
+                            className={`bulk-col-${column.key} ${column.inputType === 'checkbox' ? 'bulk-checkbox-cell' : ''}`}
+                          >
                             {column.inputType === 'checkbox' ? (
                               <input
                                 type="checkbox"
@@ -7023,12 +7043,15 @@ function App() {
                           </td>
                         ))}
 
-                        <td>
+                        <td className="bulk-row-remove-cell">
                           <button
-                            className="secondary small danger-button"
+                            type="button"
+                            className="bulk-row-remove-button"
                             onClick={() => removeBulkRow(row.id)}
+                            title="この行を削除"
+                            aria-label={`${index + 1}行目を削除`}
                           >
-                            削除
+                            ×
                           </button>
                         </td>
                       </tr>
@@ -7037,22 +7060,40 @@ function App() {
                 </table>
               </div>
 
+              {isCsvDragOver && (
+                <div className="bulk-csv-drop-overlay" aria-hidden="true">
+                  CSVをドロップして読み込み
+                </div>
+              )}
+            </div>
+
+            <div className="bulk-modal-footer">
               <div className="bulk-preview">
-                <span>入力済み：{bulkSummary.filledCount}件</span>
-                <span>追加予定：{bulkUpdateOnly ? 0 : bulkInsertableCount}件</span>
-                <span>更新予定：{bulkUpdateOnly || bulkShouldUpdateExisting ? bulkUpdateableCount : 0}件</span>
-                <span>既存スキップ：{bulkUpdateOnly || bulkShouldUpdateExisting ? 0 : bulkExistingCount}件</span>
-                {bulkUpdateOnly && <span>未登録スキップ：{bulkInsertableCount}件</span>}
-                <span>画像待ち：{bulkImageDraftCount}件</span>
+                <span>入力 {bulkSummary.filledCount}</span>
+                {!bulkUpdateOnly && <span className="is-add">追加 {bulkInsertableCount}</span>}
+                {(bulkUpdateOnly || bulkShouldUpdateExisting) && (
+                  <span className="is-update">更新 {bulkUpdateableCount}</span>
+                )}
+                {!bulkUpdateOnly && !bulkShouldUpdateExisting && bulkExistingCount > 0 && (
+                  <span className="is-skip">既存スキップ {bulkExistingCount}</span>
+                )}
+                {bulkUpdateOnly && bulkInsertableCount > 0 && (
+                  <span className="is-skip">未登録スキップ {bulkInsertableCount}</span>
+                )}
+                {bulkImageDraftCount > 0 && <span>画像 {bulkImageDraftCount}</span>}
                 {bulkSummary.duplicateCodes.length > 0 && (
-                  <span>入力内重複：{bulkSummary.duplicateCodes.length}件</span>
+                  <span className="is-warn">重複 {bulkSummary.duplicateCodes.length}</span>
                 )}
               </div>
 
-              {modalMessage && <p className="modal-message">{modalMessage}</p>}
+              {modalMessage && <p className="modal-message bulk-modal-message">{modalMessage}</p>}
 
-              <div className="modal-actions">
+              <div className="bulk-footer-actions">
+                <button type="button" className="secondary" onClick={closeCreateModal}>
+                  キャンセル
+                </button>
                 <button
+                  type="button"
                   className="save-button"
                   onClick={createBulkProducts}
                   disabled={loading || bulkActionableCount === 0}
@@ -7060,14 +7101,10 @@ function App() {
                   {loading
                     ? bulkUpdateOnly ? '一括更新中...' : '一括追加/更新中...'
                     : bulkUpdateOnly
-                      ? `${bulkUpdateableCount}件を更新（追加なし）`
+                      ? `${bulkUpdateableCount}件を更新`
                       : bulkShouldUpdateExisting
                         ? `${bulkInsertableCount}件追加 / ${bulkUpdateableCount}件更新`
                         : `${bulkInsertableCount}件を追加`}
-                </button>
-
-                <button className="secondary" onClick={closeCreateModal}>
-                  キャンセル
                 </button>
               </div>
             </div>

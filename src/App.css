@@ -4100,3 +4100,345 @@ tr.is-editing.is-dirty .sticky-select-cell-right {
 .products-table tbody tr:not(.is-editing):hover > td:last-child {
   background: #f5f9ff;
 }
+
+/* ===== 一括追加/更新モーダル（スリム版） ===== */
+.modal-card.bulk-create-modal {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 56px);
+  padding: 0;
+  overflow: hidden;
+}
+
+.bulk-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid #edf1f6;
+}
+
+.bulk-modal-head h2 {
+  margin: 0;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.bulk-mode-switch {
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 7px;
+  background: #f1f5f9;
+}
+
+.bulk-mode-button {
+  padding: 5px 12px;
+  border-radius: 5px;
+  background: transparent;
+  color: #526177;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.bulk-mode-button:hover {
+  color: #1d4ed8;
+  opacity: 1;
+}
+
+.bulk-mode-button.active {
+  background: #fff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+.bulk-mode-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bulk-modal-close {
+  margin-left: auto;
+}
+
+.bulk-modal-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 20px;
+}
+
+.bulk-modal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-toolbar-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 6px;
+  background: #fff;
+  color: #334155;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.bulk-toolbar-button:hover,
+.bulk-toolbar-button.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  opacity: 1;
+}
+
+.bulk-toolbar-button.is-danger:hover {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.bulk-toolbar-button input[type='file'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bulk-toolbar-caret {
+  font-size: 9px;
+  color: #94a3b8;
+}
+
+.bulk-toolbar-note {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.bulk-modal-toolbar .bulk-row-actions {
+  margin-left: auto;
+  gap: 6px;
+}
+
+.bulk-field-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.bulk-field-panel small {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.bulk-field-panel .bulk-field-buttons {
+  gap: 6px;
+}
+
+.bulk-field-panel .bulk-field-button {
+  padding: 4px 10px;
+  border: 1px solid #dbe3ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #64748b;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bulk-field-panel .bulk-field-button.active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.bulk-create-modal .csv-mapping-panel {
+  max-height: 40%;
+  overflow: auto;
+}
+
+.bulk-create-modal .bulk-table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.bulk-create-modal .bulk-input-table th {
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.bulk-create-modal .bulk-input-table td {
+  padding: 4px 6px;
+  border-bottom-color: #f1f5f9;
+}
+
+.bulk-create-modal .bulk-input-table input:not([type='checkbox']):not([type='file']) {
+  padding: 6px 8px;
+  border-color: #e2e8f0;
+  font-size: 13px;
+}
+
+.bulk-create-modal .bulk-image-cell {
+  width: 56px;
+  min-width: 56px;
+}
+
+.bulk-create-modal .bulk-image-drop {
+  width: 36px;
+  height: 36px;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.bulk-create-modal .bulk-image-remove-button {
+  top: 1px;
+  right: 1px;
+  width: 14px;
+  height: 14px;
+  font-size: 10px;
+}
+
+.bulk-row-remove-button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #94a3b8;
+  box-shadow: none;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.bulk-row-remove-button:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  opacity: 1;
+}
+
+.bulk-csv-drop-overlay {
+  position: absolute;
+  inset: 8px 12px;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  border: 2px dashed #2563eb;
+  border-radius: 8px;
+  background: rgba(239, 246, 255, 0.92);
+  color: #1d4ed8;
+  font-size: 16px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.bulk-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-top: 1px solid #edf1f6;
+  background: #fff;
+}
+
+.bulk-modal-footer .bulk-preview {
+  flex: 0 1 auto;
+  gap: 6px;
+}
+
+.bulk-modal-footer .bulk-preview span {
+  padding: 4px 9px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+}
+
+.bulk-modal-footer .bulk-preview span.is-add {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.bulk-modal-footer .bulk-preview span.is-update {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.bulk-modal-footer .bulk-preview span.is-skip {
+  color: #94a3b8;
+}
+
+.bulk-modal-footer .bulk-preview span.is-warn {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.bulk-modal-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.bulk-footer-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* モーダル内の入力表：列数に応じて自然な幅にする（位置指定の幅はリセット） */
+.bulk-create-modal .bulk-input-table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.bulk-create-modal .bulk-input-table td:nth-child(n) {
+  width: auto;
+}
+
+.bulk-create-modal .bulk-input-table td:nth-child(1) {
+  width: 36px;
+}
+
+.bulk-create-modal .bulk-input-table td:nth-child(3) input {
+  width: 200px;
+}
+
+.bulk-create-modal .bulk-input-table td[class*='bulk-col-'] input:not([type='checkbox']) {
+  width: 140px;
+}
+
+.bulk-create-modal .bulk-input-table td.bulk-col-product_name[class*='bulk-col-'] input:not([type='checkbox']) {
+  width: 240px;
+}
+
+.bulk-create-modal .bulk-input-table td.bulk-checkbox-cell {
+  min-width: 72px;
+}
+
+.bulk-create-modal .bulk-input-table td.bulk-row-remove-cell {
+  width: 100%;
+  text-align: left;
+}
