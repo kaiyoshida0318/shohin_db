@@ -2854,12 +2854,12 @@ function App() {
 
   const filteredProducts = useMemo(() => {
     // 左：全項目の部分一致検索
-    // 右：商品コードだけの部分一致で、左の結果をさらに絞り込む（AND条件）
-    //     ※ 全項目を対象にすると「20」が在庫数や商品名などにも当たって絞り込めないため、右は商品コード限定
+    // 右：商品コードと商品名だけの部分一致で、左の結果をさらに絞り込む（AND条件）
+    //     ※ 全項目を対象にすると「20」が在庫数などにも当たって絞り込めないため
     const q = debouncedKeyword.trim().toLowerCase()
-    const codeQuery = debouncedSuffixKeyword.trim().toLowerCase()
+    const narrowQuery = debouncedSuffixKeyword.trim().toLowerCase()
 
-    if (!q && !codeQuery) {
+    if (!q && !narrowQuery) {
       return products
     }
 
@@ -2868,7 +2868,11 @@ function App() {
         return false
       }
 
-      if (codeQuery && !product.product_code.toLowerCase().includes(codeQuery)) {
+      if (
+        narrowQuery &&
+        !product.product_code.toLowerCase().includes(narrowQuery) &&
+        !(product.product_name ?? '').toLowerCase().includes(narrowQuery)
+      ) {
         return false
       }
 
@@ -5565,8 +5569,8 @@ function App() {
             <input
               value={suffixKeyword}
               onChange={(e) => setSuffixKeyword(e.target.value)}
-              placeholder="商品コードでさらに絞り込み（例：20mm）"
-              title="商品コードに含まれる文字で絞り込みます。左の検索と組み合わせるとAND条件になります。"
+              placeholder="商品コード・商品名でさらに絞り込み（例：20mm）"
+              title="商品コードまたは商品名に含まれる文字で絞り込みます。左の検索と組み合わせるとAND条件になります。"
             />
             <button
               type="button"
