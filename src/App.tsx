@@ -2637,6 +2637,33 @@ function App() {
   })
   const [isNeSyncPanelOpen, setIsNeSyncPanelOpen] = useState(false)
   const [isColumnWidthMenuOpen, setIsColumnWidthMenuOpen] = useState(false)
+  const columnWidthMenuRef = useRef<HTMLDivElement | null>(null)
+  const columnWidthMenuButtonRef = useRef<HTMLButtonElement | null>(null)
+
+  // 推奨幅の設定：メニューの外側をダブルクリックしたら閉じる
+  // （背景で覆うと開いたまま列幅を調整できなくなるため、画面は操作可能なまま）
+  useEffect(() => {
+    if (!isColumnWidthMenuOpen) {
+      return
+    }
+
+    function handleDocumentDoubleClick(event: MouseEvent) {
+      const target = event.target as Node | null
+
+      if (
+        target &&
+        (columnWidthMenuRef.current?.contains(target) ||
+          columnWidthMenuButtonRef.current?.contains(target))
+      ) {
+        return
+      }
+
+      setIsColumnWidthMenuOpen(false)
+    }
+
+    document.addEventListener('dblclick', handleDocumentDoubleClick)
+    return () => document.removeEventListener('dblclick', handleDocumentDoubleClick)
+  }, [isColumnWidthMenuOpen])
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [bulkRows, setBulkRows] = useState<BulkProductRow[]>(() =>
@@ -5484,6 +5511,7 @@ function App() {
             <button
               type="button"
               className="column-settings-button"
+              ref={columnWidthMenuButtonRef}
               onClick={() => setIsColumnWidthMenuOpen((open) => !open)}
               aria-haspopup="menu"
               aria-expanded={isColumnWidthMenuOpen}
@@ -5493,7 +5521,12 @@ function App() {
               ⚙
             </button>
             {isColumnWidthMenuOpen && (
-              <div className="column-settings-menu" role="menu" aria-label="列幅設定">
+              <div
+                className="column-settings-menu"
+                role="menu"
+                aria-label="列幅設定"
+                ref={columnWidthMenuRef}
+              >
                 <div className="column-settings-menu-head">
                   <div>
                     <strong>推奨幅の設定</strong>
