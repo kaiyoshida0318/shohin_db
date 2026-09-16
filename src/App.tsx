@@ -2853,18 +2853,26 @@ function App() {
       : bulkInsertableCount
 
   const filteredProducts = useMemo(() => {
-    // 左右どちらも部分一致検索。両方入力したときは、左の結果を右でさらに絞り込む（AND条件）
-    const keywords = [debouncedKeyword, debouncedSuffixKeyword]
-      .map((value) => value.trim().toLowerCase())
-      .filter(Boolean)
+    // 左：全項目の部分一致検索
+    // 右：商品コードだけの部分一致で、左の結果をさらに絞り込む（AND条件）
+    //     ※ 全項目を対象にすると「20」が在庫数や商品名などにも当たって絞り込めないため、右は商品コード限定
+    const q = debouncedKeyword.trim().toLowerCase()
+    const codeQuery = debouncedSuffixKeyword.trim().toLowerCase()
 
-    if (keywords.length === 0) {
+    if (!q && !codeQuery) {
       return products
     }
 
     return products.filter((product) => {
-      const searchText = productSearchTextByCode.get(product.product_code) ?? ''
-      return keywords.every((keyword) => searchText.includes(keyword))
+      if (q && !(productSearchTextByCode.get(product.product_code) ?? '').includes(q)) {
+        return false
+      }
+
+      if (codeQuery && !product.product_code.toLowerCase().includes(codeQuery)) {
+        return false
+      }
+
+      return true
     })
   }, [products, productSearchTextByCode, debouncedKeyword, debouncedSuffixKeyword])
 
@@ -5557,8 +5565,8 @@ function App() {
             <input
               value={suffixKeyword}
               onChange={(e) => setSuffixKeyword(e.target.value)}
-              placeholder="左の結果をさらに絞り込み（例：20mm）"
-              title="左の検索結果の中から、さらに部分一致で絞り込みます。右だけ入力した場合は左と同じ検索になります。"
+              placeholder="商品コードでさらに絞り込み（例：20mm）"
+              title="商品コードに含まれる文字で絞り込みます。左の検索と組み合わせるとAND条件になります。"
             />
             <button
               type="button"

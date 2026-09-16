@@ -242,7 +242,7 @@ h2 {
 
 .toolbar {
   width: 100%;
-  max-width: 1850px;
+  max-width: none;
   margin: 0 auto 12px;
   padding: 8px 12px;
   border-radius: 10px;
@@ -298,7 +298,7 @@ select {
 }
 
 .layout {
-  max-width: 1850px;
+  max-width: none;
   margin: 0 auto;
   display: grid;
   gap: 18px;
@@ -479,7 +479,7 @@ th {
   background: #f8fafc;
   color: #526177;
   font-size: 12px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 td.code {
@@ -499,7 +499,7 @@ tr:hover td {
 }
 
 .message {
-  max-width: 1850px;
+  max-width: none;
   margin: 0 auto 14px;
   padding: 12px 14px;
   border-radius: 7px;
@@ -2036,7 +2036,7 @@ body.is-column-resizing * {
 .ne-sync-dock {
   display: grid;
   gap: 6px;
-  max-width: 1850px;
+  max-width: none;
   margin: 0 auto 14px;
   padding: 8px 10px;
   border: 1px solid rgba(16, 185, 129, 0.18);
@@ -4023,4 +4023,45 @@ tr.is-editing.is-dirty .sticky-select-cell-right {
 
 .select-all-edit-button {
   white-space: nowrap;
+}
+
+/* 列見出し：狭くしても「…」になりにくいように
+   - 左右の余白と並び替え矢印の分を圧縮
+   - 1行に入らないときは2行まで折り返し、それでも入らないときだけ「…」 */
+.products-table th.resizable-header {
+  padding-left: 6px;
+  padding-right: 14px;
+  vertical-align: middle;
+}
+
+.products-table .header-sort-button {
+  padding: 0 2px;
+  gap: 2px;
+}
+
+.products-table .header-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.products-table .sort-indicator {
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: width 0.12s ease, opacity 0.12s ease;
+}
+
+.products-table .resizable-header.is-sorted .sort-indicator,
+.products-table .resizable-header:hover .sort-indicator {
+  width: 10px;
+  opacity: 1;
 }
