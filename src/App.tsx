@@ -2437,7 +2437,7 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     { key: 'image', label: '画像', width: 86, className: 'image-cell sticky-image-cell' },
     { key: 'product_code', label: '商品コード', width: 240, className: 'sticky-code-cell' },
   ]
-  const actionColumn: ColumnSpec = { key: 'actions_recipe', label: '操作', width: 238 }
+  const actionColumn: ColumnSpec = { key: 'actions_recipe', label: '操作', width: 238, className: 'sticky-actions-cell' }
   const neColumns = getNeColumnSpecs()
 
   const viewColumns: Record<TableView, ColumnSpec[]> = {
@@ -2853,16 +2853,20 @@ function App() {
       : bulkInsertableCount
 
   const filteredProducts = useMemo(() => {
-    const q = debouncedKeyword.trim().toLowerCase()
-    // 右側の検索窓：商品コードの後方一致（左側の検索とAND条件）
-    const suffix = debouncedSuffixKeyword.trim().toLowerCase()
+    const leftKeyword = debouncedKeyword.trim().toLowerCase()
+    const rightKeyword = debouncedSuffixKeyword.trim().toLowerCase()
 
-    if (!q && !suffix) {
+    // 右だけ入力 → 左と同じ部分一致検索
+    // 左も入力 → 左の検索結果の中から、商品コードの後方一致で絞り込み
+    const q = leftKeyword || rightKeyword
+    const suffix = leftKeyword ? rightKeyword : ''
+
+    if (!q) {
       return products
     }
 
     return products.filter((product) => {
-      if (q && !(productSearchTextByCode.get(product.product_code) ?? '').includes(q)) {
+      if (!(productSearchTextByCode.get(product.product_code) ?? '').includes(q)) {
         return false
       }
 
@@ -3685,6 +3689,16 @@ function App() {
   function enterEditMode() {
     setIsEditMode(true)
     setMessage('編集モードにしました。左端のチェックで編集する商品を選んでください。')
+  }
+
+  function startBulkEdit() {
+    if (filteredProducts.length === 0 || savingCode) {
+      return
+    }
+
+    setIsEditMode(true)
+    setRowsSelected(filteredProducts, true)
+    setMessage(`検索結果の${filteredProducts.length}件を選択して編集モードにしました。`)
   }
 
   function getDirtyCodes(codes: Iterable<string>) {
@@ -5188,7 +5202,7 @@ function App() {
 
   const selectColumnWidth = isEditMode ? SELECT_COLUMN_WIDTH : 0
   const tableWidth =
-    currentColumnSpecs.reduce((sum, column) => sum + getColumnWidth(column), 0) + selectColumnWidth
+    currentColumnSpecs.reduce((sum, column) => sum + getColumnWidth(column), 0) + selectColumnWidth * 2
   const tableStyle = {
     '--select-column-width': `${selectColumnWidth}px`,
     '--image-column-width': `${getColumnWidth(currentColumnSpecs[0])}px`,
@@ -5324,7 +5338,26 @@ function App() {
     )
   }
 
-  const tableColSpan = currentColumnSpecs.length + (isEditMode ? 1 : 0)
+  const tableColSpan = currentColumnSpecs.length + (isEditMode ? 2 : 0)
+
+  function renderSelectAllCheckbox() {
+    return (
+      <input
+        type="checkbox"
+        className="row-select-checkbox"
+        ref={(element) => {
+          if (element) {
+            element.indeterminate = someFilteredSelected
+          }
+        }}
+        checked={allFilteredSelected}
+        onChange={toggleAllFilteredSelection}
+        disabled={filteredProducts.length === 0 || Boolean(savingCode)}
+        title={`表示中の商品（検索結果 全${filteredProducts.length}件）をすべて${allFilteredSelected ? '選択解除' : '選択'}`}
+        aria-label="表示中の商品をすべて選択"
+      />
+    )
+  }
   const dirtyEditingCount = useMemo(() => {
     if (!isEditMode) {
       return 0
@@ -5534,8 +5567,8 @@ function App() {
             <input
               value={suffixKeyword}
               onChange={(e) => setSuffixKeyword(e.target.value)}
-              placeholder="商品コード 後方一致（例：14）"
-              title="商品コードの末尾が一致する商品に絞り込みます（左の検索と組み合わせ可）"
+              placeholder="左の結果を商品コード後方一致で絞り込み（例：14）"
+              title="左に入力があるときは、その検索結果を商品コードの末尾一致で絞り込みます。右だけの場合は左と同じ検索になります。"
             />
             <button
               type="button"
@@ -5795,6 +5828,19 @@ function App() {
               >
                 {isEditMode ? '編集終了' : '編集モード'}
               </button>
+              <button
+                type="button"
+                className="small edit-button select-all-edit-button"
+                onClick={startBulkEdit}
+                disabled={
+                  Boolean(savingCode) ||
+                  filteredProducts.length === 0 ||
+                  (isEditMode && allFilteredSelected)
+                }
+                title="検索結果をすべて選択した状態で編集モードにします"
+              >
+                一括編集
+              </button>
               {isEditMode && (
                 <>
                   <button
@@ -5826,28 +5872,17 @@ function App() {
                 {currentColumnSpecs.map((column) => (
                   <col key={column.key} style={{ width: `${getColumnWidth(column)}px` }} />
                 ))}
+                {isEditMode && <col key="__select_right__" style={{ width: `${SELECT_COLUMN_WIDTH}px` }} />}
               </colgroup>
               <thead>
                 <tr>
                   {isEditMode && (
-                    <th className="select-cell sticky-select-cell">
-                      <input
-                        type="checkbox"
-                        className="row-select-checkbox"
-                        ref={(element) => {
-                          if (element) {
-                            element.indeterminate = someFilteredSelected
-                          }
-                        }}
-                        checked={allFilteredSelected}
-                        onChange={toggleAllFilteredSelection}
-                        disabled={filteredProducts.length === 0 || Boolean(savingCode)}
-                        title={`表示中の商品（検索結果 全${filteredProducts.length}件）をすべて${allFilteredSelected ? '選択解除' : '選択'}`}
-                        aria-label="表示中の商品をすべて選択"
-                      />
-                    </th>
+                    <th className="select-cell sticky-select-cell">{renderSelectAllCheckbox()}</th>
                   )}
                   {currentColumnSpecs.map((column) => renderColumnHeader(column))}
+                  {isEditMode && (
+                    <th className="select-cell sticky-select-cell-right">{renderSelectAllCheckbox()}</th>
+                  )}
                 </tr>
               </thead>
 
@@ -5904,7 +5939,19 @@ function App() {
                       {tableView === 'ne' && renderNeColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
-                      <td>{renderActions(product, draft)}</td>
+                      <td className="sticky-actions-cell">{renderActions(product, draft)}</td>
+                      {isEditMode && (
+                        <td className="select-cell sticky-select-cell-right">
+                          <input
+                            type="checkbox"
+                            className="row-select-checkbox"
+                            checked={isEditing}
+                            onChange={(event) => setRowsSelected([product], event.target.checked)}
+                            disabled={Boolean(savingCode)}
+                            aria-label={`${product.product_code} を編集対象にする`}
+                          />
+                        </td>
+                      )}
                     </tr>
                   )
                 })}
