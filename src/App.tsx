@@ -2853,28 +2853,18 @@ function App() {
       : bulkInsertableCount
 
   const filteredProducts = useMemo(() => {
-    const leftKeyword = debouncedKeyword.trim().toLowerCase()
-    const rightKeyword = debouncedSuffixKeyword.trim().toLowerCase()
+    // 左右どちらも部分一致検索。両方入力したときは、左の結果を右でさらに絞り込む（AND条件）
+    const keywords = [debouncedKeyword, debouncedSuffixKeyword]
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean)
 
-    // 右だけ入力 → 左と同じ部分一致検索
-    // 左も入力 → 左の検索結果の中から、商品コードの後方一致で絞り込み
-    const q = leftKeyword || rightKeyword
-    const suffix = leftKeyword ? rightKeyword : ''
-
-    if (!q) {
+    if (keywords.length === 0) {
       return products
     }
 
     return products.filter((product) => {
-      if (!(productSearchTextByCode.get(product.product_code) ?? '').includes(q)) {
-        return false
-      }
-
-      if (suffix && !product.product_code.toLowerCase().endsWith(suffix)) {
-        return false
-      }
-
-      return true
+      const searchText = productSearchTextByCode.get(product.product_code) ?? ''
+      return keywords.every((keyword) => searchText.includes(keyword))
     })
   }, [products, productSearchTextByCode, debouncedKeyword, debouncedSuffixKeyword])
 
@@ -5567,8 +5557,8 @@ function App() {
             <input
               value={suffixKeyword}
               onChange={(e) => setSuffixKeyword(e.target.value)}
-              placeholder="左の結果を商品コード後方一致で絞り込み（例：14）"
-              title="左に入力があるときは、その検索結果を商品コードの末尾一致で絞り込みます。右だけの場合は左と同じ検索になります。"
+              placeholder="左の結果をさらに絞り込み（例：20mm）"
+              title="左の検索結果の中から、さらに部分一致で絞り込みます。右だけ入力した場合は左と同じ検索になります。"
             />
             <button
               type="button"

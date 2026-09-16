@@ -156,7 +156,24 @@ h2 {
 }
 
 .app-page {
-  padding: 0 28px 28px;
+  min-height: 100vh;
+  padding: 0 28px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 商品一覧カードを画面の残り高さいっぱいに広げ、ページ全体ではなく表の中だけをスクロールさせる */
+.app-page > .layout--full {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.app-page > .layout--full > .table-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
 }
 
 .topbar {
@@ -211,6 +228,7 @@ h2 {
 }
 
 .toolbar {
+  width: 100%;
   max-width: 1850px;
   margin: 0 auto 12px;
   padding: 8px 12px;
@@ -394,7 +412,8 @@ select {
 
 .table-wrap {
   overflow: auto;
-  max-height: calc(100vh - 290px);
+  flex: 1 1 auto;
+  min-height: 240px;
 }
 
 table {
