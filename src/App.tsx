@@ -2185,8 +2185,13 @@ function ProductImageCell({
           />
         </button>
       ) : (
-        <span className={isEditing ? 'product-image-placeholder is-editing' : 'product-image-placeholder'}>
-          {isEditing ? '画像\nドロップ' : '画像なし'}
+        <span
+          className={isEditing ? 'product-image-placeholder is-editing' : 'product-image-placeholder'}
+          role="img"
+          aria-label={isEditing ? '画像をドロップ' : '画像なし'}
+          title={isEditing ? undefined : '画像なし'}
+        >
+          {isEditing ? '画像\nドロップ' : ''}
         </span>
       )}
 
@@ -2432,12 +2437,20 @@ function getNeColumnSpecs(): ColumnSpec[] {
   ]
 }
 
-function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
+// 操作列は編集モード中（保存/元に戻す）と、発注用ビュー（レシピ）のときだけ表示する
+function shouldShowActionsColumn(tableView: TableView, isEditMode: boolean) {
+  return isEditMode || tableView === 'purchase'
+}
+
+function getViewColumnSpecs(tableView: TableView, isEditMode = false): ColumnSpec[] {
   const baseColumns: ColumnSpec[] = [
-    { key: 'image', label: '画像', width: 86, className: 'image-cell sticky-image-cell' },
+    { key: 'image', label: '画像', width: 72, className: 'image-cell sticky-image-cell' },
     { key: 'product_code', label: '商品コード', width: 240, className: 'sticky-code-cell' },
   ]
-  const actionColumn: ColumnSpec = { key: 'actions_recipe', label: '操作', width: 238, className: 'sticky-actions-cell' }
+  const actionColumn: ColumnSpec = isEditMode
+    ? { key: 'actions_recipe', label: '操作', width: 238, className: 'sticky-actions-cell' }
+    : { key: 'actions_recipe_view', label: '操作', width: 104, className: 'sticky-actions-cell' }
+  const showActions = shouldShowActionsColumn(tableView, isEditMode)
   const neColumns = getNeColumnSpecs()
 
   const viewColumns: Record<TableView, ColumnSpec[]> = {
@@ -2530,7 +2543,9 @@ function getViewColumnSpecs(tableView: TableView): ColumnSpec[] {
     ],
   }
 
-  return [...baseColumns, ...viewColumns[tableView], actionColumn]
+  return showActions
+    ? [...baseColumns, ...viewColumns[tableView], actionColumn]
+    : [...baseColumns, ...viewColumns[tableView]]
 }
 
 function ViewButton({
@@ -4978,31 +4993,27 @@ function App() {
       )
     }
 
+    // 通常時の行編集はダブルクリック or 編集モードで行うため、「編集」ボタンは置かない
+    if (tableView !== 'purchase') {
+      return null
+    }
+
     return (
       <div className="row-actions">
-        {tableView === 'purchase' && (
-          <button
-            type="button"
-            className="secondary small recipe-button"
-            onClick={() => void openRakumartRecipe(product)}
-            disabled={Boolean(savingCode) || rakumartRecipeLoading || rakumartRecipeSaving}
-          >
-            レシピ
-          </button>
-        )}
-
         <button
-          className="small edit-button"
-          onClick={() => startEdit(product)}
-          disabled={Boolean(savingCode)}
+          type="button"
+          className="secondary small recipe-button"
+          onClick={() => void openRakumartRecipe(product)}
+          disabled={Boolean(savingCode) || rakumartRecipeLoading || rakumartRecipeSaving}
         >
-          編集
+          レシピ
         </button>
       </div>
     )
   }
 
-  const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView), [tableView])
+  const currentColumnSpecs = useMemo(() => getViewColumnSpecs(tableView, isEditMode), [tableView, isEditMode])
+  const showActionsColumn = shouldShowActionsColumn(tableView, isEditMode)
 
   function getRecommendedColumnWidth(column: ColumnSpec) {
     return recommendedColumnWidthsByView[tableView]?.[column.key] ?? column.width
@@ -5941,7 +5952,9 @@ function App() {
                       {tableView === 'ne' && renderNeColumns(product, draft)}
                       {tableView === 'custom' && renderCustomColumns(product, draft)}
 
-                      <td className="sticky-actions-cell">{renderActions(product, draft)}</td>
+                      {showActionsColumn && (
+                        <td className="sticky-actions-cell">{renderActions(product, draft)}</td>
+                      )}
                       {isEditMode && (
                         <td className="select-cell sticky-select-cell-right">
                           <input
