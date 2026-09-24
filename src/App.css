@@ -4613,3 +4613,49 @@ tr.is-editing.is-dirty .sticky-select-cell-right {
 .products-table .product-image-placeholder:not(.is-editing) {
   background: #e8edf4;
 }
+
+/* 分類バッジ：OrderBoardと同じ色分け */
+.classification-text {
+  --class-rgb: 37, 99, 235;
+  --class-fg: #1d4ed8;
+  border: 1px solid rgba(var(--class-rgb), 0.28);
+  background: rgba(var(--class-rgb), 0.08);
+  color: var(--class-fg);
+  letter-spacing: 0.04em;
+}
+
+.classification-text.classification-new { --class-rgb: 22, 163, 74; --class-fg: #166534; }
+.classification-text.classification-sea { --class-rgb: 13, 148, 136; --class-fg: #0f766e; }
+.classification-text.classification-rgh { --class-rgb: 161, 98, 7; --class-fg: #92400e; }
+.classification-text.classification-blk { --class-rgb: 30, 41, 59; --class-fg: #0f172a; }
+.classification-text.classification-ldt { --class-rgb: 109, 40, 217; --class-fg: #6d28d9; }
+.classification-text.classification-str { --class-rgb: 234, 88, 12; --class-fg: #c2410c; }
+.classification-text.classification-nor { --class-rgb: 37, 99, 235; --class-fg: #1d4ed8; }
+
+/* 分類の選択欄 */
+.products-table td select.classification-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 2px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.bulk-create-modal select.bulk-classification-select {
+  width: 120px;
+  padding: 6px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  font-size: 13px;
+}
+
+.bulk-column-modal select.bulk-column-input {
+  padding: 8px 10px;
+}
+
+select.is-invalid {
+  border-color: #f87171 !important;
+  background: #fef2f2;
+  color: #b91c1c;
+}

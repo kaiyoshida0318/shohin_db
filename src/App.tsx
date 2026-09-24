@@ -343,7 +343,33 @@ type BulkColumnEditState = {
 }
 
 const SELECT_COLUMN_WIDTH = 44
-const CLASSIFICATION_DATALIST_ID = 'orderboard-classification-options'
+// OrderBoardと共通の分類（Supabaseのチェック制約もこの7つだけを許可）
+const CLASSIFICATION_CODES = ['NEW', 'SEA', 'RGH', 'BLK', 'LDT', 'STR', 'NOR'] as const
+type ClassificationCode = (typeof CLASSIFICATION_CODES)[number]
+const CLASSIFICATION_LABELS: Record<ClassificationCode, string> = {
+  NEW: '新商品',
+  SEA: '季節品',
+  RGH: '裁量',
+  BLK: '厚在庫',
+  LDT: '長納期',
+  STR: '主力',
+  NOR: '標準',
+}
+
+function isClassificationCode(value: string): value is ClassificationCode {
+  return (CLASSIFICATION_CODES as readonly string[]).includes(value)
+}
+
+// 空欄は NOR。7種類以外は null（保存させない）
+function normalizeClassificationInput(value: string | null | undefined): ClassificationCode | null {
+  const raw = String(value ?? '').trim().toUpperCase()
+
+  if (!raw) {
+    return 'NOR'
+  }
+
+  return isClassificationCode(raw) ? raw : null
+}
 
 type BulkMode = 'insert' | 'upsert' | 'update'
 
@@ -1438,7 +1464,12 @@ function formatNumericValue(value: number | string | null | undefined) {
 }
 
 function formatClassification(value: string | null | undefined) {
-  return value?.trim() || 'NOR'
+  return value?.trim().toUpperCase() || 'NOR'
+}
+
+function getClassificationSortIndex(value: string | null | undefined) {
+  const index = (CLASSIFICATION_CODES as readonly string[]).indexOf(formatClassification(value))
+  return index < 0 ? CLASSIFICATION_CODES.length : index
 }
 
 type MonthlySalesEntry = {
@@ -2018,7 +2049,7 @@ function normalizeDraft(draft: EditableProduct) {
     order_out: Boolean(draft.order_out),
     no_1688_shop: Boolean(draft.no_1688_shop),
     // 空欄はDBの既定値と同じ NOR にそろえる
-    orderboard_classification: draft.orderboard_classification.trim() || 'NOR',
+    orderboard_classification: normalizeClassificationInput(draft.orderboard_classification) ?? 'NOR',
     order_memo_1: draft.order_memo_1.trim() || null,
     rakumart_url_1: draft.rakumart_url_1.trim() || null,
     order_memo_2: draft.order_memo_2.trim() || null,
@@ -2282,6 +2313,44 @@ function UrlEditCell({
   )
 }
 
+function ClassificationSelect({
+  value,
+  onChange,
+  className,
+  ariaLabel,
+  allowBlank = false,
+  autoFocus,
+}: {
+  value: string
+  onChange: (value: string) => void
+  className?: string
+  ariaLabel?: string
+  allowBlank?: boolean
+  autoFocus?: boolean
+}) {
+  const normalized = value.trim().toUpperCase()
+  const isInvalid = Boolean(normalized) && !isClassificationCode(normalized)
+  const selectValue = isInvalid ? value : normalized || (allowBlank ? '' : 'NOR')
+
+  return (
+    <select
+      className={`${className ?? ''} ${isInvalid ? 'is-invalid' : ''}`}
+      value={selectValue}
+      onChange={(event) => onChange(event.target.value)}
+      aria-label={ariaLabel}
+      autoFocus={autoFocus}
+    >
+      {allowBlank && <option value="">-（NOR）</option>}
+      {isInvalid && <option value={value}>{value}（使えない分類）</option>}
+      {CLASSIFICATION_CODES.map((code) => (
+        <option key={code} value={code}>
+          {code} {CLASSIFICATION_LABELS[code]}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function DisplayText({ value, className = '' }: { value: string | null; className?: string }) {
   return <span className={`cell-text ${className}`}>{value || '-'}</span>
 }
@@ -2410,7 +2479,7 @@ function getProductSortValue(product: Product, key: SortableColumnKey): string |
     case 'stock_constant':
       return product[key]
     case 'orderboard_classification':
-      return formatClassification(product.orderboard_classification)
+      return getClassificationSortIndex(product.orderboard_classification)
     case 'product_code':
       return product.product_code
     case 'product_name':
@@ -2468,7 +2537,7 @@ function compareProductsBySort(productA: Product, productB: Product, config: Exc
     return -1
   }
 
-  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant', 'paper_sort_sub', 'order_out', 'no_1688_shop']
+  const numericColumns: SortableColumnKey[] = ['free_stock', 'reorder_point', 'stock_constant', 'paper_sort_sub', 'order_out', 'no_1688_shop', 'orderboard_classification']
   const baseResult = numericColumns.includes(config.key)
     ? Number(valueA) - Number(valueB)
     : String(valueA).localeCompare(String(valueB), 'ja', { numeric: true, sensitivity: 'base' })
@@ -2954,13 +3023,6 @@ function App() {
 
   const productByCode = useMemo(() => {
     return new Map(products.map((product) => [product.product_code, product]))
-  }, [products])
-
-  // 分類の入力候補（登録済みの分類 + NOR）
-  const classificationOptions = useMemo(() => {
-    const values = new Set<string>(['NOR'])
-    products.forEach((product) => values.add(formatClassification(product.orderboard_classification)))
-    return Array.from(values).sort((a, b) => a.localeCompare(b, 'ja', { numeric: true }))
   }, [products])
 
   const productSearchTextByCode = useMemo(() => {
@@ -3970,7 +4032,7 @@ function App() {
 
     setBulkColumnEdit({
       config,
-      value: '',
+      value: config.key === 'orderboard_classification' ? 'NOR' : '',
       boolValue: true,
       urlValue: '',
       applyMain: true,
@@ -4294,6 +4356,23 @@ function App() {
         return true
       })
 
+    // 分類は7種類以外だとSupabaseに弾かれるので、送信前に止める
+    if (selectedBulkFields.includes('orderboard_classification')) {
+      const invalidRows = targetBulkRows.filter(
+        ({ cleanRow }) => normalizeClassificationInput(cleanRow.orderboard_classification) === null,
+      )
+
+      if (invalidRows.length > 0) {
+        setModalMessage(
+          `使えない分類が${invalidRows.length}件あります（${CLASSIFICATION_CODES.join(' / ')} のみ）。例：${invalidRows
+            .slice(0, 3)
+            .map(({ cleanRow }) => `${cleanRow.product_code}=${cleanRow.orderboard_classification}`)
+            .join('、')}`,
+        )
+        return
+      }
+    }
+
     const imageRows = targetBulkRows.filter(({ row }) => bulkImageDrafts[row.id])
 
     setLoading(true)
@@ -4314,7 +4393,7 @@ function App() {
           productPayload[key] = isBulkBooleanField(key)
             ? cleanRow[key]
             : key === 'orderboard_classification'
-              ? cleanRow[key] || 'NOR'
+              ? normalizeClassificationInput(cleanRow[key]) ?? 'NOR'
               : cleanRow[key] || null
         })
       }
@@ -4477,27 +4556,27 @@ function App() {
     )
   }
 
-  // 分類：通常時はバッジ表示、編集時は入力欄（既存の分類を候補に出す）
+  // 分類：通常時はOrderBoardと同じ色のバッジ、編集時は7種類から選ぶ
   function renderClassificationCell(product: Product, draft: EditableProduct) {
     if (!editingCodes.has(product.product_code)) {
+      const code = formatClassification(product.orderboard_classification)
+
       return (
-        <DisplayText
-          value={formatClassification(product.orderboard_classification)}
-          className="classification-text centered-cell-text"
-        />
+        <span
+          className={`cell-text classification-text centered-cell-text classification-${code.toLowerCase()}`}
+          title={isClassificationCode(code) ? CLASSIFICATION_LABELS[code] : undefined}
+        >
+          {code}
+        </span>
       )
     }
 
     return (
-      <input
+      <ClassificationSelect
         className="table-input classification-input"
         value={draft.orderboard_classification}
-        list={CLASSIFICATION_DATALIST_ID}
-        onChange={(event) =>
-          updateDraft(product.product_code, 'orderboard_classification', event.target.value)
-        }
-        placeholder="NOR"
-        aria-label={`${product.product_code} の分類`}
+        onChange={(value) => updateDraft(product.product_code, 'orderboard_classification', value)}
+        ariaLabel={`${product.product_code} の分類`}
       />
     )
   }
@@ -6305,12 +6384,6 @@ function App() {
       </section>
 
 
-      <datalist id={CLASSIFICATION_DATALIST_ID}>
-        {classificationOptions.map((value) => (
-          <option key={value} value={value} />
-        ))}
-      </datalist>
-
       {bulkColumnEdit && (
         <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(() => setBulkColumnEdit(null))}>
           <section
@@ -6379,13 +6452,20 @@ function App() {
                     onChange={(event) => setBulkColumnEdit({ ...bulkColumnEdit, value: event.target.value })}
                     placeholder="入力する値（空欄のまま適用すると空になります）"
                   />
+                ) : bulkColumnEdit.config.key === 'orderboard_classification' ? (
+                  <ClassificationSelect
+                    className="bulk-column-input"
+                    value={bulkColumnEdit.value}
+                    autoFocus
+                    onChange={(value) => setBulkColumnEdit({ ...bulkColumnEdit, value })}
+                    ariaLabel="一括で設定する分類"
+                  />
                 ) : (
                   <input
                     className="bulk-column-input"
                     value={bulkColumnEdit.value}
                     autoFocus
                     disabled={bulkColumnEdit.config.kind === 'order_memo' && !bulkColumnEdit.applyMain}
-                    list={bulkColumnEdit.config.key === 'orderboard_classification' ? CLASSIFICATION_DATALIST_ID : undefined}
                     onChange={(event) => setBulkColumnEdit({ ...bulkColumnEdit, value: event.target.value })}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
@@ -7321,13 +7401,20 @@ function App() {
                                 }
                                 aria-label={`${row.product_code || `行${index + 1}`} ${column.label}`}
                               />
+                            ) : column.key === 'orderboard_classification' ? (
+                              <ClassificationSelect
+                                className="bulk-classification-select"
+                                value={String(row[column.key] ?? '')}
+                                allowBlank
+                                onChange={(value) => updateBulkRow(row.id, column.key, value)}
+                                ariaLabel={`${row.product_code || `行${index + 1}`} 分類`}
+                              />
                             ) : (
                               <input
                                 value={String(row[column.key] ?? '')}
                                 onChange={(e) =>
                                   updateBulkRow(row.id, column.key, e.target.value)
                                 }
-                                list={column.key === 'orderboard_classification' ? CLASSIFICATION_DATALIST_ID : undefined}
                                 placeholder={column.placeholder}
                               />
                             )}
