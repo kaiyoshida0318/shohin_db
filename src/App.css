@@ -130,7 +130,6 @@ label {
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 h1,
@@ -4542,4 +4541,75 @@ tr.is-editing.is-dirty .sticky-select-cell-right {
 
 .column-settings-menu .custom-column-list + .column-settings-actions {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* ===== 表の罫線と隔行色（OrderBoard風） =====
+   sticky列は border だとスクロール時に線が消えるため、内側の box-shadow で縦線を引く */
+.products-table {
+  --grid-line: #e3e9f1;
+  --row-stripe: #f3f6fb;
+  --row-hover: #e6efff;
+}
+
+.products-table th,
+.products-table td {
+  box-shadow: inset -1px 0 0 var(--grid-line);
+}
+
+.products-table thead th {
+  box-shadow: inset -1px 0 0 var(--grid-line), inset 0 -1px 0 #d9e1ec;
+}
+
+.products-table tbody td {
+  border-bottom-color: var(--grid-line);
+}
+
+/* 余白を埋める列には線を引かない */
+.products-table td.filler-cell,
+.products-table th.filler-cell,
+.products-table th.filler-cell:last-child {
+  box-shadow: none;
+}
+
+.products-table thead th.filler-cell {
+  box-shadow: inset 0 -1px 0 #d9e1ec;
+}
+
+/* 隔行色（sticky列も同じ色で塗って透けないようにする） */
+.products-table tbody tr:nth-child(even) > td {
+  background: var(--row-stripe);
+}
+
+/* ホバーは隔行色より少し濃く */
+.products-table tbody tr:not(.is-editing):hover > td,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-image-cell,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-code-cell,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-select-cell,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-select-cell-right,
+.products-table tbody tr:not(.is-editing):hover > td.sticky-actions-cell,
+.products-table tbody tr:not(.is-editing):hover > td:last-child {
+  background: var(--row-hover);
+}
+
+/* 編集中の行の左端ライン（縦線と両立させる） */
+.products-table tr.is-editing > td:first-child {
+  box-shadow: inset 4px 0 0 #2563eb, inset -1px 0 0 var(--grid-line);
+}
+
+.products-table tr.is-editing.is-dirty > td:first-child {
+  box-shadow: inset 4px 0 0 #f97316, inset -1px 0 0 var(--grid-line);
+}
+
+/* 分類の入力欄（列幅が狭いので左右の余白を詰める） */
+.products-table td .table-input.classification-input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 4px;
+  text-align: center;
+  font-weight: 800;
+}
+
+/* 画像なしの四角が隔行色に埋もれないよう少し濃く */
+.products-table .product-image-placeholder:not(.is-editing) {
+  background: #e8edf4;
 }

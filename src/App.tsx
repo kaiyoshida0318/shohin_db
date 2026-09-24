@@ -303,6 +303,7 @@ type EditableProduct = {
   order_note: string
   order_out: boolean
   no_1688_shop: boolean
+  orderboard_classification: string
 
   order_memo_1: string
   rakumart_url_1: string
@@ -342,6 +343,7 @@ type BulkColumnEditState = {
 }
 
 const SELECT_COLUMN_WIDTH = 44
+const CLASSIFICATION_DATALIST_ID = 'orderboard-classification-options'
 
 type BulkMode = 'insert' | 'upsert' | 'update'
 
@@ -361,6 +363,7 @@ function closeOnBackdropDoubleClick(close: () => void) {
 }
 
 const BULK_TEXT_COLUMN_KEYS = new Set<string>([
+  'orderboard_classification',
   'product_name',
   'floor',
   'shipping_floor',
@@ -496,6 +499,7 @@ type BulkProductRow = {
   order_detail_instruction: string
   order_quantity_condition: string
   order_note: string
+  orderboard_classification: string
   order_out: boolean
   no_1688_shop: boolean
 }
@@ -520,6 +524,7 @@ type CleanBulkProductRow = {
   order_detail_instruction: string
   order_quantity_condition: string
   order_note: string
+  orderboard_classification: string
   order_out: boolean
   no_1688_shop: boolean
 }
@@ -552,15 +557,18 @@ const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'order_detail_instruction', label: '▲具体指示', placeholder: '▲具体指示' },
   { key: 'order_quantity_condition', label: '数量条件指定', placeholder: '数量条件指定' },
   { key: 'order_note', label: '補足情報', placeholder: '補足情報' },
+  { key: 'orderboard_classification', label: '分類', placeholder: 'NOR' },
   { key: 'order_out', label: 'out', placeholder: '', inputType: 'checkbox' },
   { key: 'no_1688_shop', label: '1688ショップなし', placeholder: '', inputType: 'checkbox' },
 ]
 
 const DEFAULT_BULK_FIELD_KEYS = BULK_FIELD_COLUMNS
-  .filter((column) => column.inputType !== 'checkbox')
+  // チェック列と分類は、空欄で既存値を上書きしないよう初期状態では対象外
+  .filter((column) => column.inputType !== 'checkbox' && column.key !== 'orderboard_classification')
   .map((column) => column.key)
 
 const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
+  orderboard_classification: '分類',
   product_name: '商品名',
   floor: '階数',
   shipping_floor: '配送-階-特記',
@@ -696,6 +704,7 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
   order_note: ['補足情報', '補足', 'order_note', 'orderNote', 'purchase_note', 'purchaseNote'],
   order_out: ['out', 'order_out', 'orderOut', '取扱終了', '廃番'],
   no_1688_shop: ['1688ショップなし', '1688ショップ無し', 'no_1688_shop', 'no1688shop'],
+  orderboard_classification: ['分類', 'orderboard_classification', 'classification', 'OrderBoard分類'],
 }
 
 type BulkSummary = {
@@ -730,6 +739,7 @@ function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
     order_detail_instruction: '',
     order_quantity_condition: '',
     order_note: '',
+    orderboard_classification: '',
     order_out: false,
     no_1688_shop: false,
   }
@@ -764,6 +774,7 @@ function createBulkRow(): BulkProductRow {
     order_detail_instruction: '',
     order_quantity_condition: '',
     order_note: '',
+    orderboard_classification: '',
     order_out: false,
     no_1688_shop: false,
   }
@@ -1373,6 +1384,7 @@ function buildBulkSummary(
       order_detail_instruction: row.order_detail_instruction.trim(),
       order_quantity_condition: row.order_quantity_condition.trim(),
       order_note: row.order_note.trim(),
+      orderboard_classification: row.orderboard_classification.trim(),
       order_out: row.order_out,
       no_1688_shop: row.no_1688_shop,
     }))
@@ -1925,6 +1937,7 @@ function productToDraft(product: Product): EditableProduct {
     order_note: product.order_note ?? '',
     order_out: Boolean(product.order_out),
     no_1688_shop: Boolean(product.no_1688_shop),
+    orderboard_classification: formatClassification(product.orderboard_classification),
     order_memo_1: product.order_memo_1 ?? '',
     rakumart_url_1: product.rakumart_url_1 ?? '',
     order_memo_2: product.order_memo_2 ?? '',
@@ -2004,6 +2017,8 @@ function normalizeDraft(draft: EditableProduct) {
     order_note: draft.order_note.trim() || null,
     order_out: Boolean(draft.order_out),
     no_1688_shop: Boolean(draft.no_1688_shop),
+    // 空欄はDBの既定値と同じ NOR にそろえる
+    orderboard_classification: draft.orderboard_classification.trim() || 'NOR',
     order_memo_1: draft.order_memo_1.trim() || null,
     rakumart_url_1: draft.rakumart_url_1.trim() || null,
     order_memo_2: draft.order_memo_2.trim() || null,
@@ -2471,7 +2486,6 @@ function getNeColumnSpecs(): ColumnSpec[] {
     { key: 'reorder_point', label: '発注点', width: 98 },
     { key: 'stock_constant', label: '在庫定数', width: 109 },
     { key: 'monthly_sales', label: '月別受注数', width: 253 },
-    { key: 'orderboard_classification', label: '分類', width: 85 },
   ]
 }
 
@@ -2504,6 +2518,7 @@ function getAllViewColumnSpecs(): ColumnSpec[] {
     { key: 'order_detail_instruction', label: '▲具体指示', width: 120 },
     { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
     { key: 'order_note', label: '補足情報', width: 121 },
+    { key: 'orderboard_classification', label: '分類', width: 85 },
     { key: 'order_out', label: 'out', width: 78 },
     { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
     { key: 'product_info_synced_at', label: '商品同期', width: 134 },
@@ -2582,6 +2597,7 @@ function getViewColumnSpecs(
       { key: 'order_quantity_condition', label: '数量条件指定', width: 121 },
       // 発注除外フラグは「補足情報」の直後にだけ表示する。
       { key: 'order_note', label: '補足情報', width: 121 },
+      { key: 'orderboard_classification', label: '分類', width: 85 },
       { key: 'order_out', label: 'out', width: 78 },
       { key: 'no_1688_shop', label: '1688ショップなし', width: 138 },
     ],
@@ -2938,6 +2954,13 @@ function App() {
 
   const productByCode = useMemo(() => {
     return new Map(products.map((product) => [product.product_code, product]))
+  }, [products])
+
+  // 分類の入力候補（登録済みの分類 + NOR）
+  const classificationOptions = useMemo(() => {
+    const values = new Set<string>(['NOR'])
+    products.forEach((product) => values.add(formatClassification(product.orderboard_classification)))
+    return Array.from(values).sort((a, b) => a.localeCompare(b, 'ja', { numeric: true }))
   }, [products])
 
   const productSearchTextByCode = useMemo(() => {
@@ -4255,6 +4278,7 @@ function App() {
           order_detail_instruction: row.order_detail_instruction.trim(),
           order_quantity_condition: row.order_quantity_condition.trim(),
           order_note: row.order_note.trim(),
+          orderboard_classification: row.orderboard_classification.trim(),
           order_out: row.order_out,
           no_1688_shop: row.no_1688_shop,
         }
@@ -4289,7 +4313,9 @@ function App() {
         selectedBulkFields.forEach((key) => {
           productPayload[key] = isBulkBooleanField(key)
             ? cleanRow[key]
-            : cleanRow[key] || null
+            : key === 'orderboard_classification'
+              ? cleanRow[key] || 'NOR'
+              : cleanRow[key] || null
         })
       }
 
@@ -4448,6 +4474,31 @@ function App() {
           aria-label={`${product.product_code} をサブ商品にする`}
         />
       </div>
+    )
+  }
+
+  // 分類：通常時はバッジ表示、編集時は入力欄（既存の分類を候補に出す）
+  function renderClassificationCell(product: Product, draft: EditableProduct) {
+    if (!editingCodes.has(product.product_code)) {
+      return (
+        <DisplayText
+          value={formatClassification(product.orderboard_classification)}
+          className="classification-text centered-cell-text"
+        />
+      )
+    }
+
+    return (
+      <input
+        className="table-input classification-input"
+        value={draft.orderboard_classification}
+        list={CLASSIFICATION_DATALIST_ID}
+        onChange={(event) =>
+          updateDraft(product.product_code, 'orderboard_classification', event.target.value)
+        }
+        placeholder="NOR"
+        aria-label={`${product.product_code} の分類`}
+      />
     )
   }
 
@@ -5349,7 +5400,6 @@ function App() {
         <td><DisplayText value={formatNumericValue(product.reorder_point)} className="mono-text number-text" /></td>
         <td><DisplayText value={formatNumericValue(product.stock_constant)} className="mono-text number-text" /></td>
         <td><MonthlySalesByYear monthlySales={getProductMonthlySales(product)} /></td>
-        <td className="centered-table-cell"><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text centered-cell-text" /></td>
       </>
     )
   }
@@ -5393,6 +5443,7 @@ function App() {
         <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
         <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
         <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
+        <td className="centered-table-cell">{renderClassificationCell(product, draft)}</td>
         <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
         <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
         <td>{formatDateTime(product.product_info_synced_at)}</td>
@@ -5446,7 +5497,8 @@ function App() {
         <td>{renderTextCell(product, draft, 'order_detail_instruction', { className: 'note-text', multiline: true, placeholder: '▲具体指示' })}</td>
         <td>{renderTextCell(product, draft, 'order_quantity_condition', { className: 'note-text', multiline: true, placeholder: '数量条件指定' })}</td>
         <td>{renderTextCell(product, draft, 'order_note', { className: 'note-text', multiline: true, placeholder: '補足情報' })}</td>
-        {/* 発注除外フラグは補足情報の右側に1組だけ表示する。 */}
+        <td className="centered-table-cell">{renderClassificationCell(product, draft)}</td>
+        {/* 発注除外フラグは補足情報・分類の右側に1組だけ表示する。 */}
         <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'order_out', 'out')}</td>
         <td className="centered-table-cell">{renderOrderExclusionFlagCell(product, draft, 'no_1688_shop', '1688ショップなし')}</td>
       </>
@@ -5467,7 +5519,7 @@ function App() {
       case 'monthly_sales':
         return <td key={key}><MonthlySalesByYear monthlySales={getProductMonthlySales(product)} /></td>
       case 'orderboard_classification':
-        return <td key={key} className="centered-table-cell"><DisplayText value={formatClassification(product.orderboard_classification)} className="classification-text centered-cell-text" /></td>
+        return <td key={key} className="centered-table-cell">{renderClassificationCell(product, draft)}</td>
       case 'floor':
         return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
       case 'special_notes':
@@ -6253,6 +6305,12 @@ function App() {
       </section>
 
 
+      <datalist id={CLASSIFICATION_DATALIST_ID}>
+        {classificationOptions.map((value) => (
+          <option key={value} value={value} />
+        ))}
+      </datalist>
+
       {bulkColumnEdit && (
         <div className="modal-backdrop" onDoubleClick={closeOnBackdropDoubleClick(() => setBulkColumnEdit(null))}>
           <section
@@ -6327,6 +6385,7 @@ function App() {
                     value={bulkColumnEdit.value}
                     autoFocus
                     disabled={bulkColumnEdit.config.kind === 'order_memo' && !bulkColumnEdit.applyMain}
+                    list={bulkColumnEdit.config.key === 'orderboard_classification' ? CLASSIFICATION_DATALIST_ID : undefined}
                     onChange={(event) => setBulkColumnEdit({ ...bulkColumnEdit, value: event.target.value })}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
@@ -7268,6 +7327,7 @@ function App() {
                                 onChange={(e) =>
                                   updateBulkRow(row.id, column.key, e.target.value)
                                 }
+                                list={column.key === 'orderboard_classification' ? CLASSIFICATION_DATALIST_ID : undefined}
                                 placeholder={column.placeholder}
                               />
                             )}
