@@ -2912,7 +2912,7 @@ button.danger-button:disabled {
 }
 
 .delivery-preview-table th:nth-child(2) {
-  width: 52px;
+  width: 66px;
 }
 
 .delivery-preview-table th:nth-child(3) {
@@ -2920,7 +2920,7 @@ button.danger-button:disabled {
 }
 
 .delivery-preview-table th:nth-child(4) {
-  width: 224px;
+  width: 210px;
 }
 
 .delivery-preview-table tbody td {
@@ -2972,10 +2972,36 @@ button.danger-button:disabled {
 .delivery-preview-sticker {
   background: #fff;
   text-align: center;
-  font-size: 20px;
   font-weight: 900;
-  writing-mode: vertical-rl;
-  letter-spacing: 0.04em;
+  padding: 4px 2px !important;
+}
+
+/* 納品書PDFと同じく、シール1〜3を1枚ずつ枠で囲って縦に並べる */
+.delivery-preview-sticker-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  font-size: 22px;
+  line-height: 1.12;
+}
+
+.delivery-preview-sticker-stack.count-2 {
+  font-size: 18px;
+}
+
+.delivery-preview-sticker-stack.count-3 {
+  font-size: 15px;
+}
+
+.delivery-preview-sticker-chip {
+  display: block;
+  border: 1.5px solid #111;
+  border-radius: 4px;
+  padding: 1px 1px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
 }
 
 .delivery-preview-sticker.has-sticker {

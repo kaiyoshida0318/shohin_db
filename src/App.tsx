@@ -31,7 +31,9 @@ const DEFAULT_CUSTOM_COLUMN_KEYS = [
   'delivery_line_4',
   'rack_number',
   'rack_level',
-  'sticker_color',
+  'sticker_color_1',
+  'sticker_color_2',
+  'sticker_color_3',
   'shipping_floor',
   'paper_sort_sub',
   'order_memo_1',
@@ -66,7 +68,9 @@ type Product = {
   rack_number: string | null
   rack_level: string | null
   paper_sort_sub: boolean | null
-  sticker_color: string | null
+  sticker_color_1: string | null
+  sticker_color_2: string | null
+  sticker_color_3: string | null
 
   order_url_1: string | null
   order_url_2: string | null
@@ -110,7 +114,7 @@ type DeliverySlipPreviewData = {
   floor: string
   rackNumber: string
   rackLevel: string
-  stickerColor: string
+  stickerColors: string[]
 }
 
 type RakumartRemarkMode = 'manual' | 'none' | 'template'
@@ -290,7 +294,9 @@ type EditableProduct = {
   rack_number: string
   rack_level: string
   paper_sort_sub: boolean
-  sticker_color: string
+  sticker_color_1: string
+  sticker_color_2: string
+  sticker_color_3: string
 
   order_url_1: string
   order_url_2: string
@@ -395,7 +401,9 @@ const BULK_TEXT_COLUMN_KEYS = new Set<string>([
   'shipping_floor',
   'rack_number',
   'rack_level',
-  'sticker_color',
+  'sticker_color_1',
+  'sticker_color_2',
+  'sticker_color_3',
   'order_size',
   'order_color',
 ])
@@ -477,7 +485,9 @@ const SORTABLE_COLUMN_KEYS = [
   'shipping_floor',
   'rack_number',
   'rack_level',
-  'sticker_color',
+  'sticker_color_1',
+  'sticker_color_2',
+  'sticker_color_3',
   'paper_sort_sub',
   'order_out',
   'no_1688_shop',
@@ -515,7 +525,9 @@ type BulkProductRow = {
   delivery_line_4: string
   rack_number: string
   rack_level: string
-  sticker_color: string
+  sticker_color_1: string
+  sticker_color_2: string
+  sticker_color_3: string
   order_url_1: string
   order_url_2: string
   order_url_3: string
@@ -540,7 +552,9 @@ type CleanBulkProductRow = {
   delivery_line_4: string
   rack_number: string
   rack_level: string
-  sticker_color: string
+  sticker_color_1: string
+  sticker_color_2: string
+  sticker_color_3: string
   order_url_1: string
   order_url_2: string
   order_url_3: string
@@ -569,7 +583,9 @@ const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'floor', label: '階数', placeholder: '階数' },
   { key: 'rack_number', label: '棚番号-位置', placeholder: '棚番号-位置' },
   { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
-  { key: 'sticker_color', label: 'シールカラー', placeholder: 'シールカラー' },
+  { key: 'sticker_color_1', label: 'シール1', placeholder: 'シール1' },
+  { key: 'sticker_color_2', label: 'シール2', placeholder: 'シール2' },
+  { key: 'sticker_color_3', label: 'シール3', placeholder: 'シール3' },
   { key: 'shipping_floor', label: '配送-階-特記', placeholder: '例: PKT2-3F RPR' },
   { key: 'special_notes', label: '2行目', placeholder: '2行目' },
   { key: 'picking_advice', label: '3行目', placeholder: '3行目' },
@@ -603,7 +619,9 @@ const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   delivery_line_4: '4行目',
   rack_number: '棚番号-位置',
   rack_level: '棚番号-段',
-  sticker_color: 'シールカラー',
+  sticker_color_1: 'シール1',
+  sticker_color_2: 'シール2',
+  sticker_color_3: 'シール3',
   order_url_1: '発注URL1',
   order_url_2: '発注URL2',
   order_url_3: '発注URL3',
@@ -681,12 +699,28 @@ const CSV_HEADER_ALIASES: Record<BulkFieldKey | 'product_code', string[]> = {
     'rackLevel',
     'level',
   ],
-  sticker_color: [
+  sticker_color_1: [
+    'シール1',
+    'シール１',
     'シールカラー',
+    'シールカラー1',
     'シール色',
+    'sticker_color_1',
     'sticker_color',
     'stickerColor',
     'color',
+  ],
+  sticker_color_2: [
+    'シール2',
+    'シール２',
+    'シールカラー2',
+    'sticker_color_2',
+  ],
+  sticker_color_3: [
+    'シール3',
+    'シール３',
+    'シールカラー3',
+    'sticker_color_3',
   ],
   special_notes: ['特記事項', '2行目', '注意事項', 'special_notes', 'specialNotes', 'notes', 'note'],
   delivery_line_4: ['4行目', 'delivery_line_4', 'deliveryLine4', 'line4'],
@@ -755,7 +789,9 @@ function createEmptyCleanBulkProductRow(productCode = ''): CleanBulkProductRow {
     delivery_line_4: '',
     rack_number: '',
     rack_level: '',
-    sticker_color: '',
+    sticker_color_1: '',
+    sticker_color_2: '',
+    sticker_color_3: '',
     order_url_1: '',
     order_url_2: '',
     order_url_3: '',
@@ -790,7 +826,9 @@ function createBulkRow(): BulkProductRow {
     delivery_line_4: '',
     rack_number: '',
     rack_level: '',
-    sticker_color: '',
+    sticker_color_1: '',
+    sticker_color_2: '',
+    sticker_color_3: '',
     order_url_1: '',
     order_url_2: '',
     order_url_3: '',
@@ -1400,7 +1438,9 @@ function buildBulkSummary(
       delivery_line_4: row.delivery_line_4.trim(),
       rack_number: row.rack_number.trim(),
       rack_level: row.rack_level.trim(),
-      sticker_color: row.sticker_color.trim(),
+      sticker_color_1: row.sticker_color_1.trim(),
+      sticker_color_2: row.sticker_color_2.trim(),
+      sticker_color_3: row.sticker_color_3.trim(),
       order_url_1: row.order_url_1.trim(),
       order_url_2: row.order_url_2.trim(),
       order_url_3: row.order_url_3.trim(),
@@ -1883,7 +1923,8 @@ function PreviewLines({
 }
 
 function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) {
-  const hasSticker = preview.stickerColor.trim().length > 0
+  const stickers = preview.stickerColors.map((value) => value.trim()).filter((value) => value.length > 0)
+  const hasSticker = stickers.length > 0
   const productNameLines = wrapPreviewText(preview.productName, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 16, 900, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
   const specialNoteLines = wrapPreviewText(preview.specialNotes, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
   const pickingAdviceLines = wrapPreviewText(preview.pickingAdvice, DELIVERY_PREVIEW_NAME_CONTENT_WIDTH, 11.5, 800, DELIVERY_PREVIEW_NAME_CHAR_SCALE)
@@ -1917,7 +1958,13 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
               </div>
             </td>
             <td className={hasSticker ? 'delivery-preview-sticker has-sticker' : 'delivery-preview-sticker'}>
-              {hasSticker ? preview.stickerColor.trim() : ''}
+              {hasSticker ? (
+                <div className={`delivery-preview-sticker-stack count-${stickers.length}`}>
+                  {stickers.map((sticker, index) => (
+                    <span key={index} className="delivery-preview-sticker-chip">{sticker}</span>
+                  ))}
+                </div>
+              ) : ''}
             </td>
             <td className="delivery-preview-name">
               <div className="delivery-preview-name-stack">
@@ -1956,7 +2003,9 @@ function productToDraft(product: Product): EditableProduct {
     rack_number: product.rack_number ?? '',
     rack_level: product.rack_level ?? '',
     paper_sort_sub: Boolean(product.paper_sort_sub),
-    sticker_color: product.sticker_color ?? '',
+    sticker_color_1: product.sticker_color_1 ?? '',
+    sticker_color_2: product.sticker_color_2 ?? '',
+    sticker_color_3: product.sticker_color_3 ?? '',
     order_url_1: product.order_url_1 ?? '',
     order_url_2: product.order_url_2 ?? '',
     order_url_3: product.order_url_3 ?? '',
@@ -1999,7 +2048,9 @@ function buildProductSearchText(product: Product) {
     product.delivery_line_4,
     product.rack_number,
     product.rack_level,
-    product.sticker_color,
+    product.sticker_color_1,
+    product.sticker_color_2,
+    product.sticker_color_3,
     product.order_url_1,
     product.order_url_2,
     product.order_url_3,
@@ -2036,7 +2087,9 @@ function normalizeDraft(draft: EditableProduct) {
     rack_number: draft.rack_number.trim() || null,
     rack_level: draft.rack_level.trim() || null,
     paper_sort_sub: Boolean(draft.paper_sort_sub),
-    sticker_color: draft.sticker_color.trim() || null,
+    sticker_color_1: draft.sticker_color_1.trim() || null,
+    sticker_color_2: draft.sticker_color_2.trim() || null,
+    sticker_color_3: draft.sticker_color_3.trim() || null,
     order_url_1: draft.order_url_1.trim() || null,
     order_url_2: draft.order_url_2.trim() || null,
     order_url_3: draft.order_url_3.trim() || null,
@@ -2492,8 +2545,12 @@ function getProductSortValue(product: Product, key: SortableColumnKey): string |
       return product.rack_number
     case 'rack_level':
       return product.rack_level
-    case 'sticker_color':
-      return product.sticker_color
+    case 'sticker_color_1':
+      return product.sticker_color_1
+    case 'sticker_color_2':
+      return product.sticker_color_2
+    case 'sticker_color_3':
+      return product.sticker_color_3
     case 'paper_sort_sub':
       return product.paper_sort_sub ? 1 : 0
     case 'order_out':
@@ -2569,7 +2626,9 @@ function getAllViewColumnSpecs(): ColumnSpec[] {
     { key: 'delivery_line_4', label: '4行目', width: 175 },
     { key: 'rack_number', label: '棚番号-位置', width: 126 },
     { key: 'rack_level', label: '棚番号-段', width: 114 },
-    { key: 'sticker_color', label: 'シールカラー', width: 116 },
+    { key: 'sticker_color_1', label: 'シール1', width: 88 },
+    { key: 'sticker_color_2', label: 'シール2', width: 88 },
+    { key: 'sticker_color_3', label: 'シール3', width: 88 },
     { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
     { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
     { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
@@ -2607,7 +2666,11 @@ function normalizeCustomColumnKeys(value: unknown): string[] {
   }
 
   const validKeys = new Set(getCustomColumnCandidateSpecs().map((column) => column.key))
-  return value.filter((key): key is string => typeof key === 'string' && validKeys.has(key))
+  // 旧「シールカラー」列を選んでいた保存設定は、シール1〜3に置き換える
+  const migrated = value.flatMap((key) =>
+    key === 'sticker_color' ? ['sticker_color_1', 'sticker_color_2', 'sticker_color_3'] : [key],
+  )
+  return Array.from(new Set(migrated.filter((key): key is string => typeof key === 'string' && validKeys.has(key))))
 }
 
 // 操作列は編集モード中（保存/元に戻す）と、発注用ビュー（レシピ）のときだけ表示する
@@ -2641,7 +2704,9 @@ function getViewColumnSpecs(
       { key: 'floor', label: '階数', width: 87 },
       { key: 'rack_number', label: '棚番号-位置', width: 126 },
       { key: 'rack_level', label: '棚番号-段', width: 114 },
-      { key: 'sticker_color', label: 'シールカラー', width: 116 },
+      { key: 'sticker_color_1', label: 'シール1', width: 88 },
+      { key: 'sticker_color_2', label: 'シール2', width: 88 },
+      { key: 'sticker_color_3', label: 'シール3', width: 88 },
       { key: 'shipping_floor', label: '配送-階-特記', width: 138 },
       { key: 'paper_sort_sub', label: 'サブ商品', width: 104 },
       { key: 'delivery_preview', label: '納品書プレビュー', width: 120 },
@@ -4330,7 +4395,9 @@ function App() {
           delivery_line_4: row.delivery_line_4.trim(),
           rack_number: row.rack_number.trim(),
           rack_level: row.rack_level.trim(),
-          sticker_color: row.sticker_color.trim(),
+          sticker_color_1: row.sticker_color_1.trim(),
+          sticker_color_2: row.sticker_color_2.trim(),
+          sticker_color_3: row.sticker_color_3.trim(),
           order_url_1: row.order_url_1.trim(),
           order_url_2: row.order_url_2.trim(),
           order_url_3: row.order_url_3.trim(),
@@ -5156,7 +5223,7 @@ function App() {
       floor: draft.floor,
       rackNumber: draft.rack_number,
       rackLevel: draft.rack_level,
-      stickerColor: draft.sticker_color,
+      stickerColors: [draft.sticker_color_1, draft.sticker_color_2, draft.sticker_color_3],
     })
   }
 
@@ -5504,7 +5571,9 @@ function App() {
         <td>{renderTextCell(product, draft, 'delivery_line_4', { className: 'note-text', multiline: true, placeholder: '4行目' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_1', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_2', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_3', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
@@ -5542,7 +5611,9 @@ function App() {
         <td className="centered-table-cell">{renderTextCell(product, draft, 'floor', { className: 'centered-cell-text', inputClassName: 'floor-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
-        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_1', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_2', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+        <td className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_3', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
         <td className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
         <td className="centered-table-cell">{renderPaperSortSubCell(product, draft)}</td>
         <td>{renderDeliveryPreviewButton(product, draft)}</td>
@@ -5611,8 +5682,12 @@ function App() {
         return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'rack_number', { className: 'centered-cell-text', inputClassName: 'rack-input' })}</td>
       case 'rack_level':
         return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'rack_level', { className: 'centered-cell-text', inputClassName: 'rack-level-input' })}</td>
-      case 'sticker_color':
-        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+      case 'sticker_color_1':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_1', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+      case 'sticker_color_2':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_2', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
+      case 'sticker_color_3':
+        return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'sticker_color_3', { className: 'centered-cell-text', inputClassName: 'sticker-input' })}</td>
       case 'shipping_floor':
         return <td key={key} className="centered-table-cell">{renderTextCell(product, draft, 'shipping_floor', { className: 'centered-cell-text', inputClassName: 'small-text-input' })}</td>
       case 'paper_sort_sub':
