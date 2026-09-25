@@ -2994,14 +2994,38 @@ button.danger-button:disabled {
   font-size: 15px;
 }
 
+/* 納品書PDFと同じ：1文字のシールは真円、数字付きなどはカプセル型 */
 .delivery-preview-sticker-chip {
   display: block;
   border: 1.5px solid #111;
-  border-radius: 4px;
-  padding: 1px 1px 2px;
+  border-radius: 999px;
+  padding: 2px 4px 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: clip;
+}
+
+.delivery-preview-sticker-chip.is-mid {
+  font-size: 0.85em;
+}
+
+.delivery-preview-sticker-chip.is-long {
+  font-size: 0.7em;
+}
+
+.delivery-preview-sticker-chip.is-xlong {
+  font-size: 0.56em;
+}
+
+.delivery-preview-sticker-chip.is-circle {
+  align-self: center;
+  width: 1.75em;
+  height: 1.75em;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .delivery-preview-sticker.has-sticker {

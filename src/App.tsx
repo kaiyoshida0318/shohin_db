@@ -1922,6 +1922,16 @@ function PreviewLines({
   )
 }
 
+// 納品書PDFと同じ：1文字は真円、数字付きなどはカプセル型。長い値は文字を小さくして枠に収める
+function getStickerChipClassName(sticker: string) {
+  const length = Array.from(sticker).length
+  if (length <= 1) return 'delivery-preview-sticker-chip is-circle'
+  if (length >= 5) return 'delivery-preview-sticker-chip is-xlong'
+  if (length === 4) return 'delivery-preview-sticker-chip is-long'
+  if (length === 3) return 'delivery-preview-sticker-chip is-mid'
+  return 'delivery-preview-sticker-chip'
+}
+
 function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) {
   const stickers = preview.stickerColors.map((value) => value.trim()).filter((value) => value.length > 0)
   const hasSticker = stickers.length > 0
@@ -1961,7 +1971,12 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
               {hasSticker ? (
                 <div className={`delivery-preview-sticker-stack count-${stickers.length}`}>
                   {stickers.map((sticker, index) => (
-                    <span key={index} className="delivery-preview-sticker-chip">{sticker}</span>
+                    <span
+                      key={index}
+                      className={getStickerChipClassName(sticker)}
+                    >
+                      {sticker}
+                    </span>
                   ))}
                 </div>
               ) : ''}
