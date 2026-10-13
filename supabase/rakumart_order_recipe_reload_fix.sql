@@ -1,3 +1,6 @@
+-- ※ 発注レシピ v4（rakumart_order_recipe_v4.sql）を適用済みなら、このSQLは実行しないでください。
+--    読込関数が v3 に戻り、区分・共有・倍数・最低数量が読み込まれなくなります。
+--    間違えて実行した場合は rakumart_order_recipe_v4.sql をもう一度実行してください。
 -- 発注レシピ再読込修正
 -- 前回 rakumart_order_recipes.sql を実行済みの場合は、このSQLだけ実行すればOKです。
 

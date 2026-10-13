@@ -1,5 +1,13 @@
 import { type ChangeEvent, type ClipboardEvent, type CSSProperties, type DragEvent, type MouseEvent as ReactMouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
+import {
+  buildRakumartOrderToken,
+  buildRakumartRemarkBlock,
+  listRakumartRemarkPlaceholders,
+  RAKUMART_ITEM_NAME_FORBIDDEN,
+  renderRakumartRemarkTemplate,
+  type RakumartRemarkItem,
+} from './lib/rakumartRemark'
 import './App.css'
 
 const PRODUCT_IMAGE_BUCKET = 'product-images'
@@ -118,6 +126,8 @@ type DeliverySlipPreviewData = {
 }
 
 type RakumartRemarkMode = 'manual' | 'none' | 'template'
+type RakumartItemRole = 'main' | 'accessory'
+type RakumartShareMode = 'separate' | 'merge'
 
 type RakumartOptionDraft = {
   id: string
@@ -129,6 +139,8 @@ type RakumartLineDraft = {
   id: string
   options: RakumartOptionDraft[]
   quantityMultiplier: string
+  roundMultiple: string
+  minQuantity: string
   memo: string
 }
 
@@ -145,6 +157,8 @@ type RakumartItemDraft = {
   id: string
   itemName: string
   required: boolean
+  role: RakumartItemRole
+  shareMode: RakumartShareMode
   memo: string
   sources: RakumartSourceDraft[]
 }
@@ -170,6 +184,8 @@ type RakumartRecipeModalState = {
 type RakumartRecipeDbLine = {
   options?: unknown
   quantity_multiplier?: number | string | null
+  round_multiple?: number | string | null
+  min_quantity?: number | string | null
   sort_order?: number | null
   memo?: string | null
 }
@@ -187,6 +203,8 @@ type RakumartRecipeDbItem = {
   item_name?: string | null
   sort_order?: number | null
   required?: boolean | null
+  role?: string | null
+  share_mode?: string | null
   memo?: string | null
   rakumart_order_sources?: RakumartRecipeDbSource[] | null
 }
@@ -868,6 +886,8 @@ function createRakumartLineDraft(): RakumartLineDraft {
     id: createDraftId(),
     options: [],
     quantityMultiplier: '1',
+    roundMultiple: '',
+    minQuantity: '',
     memo: '',
   }
 }
@@ -883,11 +903,13 @@ function createRakumartSourceDraft(): RakumartSourceDraft {
   }
 }
 
-function createRakumartItemDraft(): RakumartItemDraft {
+function createRakumartItemDraft(role: RakumartItemRole = 'main'): RakumartItemDraft {
   return {
     id: createDraftId(),
     itemName: '',
     required: true,
+    role,
+    shareMode: 'separate',
     memo: '',
     sources: [createRakumartSourceDraft()],
   }
@@ -909,19 +931,51 @@ function getRakumartLegacyOrderUrls(product: Product) {
     .filter(Boolean)
 }
 
-function createRakumartLegacyOptions(product: Product) {
-  const values = [product.order_size, product.order_color]
-    .map((value) => String(value ?? '').trim())
-    .filter(Boolean)
+// 商品DBのサイズ・カラーを明細に分ける。
+//   半角カンマ「,」区切り → 別々の明細（例：浅灰,深灰,黑色 → 3明細）
+//   末尾の「(数字)」      → 数量倍率（例：20*30(3) → 規格値 20*30・倍率3）
+//   全角「，」や「/」は1つの規格名の一部として扱う（例：B款，16mm / 黑/灰）
+//   サイズとカラーの両方が複数なら、組み合わせごとに明細を作る
+type RakumartLegacySpec = { value: string; multiplier: number }
 
-  return [...new Set(values)].map((value) => createRakumartOptionDraft('', value))
+function splitRakumartLegacySpecs(value: string | null | undefined): RakumartLegacySpec[] {
+  return String(value ?? '')
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const match = part.match(/^(.*?)[(（]\s*(\d+(?:\.\d+)?)\s*[)）]$/)
+      if (match && match[1].trim()) {
+        return { value: match[1].trim(), multiplier: Number(match[2]) }
+      }
+      return { value: part, multiplier: 1 }
+    })
 }
 
-function createRakumartLegacyLine(product: Product, includeLegacyOptions: boolean) {
-  return {
-    ...createRakumartLineDraft(),
-    options: includeLegacyOptions ? createRakumartLegacyOptions(product) : [],
+function createRakumartLegacyLines(product: Product): RakumartLineDraft[] {
+  const sizes = splitRakumartLegacySpecs(product.order_size)
+  const colors = splitRakumartLegacySpecs(product.order_color)
+  const sizeList: Array<RakumartLegacySpec | null> = sizes.length ? sizes : [null]
+  const colorList: Array<RakumartLegacySpec | null> = colors.length ? colors : [null]
+  const lines: RakumartLineDraft[] = []
+
+  for (const size of sizeList) {
+    for (const color of colorList) {
+      const values = [...new Set([size?.value, color?.value].filter((value): value is string => Boolean(value)))]
+      const multiplier = (size?.multiplier ?? 1) * (color?.multiplier ?? 1)
+      lines.push({
+        ...createRakumartLineDraft(),
+        options: values.map((value) => createRakumartOptionDraft('', value)),
+        quantityMultiplier: String(multiplier),
+      })
+    }
   }
+
+  return lines.length ? lines : [createRakumartLineDraft()]
+}
+
+function createRakumartLegacyLinesFor(product: Product, includeLegacyOptions: boolean) {
+  return includeLegacyOptions ? createRakumartLegacyLines(product) : [createRakumartLineDraft()]
 }
 
 function createRakumartRecipeDraftFromLegacy(
@@ -934,7 +988,8 @@ function createRakumartRecipeDraftFromLegacy(
   }
 
   const base = createEmptyRakumartRecipeDraft()
-  const itemName = product.product_name?.trim() || '商品本体'
+  // 構成品名は備考テンプレートの差し込み名になるので短くする（あとで「ソックス」などに変えてOK）
+  const itemName = '本体'
 
   if (relation === 'alternatives') {
     return {
@@ -944,6 +999,8 @@ function createRakumartRecipeDraftFromLegacy(
           id: createDraftId(),
           itemName,
           required: true,
+          role: 'main',
+          shareMode: 'separate',
           memo: '',
           sources: urls.map((url, index) => ({
             id: createDraftId(),
@@ -951,7 +1008,7 @@ function createRakumartRecipeDraftFromLegacy(
             url,
             enabled: true,
             memo: '',
-            lines: [createRakumartLegacyLine(product, true)],
+            lines: createRakumartLegacyLinesFor(product, true),
           })),
         },
       ],
@@ -962,8 +1019,10 @@ function createRakumartRecipeDraftFromLegacy(
     ...base,
     items: urls.map((url, index) => ({
       id: createDraftId(),
-      itemName: index === 0 ? itemName : `構成品${index + 1}`,
+      itemName: index === 0 ? itemName : `付属品${index}`,
       required: true,
+      role: index === 0 ? 'main' : 'accessory',
+      shareMode: 'separate',
       memo: '',
       sources: [
         {
@@ -972,7 +1031,7 @@ function createRakumartRecipeDraftFromLegacy(
           url,
           enabled: true,
           memo: '',
-          lines: [createRakumartLegacyLine(product, index === 0)],
+          lines: createRakumartLegacyLinesFor(product, index === 0),
         },
       ],
     })),
@@ -1010,6 +1069,8 @@ function rakumartRecipeDbRowToDraft(row: RakumartRecipeDbRow): RakumartRecipeDra
       id: createDraftId(),
       itemName: item.item_name ?? '',
       required: item.required ?? true,
+      role: (item.role === 'accessory' ? 'accessory' : 'main') as RakumartItemRole,
+      shareMode: (item.share_mode === 'merge' ? 'merge' : 'separate') as RakumartShareMode,
       memo: item.memo ?? '',
       sources: [...(item.rakumart_order_sources ?? [])]
         .sort((a, b) => Number(a.priority ?? 0) - Number(b.priority ?? 0))
@@ -1025,6 +1086,8 @@ function rakumartRecipeDbRowToDraft(row: RakumartRecipeDbRow): RakumartRecipeDra
               id: createDraftId(),
               options: parseRakumartOptions(line.options),
               quantityMultiplier: String(line.quantity_multiplier ?? 1),
+              roundMultiple: line.round_multiple === null || line.round_multiple === undefined ? '' : String(Number(line.round_multiple)),
+              minQuantity: line.min_quantity === null || line.min_quantity === undefined ? '' : String(Number(line.min_quantity)),
               memo: line.memo ?? '',
             })),
         })),
@@ -1057,6 +1120,12 @@ function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
       if (!itemName) {
         throw new Error(`構成品${itemIndex + 1}の名前を入力してください。`)
       }
+      if (RAKUMART_ITEM_NAME_FORBIDDEN.test(itemName)) {
+        throw new Error(`構成品名「${itemName}」に { } : は使えません（備考テンプレートの差し込みと区別できなくなるため）。`)
+      }
+      if (draft.items.some((other, otherIndex) => otherIndex !== itemIndex && other.itemName.trim() === itemName)) {
+        throw new Error(`構成品名「${itemName}」が重複しています。備考テンプレートで区別できるよう別の名前にしてください。`)
+      }
       if (item.sources.length === 0) {
         throw new Error(`${itemName} に仕入先を1件以上追加してください。`)
       }
@@ -1064,6 +1133,8 @@ function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
       return {
         item_name: itemName,
         required: item.required,
+        role: item.role,
+        share_mode: item.shareMode,
         memo: item.memo.trim() || null,
         sources: item.sources.map((source, sourceIndex) => {
           const url = source.url.trim()
@@ -1106,9 +1177,21 @@ function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
                 [],
               )
 
+              const parseOptionalPositive = (raw: string, label: string) => {
+                const text = raw.trim()
+                if (!text) return null
+                const value = Number(text)
+                if (!Number.isFinite(value) || value <= 0) {
+                  throw new Error(`${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}の${label}を確認してください。`)
+                }
+                return value
+              }
+
               return {
                 options,
                 quantity_multiplier: quantityMultiplier,
+                round_multiple: parseOptionalPositive(line.roundMultiple, '倍数'),
+                min_quantity: parseOptionalPositive(line.minQuantity, '最低数量'),
                 memo: line.memo.trim() || null,
               }
             }),
@@ -1118,6 +1201,26 @@ function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
     }),
   }
 }
+
+// 備考テンプレートの試し表示用：構成品の順に、有効な仕入先（なければ先頭）の明細へ1から仮の番号を振る
+function buildRakumartRemarkPreviewItems(draft: RakumartRecipeDraft): RakumartRemarkItem[] {
+  let no = 1
+  return draft.items.map((item) => {
+    const source = item.sources.find((candidate) => candidate.enabled) ?? item.sources[0]
+    const lines = (source?.lines ?? []).map((line) => ({
+      no: no++,
+      specs: line.options.map((option) => option.value.trim()).filter(Boolean),
+    }))
+    return { itemName: item.itemName, lines }
+  })
+}
+
+function getTokyoMonthDay(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', month: '2-digit', day: '2-digit' }).formatToParts(date)
+  return `${parts.find((part) => part.type === 'month')?.value ?? '01'}${parts.find((part) => part.type === 'day')?.value ?? '01'}`
+}
+
+const RAKUMART_REMARK_PREVIEW_QUANTITY = 100
 
 function splitBulkLine(line: string) {
   const cells = line.includes('\t') ? line.split('\t') : line.split(',')
@@ -4929,7 +5032,7 @@ function App() {
   function addRakumartItem() {
     updateRakumartRecipeDraft((draft) => ({
       ...draft,
-      items: [...draft.items, createRakumartItemDraft()],
+      items: [...draft.items, createRakumartItemDraft(draft.items.length === 0 ? 'main' : 'accessory')],
     }))
   }
 
@@ -6928,18 +7031,71 @@ function App() {
                     </label>
                   </div>
 
-                  {rakumartRecipeModal.draft.remarkMode === 'template' && (
-                    <label className="rakumart-template-field">
-                      <span>備考テンプレート</span>
-                      <textarea
-                        value={rakumartRecipeModal.draft.remarkTemplate}
-                        onChange={(event) =>
-                          updateRakumartRecipeDraft((draft) => ({ ...draft, remarkTemplate: event.target.value }))
-                        }
-                        placeholder="将来、相対番号を取得して自動生成する備考テンプレートを入力"
-                      />
-                    </label>
-                  )}
+                  {rakumartRecipeModal.draft.remarkMode === 'template' && (() => {
+                    const previewItems = buildRakumartRemarkPreviewItems(rakumartRecipeModal.draft)
+                    const preview = renderRakumartRemarkTemplate(
+                      rakumartRecipeModal.draft.remarkTemplate,
+                      previewItems,
+                      RAKUMART_REMARK_PREVIEW_QUANTITY,
+                    )
+                    const token = buildRakumartOrderToken(
+                      rakumartRecipeModal.product.product_code,
+                      getTokyoMonthDay(),
+                      RAKUMART_REMARK_PREVIEW_QUANTITY,
+                    )
+                    const hasBullet = rakumartRecipeModal.draft.remarkTemplate.includes('●')
+                    return (
+                      <div className="rakumart-template-block">
+                        <label className="rakumart-template-field">
+                          <span>備考テンプレート（指示文）</span>
+                          <textarea
+                            value={rakumartRecipeModal.draft.remarkTemplate}
+                            onChange={(event) =>
+                              updateRakumartRecipeDraft((draft) => ({ ...draft, remarkTemplate: event.target.value }))
+                            }
+                            placeholder="例：▲{ソックス}番のソックス1点ずつと{ネット}番のネット1点を{袋}番の袋に入れ、合計{数量}セット作ってください。"
+                          />
+                        </label>
+                        <p className="rakumart-template-help">
+                          {'{構成品名}'} は注文詳細で振られた番号（複数行ならカンマ区切り）、{'{構成品名:規格値}'} はその規格の1行の番号、{'{数量}'} はオーダー数に置き換わります。
+                          末尾の ●商品コード▲日付-数量 は自動で付くので書かないでください。
+                        </p>
+                        <div className="rakumart-template-chips">
+                          {listRakumartRemarkPlaceholders(previewItems).map((placeholder) => (
+                            <button
+                              key={placeholder}
+                              type="button"
+                              className="secondary small"
+                              onClick={() =>
+                                updateRakumartRecipeDraft((draft) => ({
+                                  ...draft,
+                                  remarkTemplate: `${draft.remarkTemplate}${placeholder}`,
+                                }))
+                              }
+                            >
+                              {placeholder}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="rakumart-template-preview">
+                          <span className="rakumart-field-label">
+                            試し表示（番号は構成品の順に1から仮で振っています。数量{RAKUMART_REMARK_PREVIEW_QUANTITY}）
+                          </span>
+                          <pre>{buildRakumartRemarkBlock(preview.text, token)}</pre>
+                          {preview.unknown.length > 0 && (
+                            <p className="rakumart-template-warning">
+                              見つからない差し込み：{preview.unknown.join('、')}（構成品名・規格値と一致しているか確認してください）
+                            </p>
+                          )}
+                          {hasBullet && (
+                            <p className="rakumart-template-warning">
+                              「●」は ●▲ の目印と紛らわしいので、指示文には使わないでください。
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </section>
 
                 <section className="rakumart-items-section">
@@ -6987,6 +7143,34 @@ function App() {
                               onChange={(event) => updateRakumartItem(item.id, { required: event.target.checked })}
                             />
                             必須
+                          </label>
+
+                          <label className="rakumart-setting-field">
+                            <span>区分</span>
+                            <select
+                              value={item.role}
+                              onChange={(event) =>
+                                updateRakumartItem(item.id, { role: event.target.value as RakumartItemRole })
+                              }
+                              title="入庫一括は、入庫数をどの便に数えるかを本体の行だけで決めます。"
+                            >
+                              <option value="main">本体</option>
+                              <option value="accessory">付属品</option>
+                            </select>
+                          </label>
+
+                          <label className="rakumart-setting-field">
+                            <span>同じ回に共有するとき</span>
+                            <select
+                              value={item.shareMode}
+                              onChange={(event) =>
+                                updateRakumartItem(item.id, { shareMode: event.target.value as RakumartShareMode })
+                              }
+                              title="同じ仕入先・同じ規格を使う商品を同じ回に発注するときの扱い"
+                            >
+                              <option value="separate">分ける（別注文）</option>
+                              <option value="merge">まとめる（1行）</option>
+                            </select>
                           </label>
 
                           <label className="rakumart-grow-field">
@@ -7068,7 +7252,7 @@ function App() {
                                 <div className="rakumart-lines-head">
                                   <div>
                                     <strong>発注明細</strong>
-                                    <span>1明細 = 1つの規格組み合わせ。規格軸は任意で、数量は「発注予定数 × 数量倍率」です。</span>
+                                    <span>1明細 = 1つの規格組み合わせ。数量は「発注予定数 × 数量倍率」を、最低数量・倍数で切り上げます。数量倍率は入庫一括の原価按分にも使います。</span>
                                   </div>
                                   <button
                                     type="button"
@@ -7162,6 +7346,40 @@ function App() {
                                             }
                                           />
                                           <small>発注予定数 × {line.quantityMultiplier || '?'}</small>
+                                        </label>
+
+                                        <label className="rakumart-quantity-field">
+                                          <span>倍数</span>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={line.roundMultiple}
+                                            onChange={(event) =>
+                                              updateRakumartLine(item.id, source.id, line.id, {
+                                                roundMultiple: event.target.value,
+                                              })
+                                            }
+                                            placeholder="なし"
+                                          />
+                                          <small>この倍数に切り上げ</small>
+                                        </label>
+
+                                        <label className="rakumart-quantity-field">
+                                          <span>最低数量</span>
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            step="1"
+                                            value={line.minQuantity}
+                                            onChange={(event) =>
+                                              updateRakumartLine(item.id, source.id, line.id, {
+                                                minQuantity: event.target.value,
+                                              })
+                                            }
+                                            placeholder="なし"
+                                          />
+                                          <small>最低ロット</small>
                                         </label>
 
                                         <label className="rakumart-grow-field">

@@ -3596,7 +3596,7 @@ button.secondary.recipe-button:hover {
 
 .rakumart-item-fields {
   display: grid;
-  grid-template-columns: minmax(240px, 1.2fr) auto minmax(260px, 1fr);
+  grid-template-columns: minmax(220px, 1.2fr) auto minmax(110px, 0.4fr) minmax(200px, 0.7fr) minmax(200px, 1fr);
   align-items: end;
   gap: 12px;
   padding: 14px;
@@ -3748,7 +3748,7 @@ button.secondary.recipe-button:hover {
 
 .rakumart-line-bottom {
   display: grid;
-  grid-template-columns: minmax(170px, 0.4fr) minmax(260px, 1fr);
+  grid-template-columns: minmax(150px, 0.4fr) minmax(110px, 0.3fr) minmax(110px, 0.3fr) minmax(220px, 1fr);
   gap: 12px;
   margin-top: 10px;
 }
@@ -4708,4 +4708,58 @@ select.is-invalid {
   border-color: #f87171 !important;
   background: #fef2f2;
   color: #b91c1c;
+}
+
+/* 発注レシピ v4：備考テンプレートの差し込み・試し表示 */
+.rakumart-template-help {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.rakumart-template-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rakumart-template-chips button {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.rakumart-template-preview {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.rakumart-template-preview pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.rakumart-template-warning {
+  margin: 8px 0 0;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+@media (max-width: 900px) {
+  .rakumart-item-fields,
+  .rakumart-line-bottom {
+    grid-template-columns: 1fr 1fr;
+  }
 }
