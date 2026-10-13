@@ -935,7 +935,7 @@ function getRakumartLegacyOrderUrls(product: Product) {
 //   半角カンマ「,」区切り → 別々の明細（例：浅灰,深灰,黑色 → 3明細）
 //   末尾の「(数字)」      → 数量倍率（例：20*30(3) → 規格値 20*30・倍率3）
 //   全角「，」や「/」は1つの規格名の一部として扱う（例：B款，16mm / 黑/灰）
-//   サイズとカラーの両方が複数なら、組み合わせごとに明細を作る
+//   サイズとカラーの両方が複数なら、組み合わせごとに明細を作る（規格1＝カラー、規格2＝サイズ）
 type RakumartLegacySpec = { value: string; multiplier: number }
 
 function splitRakumartLegacySpecs(value: string | null | undefined): RakumartLegacySpec[] {
@@ -961,7 +961,7 @@ function createRakumartLegacyLines(product: Product): RakumartLineDraft[] {
 
   for (const size of sizeList) {
     for (const color of colorList) {
-      const values = [...new Set([size?.value, color?.value].filter((value): value is string => Boolean(value)))]
+      const values = [...new Set([color?.value, size?.value].filter((value): value is string => Boolean(value)))]
       const multiplier = (size?.multiplier ?? 1) * (color?.multiplier ?? 1)
       lines.push({
         ...createRakumartLineDraft(),
@@ -3017,6 +3017,14 @@ function App() {
   const [rakumartRecipeLoading, setRakumartRecipeLoading] = useState(false)
   const [rakumartRecipeSaving, setRakumartRecipeSaving] = useState(false)
   const [rakumartRecipeMessage, setRakumartRecipeMessage] = useState('')
+  // 発注レシピ編集：詳細項目（必須・メモ・仕入先名・規格軸）の表示と、明細のまとめて追加
+  const [rakumartShowDetails, setRakumartShowDetails] = useState(false)
+  const [rakumartBulk, setRakumartBulk] = useState<{
+    sourceId: string
+    text: string
+    spec2: string
+    multiplier: string
+  } | null>(null)
   const [imageDrafts, setImageDrafts] = useState<Record<string, ProductImageDraft>>({})
   const imageDraftsRef = useRef<Record<string, ProductImageDraft>>({})
 
@@ -4993,42 +5001,6 @@ function App() {
     }))
   }
 
-  function updateRakumartOption(
-    itemId: string,
-    sourceId: string,
-    lineId: string,
-    optionId: string,
-    patch: Partial<RakumartOptionDraft>,
-  ) {
-    updateRakumartRecipeDraft((draft) => ({
-      ...draft,
-      items: draft.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              sources: item.sources.map((source) =>
-                source.id === sourceId
-                  ? {
-                      ...source,
-                      lines: source.lines.map((line) =>
-                        line.id === lineId
-                          ? {
-                              ...line,
-                              options: line.options.map((option) =>
-                                option.id === optionId ? { ...option, ...patch } : option,
-                              ),
-                            }
-                          : line,
-                      ),
-                    }
-                  : source,
-              ),
-            }
-          : item,
-      ),
-    }))
-  }
-
   function addRakumartItem() {
     updateRakumartRecipeDraft((draft) => ({
       ...draft,
@@ -5083,6 +5055,74 @@ function App() {
     }))
   }
 
+  function updateRakumartSourceLines(
+    itemId: string,
+    sourceId: string,
+    mapLines: (lines: RakumartLineDraft[]) => RakumartLineDraft[],
+  ) {
+    updateRakumartRecipeDraft((draft) => ({
+      ...draft,
+      items: draft.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              sources: item.sources.map((source) =>
+                source.id === sourceId ? { ...source, lines: mapLines(source.lines) } : source,
+              ),
+            }
+          : item,
+      ),
+    }))
+  }
+
+  // 規格1・規格2（options の 0番目・1番目）を書き換える。field = value（規格値）/ group（規格軸）
+  function setRakumartLineSpec(
+    itemId: string,
+    sourceId: string,
+    lineId: string,
+    index: number,
+    field: 'value' | 'group',
+    text: string,
+  ) {
+    updateRakumartSourceLines(itemId, sourceId, (lines) =>
+      lines.map((line) => {
+        if (line.id !== lineId) return line
+        const options = [...line.options]
+        while (options.length <= index) options.push(createRakumartOptionDraft())
+        options[index] = { ...options[index], [field]: text }
+        while (options.length > 0 && !options[options.length - 1].value.trim() && !options[options.length - 1].group.trim()) {
+          options.pop()
+        }
+        return { ...line, options }
+      }),
+    )
+  }
+
+  // 色違いなどを「浅灰,深灰,黑色」のように貼り付けて、明細をまとめて作る
+  function addRakumartLinesBulk(itemId: string, sourceId: string) {
+    if (!rakumartBulk) return
+    const values = [...new Set(rakumartBulk.text.split(/[,，、\n\t]+/).map((value) => value.trim()).filter(Boolean))]
+    if (values.length === 0) {
+      setRakumartBulk(null)
+      return
+    }
+    const spec2 = rakumartBulk.spec2.trim()
+    const multiplier = rakumartBulk.multiplier.trim() || '1'
+    updateRakumartSourceLines(itemId, sourceId, (lines) => {
+      // 何も入っていない明細（たたき台の空行）は置き換える
+      const kept = lines.filter(
+        (line) => line.options.some((option) => option.value.trim()) || line.memo.trim() || line.roundMultiple || line.minQuantity,
+      )
+      const added = values.map((value) => ({
+        ...createRakumartLineDraft(),
+        quantityMultiplier: multiplier,
+        options: [createRakumartOptionDraft('', value), ...(spec2 ? [createRakumartOptionDraft('', spec2)] : [])],
+      }))
+      return [...kept, ...added]
+    })
+    setRakumartBulk(null)
+  }
+
   function removeRakumartLine(itemId: string, sourceId: string, lineId: string) {
     updateRakumartRecipeDraft((draft) => ({
       ...draft,
@@ -5093,64 +5133,6 @@ function App() {
               sources: item.sources.map((source) =>
                 source.id === sourceId
                   ? { ...source, lines: source.lines.filter((line) => line.id !== lineId) }
-                  : source,
-              ),
-            }
-          : item,
-      ),
-    }))
-  }
-
-  function addRakumartOption(itemId: string, sourceId: string, lineId: string) {
-    updateRakumartRecipeDraft((draft) => ({
-      ...draft,
-      items: draft.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              sources: item.sources.map((source) =>
-                source.id === sourceId
-                  ? {
-                      ...source,
-                      lines: source.lines.map((line) =>
-                        line.id === lineId
-                          ? { ...line, options: [...line.options, createRakumartOptionDraft()] }
-                          : line,
-                      ),
-                    }
-                  : source,
-              ),
-            }
-          : item,
-      ),
-    }))
-  }
-
-  function removeRakumartOption(
-    itemId: string,
-    sourceId: string,
-    lineId: string,
-    optionId: string,
-  ) {
-    updateRakumartRecipeDraft((draft) => ({
-      ...draft,
-      items: draft.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              sources: item.sources.map((source) =>
-                source.id === sourceId
-                  ? {
-                      ...source,
-                      lines: source.lines.map((line) =>
-                        line.id === lineId
-                          ? {
-                              ...line,
-                              options: line.options.filter((option) => option.id !== optionId),
-                            }
-                          : line,
-                      ),
-                    }
                   : source,
               ),
             }
@@ -7057,8 +7039,7 @@ function App() {
                           />
                         </label>
                         <p className="rakumart-template-help">
-                          {'{構成品名}'} は注文詳細で振られた番号（複数行ならカンマ区切り）、{'{構成品名:規格値}'} はその規格の1行の番号、{'{数量}'} はオーダー数に置き換わります。
-                          末尾の ●商品コード▲日付-数量 は自動で付くので書かないでください。
+                          {'{構成品名}'} → その行の番号 ／ {'{構成品名:規格}'} → その1行の番号 ／ {'{数量}'} → オーダー数。末尾の ●▲ は自動で付きます。
                         </p>
                         <div className="rakumart-template-chips">
                           {listRakumartRemarkPlaceholders(previewItems).map((placeholder) => (
@@ -7101,316 +7082,350 @@ function App() {
                 <section className="rakumart-items-section">
                   <div className="rakumart-section-head rakumart-section-head--actions">
                     <div>
-                      <strong>発注構成品</strong>
-                      <span>本体＋袋なら2件。同じ商品の代替ショップは同じ構成品内に追加します。</span>
+                      <strong>発注内容</strong>
                     </div>
-                    <button type="button" className="secondary small recipe-add-button" onClick={addRakumartItem}>
-                      ＋ 構成品を追加
-                    </button>
+                    <label className="rakumart-inline-check rakumart-detail-toggle">
+                      <input
+                        type="checkbox"
+                        checked={rakumartShowDetails}
+                        onChange={(event) => setRakumartShowDetails(event.target.checked)}
+                      />
+                      詳細項目も表示
+                    </label>
                   </div>
+
+                  <dl className="rakumart-glossary">
+                    <div>
+                      <dt>構成品</dt>
+                      <dd>何を買うか（本体・ネット・袋など）</dd>
+                    </div>
+                    <div>
+                      <dt>仕入先</dt>
+                      <dd>買う商品ページ。2つ目以降は買えないときの代わり</dd>
+                    </div>
+                    <div>
+                      <dt>明細</dt>
+                      <dd>カートの1行。色違い・サイズ違いは明細を増やす</dd>
+                    </div>
+                    <div>
+                      <dt>規格</dt>
+                      <dd>その行を選ぶボタンの値（色・サイズなど最大2つ）</dd>
+                    </div>
+                  </dl>
 
                   <div className="rakumart-items-list">
                     {rakumartRecipeModal.draft.items.map((item, itemIndex) => (
                       <article key={item.id} className="rakumart-item-card">
-                        <div className="rakumart-item-head">
-                          <div className="rakumart-number-title">
-                            <span>{itemIndex + 1}</span>
-                            <strong>構成品</strong>
-                          </div>
+                        <div className="rakumart-item-row">
+                          <span className="rakumart-item-no">{itemIndex + 1}</span>
+                          <input
+                            className="rakumart-item-name"
+                            value={item.itemName}
+                            onChange={(event) => updateRakumartItem(item.id, { itemName: event.target.value })}
+                            placeholder="構成品名（例：ソックス / ネット / 袋）"
+                            aria-label="構成品名"
+                          />
+                          <select
+                            value={item.role}
+                            onChange={(event) =>
+                              updateRakumartItem(item.id, { role: event.target.value as RakumartItemRole })
+                            }
+                            aria-label="区分"
+                            title="本体：入庫数を数える行 / 付属品：費用だけ乗せる行"
+                          >
+                            <option value="main">本体</option>
+                            <option value="accessory">付属品</option>
+                          </select>
+                          <select
+                            value={item.shareMode}
+                            onChange={(event) =>
+                              updateRakumartItem(item.id, { shareMode: event.target.value as RakumartShareMode })
+                            }
+                            aria-label="同じ回に他の商品と共有するとき"
+                            title="同じ回に、同じ仕入先・同じ規格を使う商品があるとき"
+                          >
+                            <option value="separate">共有時：分ける</option>
+                            <option value="merge">共有時：まとめる</option>
+                          </select>
                           <button
                             type="button"
                             className="secondary small danger-button"
                             onClick={() => removeRakumartItem(item.id)}
                           >
-                            構成品を削除
+                            削除
                           </button>
                         </div>
 
-                        <div className="rakumart-item-fields">
-                          <label className="rakumart-grow-field">
-                            <span>構成品名</span>
-                            <input
-                              value={item.itemName}
-                              onChange={(event) => updateRakumartItem(item.id, { itemName: event.target.value })}
-                              placeholder="例：スカーフ本体 / ジッパー袋"
-                            />
-                          </label>
-
-                          <label className="rakumart-inline-check">
-                            <input
-                              type="checkbox"
-                              checked={item.required}
-                              onChange={(event) => updateRakumartItem(item.id, { required: event.target.checked })}
-                            />
-                            必須
-                          </label>
-
-                          <label className="rakumart-setting-field">
-                            <span>区分</span>
-                            <select
-                              value={item.role}
-                              onChange={(event) =>
-                                updateRakumartItem(item.id, { role: event.target.value as RakumartItemRole })
-                              }
-                              title="入庫一括は、入庫数をどの便に数えるかを本体の行だけで決めます。"
-                            >
-                              <option value="main">本体</option>
-                              <option value="accessory">付属品</option>
-                            </select>
-                          </label>
-
-                          <label className="rakumart-setting-field">
-                            <span>同じ回に共有するとき</span>
-                            <select
-                              value={item.shareMode}
-                              onChange={(event) =>
-                                updateRakumartItem(item.id, { shareMode: event.target.value as RakumartShareMode })
-                              }
-                              title="同じ仕入先・同じ規格を使う商品を同じ回に発注するときの扱い"
-                            >
-                              <option value="separate">分ける（別注文）</option>
-                              <option value="merge">まとめる（1行）</option>
-                            </select>
-                          </label>
-
-                          <label className="rakumart-grow-field">
-                            <span>構成品メモ</span>
+                        {rakumartShowDetails && (
+                          <div className="rakumart-detail-row">
+                            <label className="rakumart-inline-check">
+                              <input
+                                type="checkbox"
+                                checked={item.required}
+                                onChange={(event) => updateRakumartItem(item.id, { required: event.target.checked })}
+                              />
+                              必須
+                            </label>
                             <input
                               value={item.memo}
                               onChange={(event) => updateRakumartItem(item.id, { memo: event.target.value })}
-                              placeholder="任意"
+                              placeholder="構成品メモ（任意）"
+                              aria-label="構成品メモ"
                             />
-                          </label>
-                        </div>
+                          </div>
+                        )}
 
-                        <div className="rakumart-sources-list">
-                          {item.sources.map((source, sourceIndex) => (
-                            <section key={source.id} className="rakumart-source-card">
-                              <div className="rakumart-source-head">
-                                <div>
-                                  <strong>
-                                    {sourceIndex === 0 ? '仕入先 1（優先）' : `代替仕入先 ${sourceIndex + 1}`}
-                                  </strong>
-                                  <span>上から優先順。Playwrightは有効な仕入先を優先順位順に使用します。</span>
-                                </div>
+                        {item.sources.map((source, sourceIndex) => (
+                          <div key={source.id} className="rakumart-source">
+                            <div className="rakumart-source-row">
+                              <span className="rakumart-source-label">
+                                {sourceIndex === 0 ? '仕入先' : `代わり${sourceIndex}`}
+                              </span>
+                              <input
+                                value={source.url}
+                                onChange={(event) =>
+                                  updateRakumartSource(item.id, source.id, { url: event.target.value })
+                                }
+                                placeholder="ラクマート商品URL"
+                                aria-label="ラクマート商品URL"
+                              />
+                              {source.url.trim() && (
+                                <a href={source.url.trim()} target="_blank" rel="noreferrer" className="rakumart-open-link">
+                                  開く ↗
+                                </a>
+                              )}
+                              <label className="rakumart-inline-check" title="OFFにすると、この仕入先は使いません">
+                                <input
+                                  type="checkbox"
+                                  checked={source.enabled}
+                                  onChange={(event) =>
+                                    updateRakumartSource(item.id, source.id, { enabled: event.target.checked })
+                                  }
+                                />
+                                有効
+                              </label>
+                              {item.sources.length > 1 && (
                                 <button
                                   type="button"
                                   className="secondary small danger-button"
                                   onClick={() => removeRakumartSource(item.id, source.id)}
                                 >
-                                  仕入先を削除
+                                  削除
                                 </button>
-                              </div>
+                              )}
+                            </div>
 
-                              <div className="rakumart-source-fields">
-                                <label>
-                                  <span>仕入先名</span>
-                                  <input
-                                    value={source.sourceName}
-                                    onChange={(event) =>
-                                      updateRakumartSource(item.id, source.id, { sourceName: event.target.value })
-                                    }
-                                    placeholder="任意：メイン / 予備ショップなど"
-                                  />
-                                </label>
-
-                                <label className="rakumart-source-url-field">
-                                  <span>ラクマート商品URL</span>
-                                  <input
-                                    value={source.url}
-                                    onChange={(event) =>
-                                      updateRakumartSource(item.id, source.id, { url: event.target.value })
-                                    }
-                                    placeholder="https://www.rakumart.com/ProductDetails?..."
-                                  />
-                                </label>
-
-                                <label className="rakumart-inline-check">
-                                  <input
-                                    type="checkbox"
-                                    checked={source.enabled}
-                                    onChange={(event) =>
-                                      updateRakumartSource(item.id, source.id, { enabled: event.target.checked })
-                                    }
-                                  />
-                                  有効
-                                </label>
-                              </div>
-
-                              <label className="rakumart-source-memo-field">
-                                <span>仕入先メモ</span>
+                            {rakumartShowDetails && (
+                              <div className="rakumart-detail-row">
+                                <input
+                                  value={source.sourceName}
+                                  onChange={(event) =>
+                                    updateRakumartSource(item.id, source.id, { sourceName: event.target.value })
+                                  }
+                                  placeholder="仕入先名（任意）"
+                                  aria-label="仕入先名"
+                                />
                                 <input
                                   value={source.memo}
                                   onChange={(event) =>
                                     updateRakumartSource(item.id, source.id, { memo: event.target.value })
                                   }
-                                  placeholder="ショップ固有の注意など（任意）"
+                                  placeholder="仕入先メモ（任意）"
+                                  aria-label="仕入先メモ"
                                 />
-                              </label>
+                              </div>
+                            )}
 
-                              <div className="rakumart-lines-wrap">
-                                <div className="rakumart-lines-head">
-                                  <div>
-                                    <strong>発注明細</strong>
-                                    <span>1明細 = 1つの規格組み合わせ。数量は「発注予定数 × 数量倍率」を、最低数量・倍数で切り上げます。数量倍率は入庫一括の原価按分にも使います。</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    className="secondary small recipe-add-button"
-                                    onClick={() => addRakumartLine(item.id, source.id)}
-                                  >
-                                    ＋ 明細を追加
-                                  </button>
-                                </div>
-
-                                <div className="rakumart-lines-list">
+                            <div className="rakumart-lines-scroll">
+                              <table className="rakumart-lines-table">
+                                <thead>
+                                  <tr>
+                                    <th className="col-no">明細</th>
+                                    <th>規格1</th>
+                                    <th>規格2</th>
+                                    <th className="col-num" title="本体1つに、この行の物をいくつ使うか">倍率</th>
+                                    <th className="col-num" title="この数の倍数に切り上げ（任意）">倍数</th>
+                                    <th className="col-num" title="最低ロット（任意）">最低数</th>
+                                    {rakumartShowDetails && <th>明細メモ</th>}
+                                    <th className="col-action" aria-label="操作" />
+                                  </tr>
+                                </thead>
+                                <tbody>
                                   {source.lines.map((line, lineIndex) => (
-                                    <div key={line.id} className="rakumart-line-card">
-                                      <div className="rakumart-line-head">
-                                        <strong>明細 {lineIndex + 1}</strong>
-                                        <button
-                                          type="button"
-                                          className="secondary small danger-button"
-                                          onClick={() => removeRakumartLine(item.id, source.id, line.id)}
-                                        >
-                                          削除
-                                        </button>
-                                      </div>
-
-                                      <div className="rakumart-options-block">
-                                        <div className="rakumart-options-head">
-                                          <span>規格</span>
-                                          <button
-                                            type="button"
-                                            className="secondary small recipe-mini-add-button"
-                                            onClick={() => addRakumartOption(item.id, source.id, line.id)}
-                                          >
-                                            ＋ 規格を追加
-                                          </button>
-                                        </div>
-
-                                        <p className="rakumart-no-options">
-                                          規格値だけでOK。Playwrightはまず規格値で探し、同じ値が複数ある場合だけ規格軸で絞り込みます。
-                                        </p>
-
-                                        {line.options.length === 0 && (
-                                          <p className="rakumart-no-options">規格指定なし</p>
-                                        )}
-
-                                        {line.options.map((option) => (
-                                          <div key={option.id} className="rakumart-option-row">
+                                    <tr key={line.id}>
+                                      <td className="col-no">{lineIndex + 1}</td>
+                                      {[0, 1].map((specIndex) => (
+                                        <td key={specIndex}>
+                                          <input
+                                            value={line.options[specIndex]?.value ?? ''}
+                                            onChange={(event) =>
+                                              setRakumartLineSpec(item.id, source.id, line.id, specIndex, 'value', event.target.value)
+                                            }
+                                            placeholder={specIndex === 0 ? '例：浅灰' : '例：均码（任意）'}
+                                            aria-label={`明細${lineIndex + 1}の規格${specIndex + 1}`}
+                                          />
+                                          {rakumartShowDetails && (
                                             <input
-                                              value={option.value}
+                                              className="rakumart-axis-input"
+                                              value={line.options[specIndex]?.group ?? ''}
                                               onChange={(event) =>
-                                                updateRakumartOption(item.id, source.id, line.id, option.id, {
-                                                  value: event.target.value,
-                                                })
+                                                setRakumartLineSpec(item.id, source.id, line.id, specIndex, 'group', event.target.value)
                                               }
-                                              placeholder="規格値 例：白色"
+                                              placeholder="規格軸（例：颜色）"
+                                              aria-label={`明細${lineIndex + 1}の規格${specIndex + 1}の規格軸`}
                                             />
-                                            <span>/</span>
-                                            <input
-                                              value={option.group}
-                                              onChange={(event) =>
-                                                updateRakumartOption(item.id, source.id, line.id, option.id, {
-                                                  group: event.target.value,
-                                                })
-                                              }
-                                              placeholder="規格軸（任意）例：颜色"
-                                            />
-                                            <button
-                                              type="button"
-                                              className="secondary small danger-button rakumart-option-remove"
-                                              onClick={() =>
-                                                removeRakumartOption(item.id, source.id, line.id, option.id)
-                                              }
-                                            >
-                                              ×
-                                            </button>
-                                          </div>
-                                        ))}
-                                      </div>
-
-                                      <div className="rakumart-line-bottom">
-                                        <label className="rakumart-quantity-field">
-                                          <span>数量倍率</span>
-                                          <input
-                                            type="number"
-                                            min="0.0001"
-                                            step="0.0001"
-                                            value={line.quantityMultiplier}
-                                            onChange={(event) =>
-                                              updateRakumartLine(item.id, source.id, line.id, {
-                                                quantityMultiplier: event.target.value,
-                                              })
-                                            }
-                                          />
-                                          <small>発注予定数 × {line.quantityMultiplier || '?'}</small>
-                                        </label>
-
-                                        <label className="rakumart-quantity-field">
-                                          <span>倍数</span>
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            step="1"
-                                            value={line.roundMultiple}
-                                            onChange={(event) =>
-                                              updateRakumartLine(item.id, source.id, line.id, {
-                                                roundMultiple: event.target.value,
-                                              })
-                                            }
-                                            placeholder="なし"
-                                          />
-                                          <small>この倍数に切り上げ</small>
-                                        </label>
-
-                                        <label className="rakumart-quantity-field">
-                                          <span>最低数量</span>
-                                          <input
-                                            type="number"
-                                            min="1"
-                                            step="1"
-                                            value={line.minQuantity}
-                                            onChange={(event) =>
-                                              updateRakumartLine(item.id, source.id, line.id, {
-                                                minQuantity: event.target.value,
-                                              })
-                                            }
-                                            placeholder="なし"
-                                          />
-                                          <small>最低ロット</small>
-                                        </label>
-
-                                        <label className="rakumart-grow-field">
-                                          <span>明細メモ</span>
+                                          )}
+                                          {specIndex === 1 && line.options.length > 2 && (
+                                            <small className="rakumart-extra-specs">
+                                              ほかに {line.options.slice(2).map((option) => option.value).join('・')}
+                                            </small>
+                                          )}
+                                        </td>
+                                      ))}
+                                      <td className="col-num">
+                                        <input
+                                          type="number"
+                                          min="0.0001"
+                                          step="any"
+                                          value={line.quantityMultiplier}
+                                          onChange={(event) =>
+                                            updateRakumartLine(item.id, source.id, line.id, {
+                                              quantityMultiplier: event.target.value,
+                                            })
+                                          }
+                                          aria-label={`明細${lineIndex + 1}の倍率`}
+                                        />
+                                      </td>
+                                      <td className="col-num">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          step="1"
+                                          value={line.roundMultiple}
+                                          onChange={(event) =>
+                                            updateRakumartLine(item.id, source.id, line.id, {
+                                              roundMultiple: event.target.value,
+                                            })
+                                          }
+                                          placeholder="—"
+                                          aria-label={`明細${lineIndex + 1}の倍数`}
+                                        />
+                                      </td>
+                                      <td className="col-num">
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          step="1"
+                                          value={line.minQuantity}
+                                          onChange={(event) =>
+                                            updateRakumartLine(item.id, source.id, line.id, {
+                                              minQuantity: event.target.value,
+                                            })
+                                          }
+                                          placeholder="—"
+                                          aria-label={`明細${lineIndex + 1}の最低数量`}
+                                        />
+                                      </td>
+                                      {rakumartShowDetails && (
+                                        <td>
                                           <input
                                             value={line.memo}
                                             onChange={(event) =>
                                               updateRakumartLine(item.id, source.id, line.id, { memo: event.target.value })
                                             }
                                             placeholder="任意"
+                                            aria-label={`明細${lineIndex + 1}のメモ`}
                                           />
-                                        </label>
-                                      </div>
-                                    </div>
+                                        </td>
+                                      )}
+                                      <td className="col-action">
+                                        <button
+                                          type="button"
+                                          className="secondary small danger-button rakumart-row-remove"
+                                          onClick={() => removeRakumartLine(item.id, source.id, line.id)}
+                                          aria-label={`明細${lineIndex + 1}を削除`}
+                                        >
+                                          ×
+                                        </button>
+                                      </td>
+                                    </tr>
                                   ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {rakumartBulk?.sourceId === source.id ? (
+                              <div className="rakumart-bulk">
+                                <textarea
+                                  value={rakumartBulk.text}
+                                  onChange={(event) => setRakumartBulk({ ...rakumartBulk, text: event.target.value })}
+                                  placeholder="規格1を貼り付け（カンマか改行で区切る）例：浅灰,深灰,黑色"
+                                  aria-label="まとめて追加する規格1"
+                                  autoFocus
+                                />
+                                <div className="rakumart-bulk-row">
+                                  <input
+                                    value={rakumartBulk.spec2}
+                                    onChange={(event) => setRakumartBulk({ ...rakumartBulk, spec2: event.target.value })}
+                                    placeholder="規格2（全行共通・任意）例：均码"
+                                    aria-label="全行共通の規格2"
+                                  />
+                                  <input
+                                    type="number"
+                                    min="0.0001"
+                                    step="any"
+                                    value={rakumartBulk.multiplier}
+                                    onChange={(event) =>
+                                      setRakumartBulk({ ...rakumartBulk, multiplier: event.target.value })
+                                    }
+                                    aria-label="全行共通の倍率"
+                                    title="倍率（全行共通）"
+                                  />
+                                  <button type="button" className="small" onClick={() => addRakumartLinesBulk(item.id, source.id)}>
+                                    明細を作る
+                                  </button>
+                                  <button type="button" className="secondary small" onClick={() => setRakumartBulk(null)}>
+                                    やめる
+                                  </button>
                                 </div>
                               </div>
-                            </section>
-                          ))}
+                            ) : (
+                              <div className="rakumart-lines-actions">
+                                <button
+                                  type="button"
+                                  className="secondary small"
+                                  onClick={() => addRakumartLine(item.id, source.id)}
+                                >
+                                  ＋ 明細
+                                </button>
+                                <button
+                                  type="button"
+                                  className="secondary small"
+                                  onClick={() =>
+                                    setRakumartBulk({ sourceId: source.id, text: '', spec2: '', multiplier: '1' })
+                                  }
+                                >
+                                  ＋ 色違いなどをまとめて追加
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
 
-                          <button
-                            type="button"
-                            className="secondary recipe-add-source-button"
-                            onClick={() => addRakumartSource(item.id)}
-                          >
-                            ＋ 代替仕入先を追加
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="rakumart-text-button"
+                          onClick={() => addRakumartSource(item.id)}
+                        >
+                          ＋ 代わりの仕入先を追加
+                        </button>
                       </article>
                     ))}
                   </div>
+
+                  <button type="button" className="secondary recipe-add-source-button" onClick={addRakumartItem}>
+                    ＋ 構成品を追加
+                  </button>
                 </section>
 
                 {rakumartRecipeMessage && (

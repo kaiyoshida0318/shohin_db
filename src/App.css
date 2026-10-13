@@ -4763,3 +4763,283 @@ select.is-invalid {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* 発注レシピ：発注内容（構成品 → 仕入先 → 明細の表）を簡潔に */
+.rakumart-detail-toggle {
+  font-size: 12px;
+  color: #475569;
+}
+
+.rakumart-glossary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 6px 20px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f1f5f9;
+}
+
+.rakumart-glossary div {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.rakumart-glossary dt {
+  flex: none;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rakumart-glossary dd {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.rakumart-items-section .rakumart-items-list {
+  gap: 12px;
+}
+
+.rakumart-items-section .rakumart-item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overflow: visible;
+}
+
+.rakumart-item-row,
+.rakumart-source-row,
+.rakumart-detail-row,
+.rakumart-bulk-row,
+.rakumart-lines-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rakumart-item-row input,
+.rakumart-item-row select,
+.rakumart-source-row input:not([type='checkbox']),
+.rakumart-detail-row input:not([type='checkbox']),
+.rakumart-bulk input,
+.rakumart-bulk textarea,
+.rakumart-lines-table input {
+  min-width: 0;
+  border-radius: 5px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.rakumart-item-no {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #1e293b;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rakumart-item-name {
+  flex: 1 1 220px;
+  font-size: 14px !important;
+}
+
+.rakumart-item-row select {
+  flex: 0 1 auto;
+}
+
+.rakumart-detail-row input:not([type='checkbox']) {
+  flex: 1 1 200px;
+}
+
+.rakumart-source {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.rakumart-source-label {
+  flex: none;
+  min-width: 52px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.rakumart-source-row input:not([type='checkbox']) {
+  flex: 1 1 260px;
+}
+
+.rakumart-open-link {
+  flex: none;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.rakumart-lines-scroll {
+  overflow-x: auto;
+}
+
+.rakumart-lines-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+}
+
+.rakumart-lines-table th {
+  padding: 0 4px 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.rakumart-lines-table td {
+  padding: 3px 4px;
+  vertical-align: top;
+}
+
+.rakumart-lines-table td input {
+  width: 100%;
+  padding: 6px 8px;
+}
+
+.rakumart-lines-table .col-no {
+  width: 36px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  padding-top: 9px;
+}
+
+.rakumart-lines-table th.col-no {
+  padding-top: 0;
+}
+
+.rakumart-lines-table .col-num {
+  width: 76px;
+}
+
+.rakumart-lines-table .col-action {
+  width: 36px;
+}
+
+.rakumart-axis-input {
+  margin-top: 4px;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #64748b;
+}
+
+.rakumart-extra-specs {
+  display: block;
+  margin-top: 3px;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.rakumart-row-remove {
+  min-width: 30px;
+  padding: 5px 8px !important;
+}
+
+.rakumart-bulk {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px dashed #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.rakumart-bulk textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
+.rakumart-bulk-row input:first-child {
+  flex: 1 1 200px;
+}
+
+.rakumart-bulk-row input[type='number'] {
+  width: 80px;
+}
+
+.rakumart-text-button {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.rakumart-text-button:hover {
+  text-decoration: underline;
+}
+
+.rakumart-items-section > .recipe-add-source-button {
+  margin-top: 12px;
+}
+
+/* グローバルの select（幅100%）・th（sticky）・button（影）を、レシピの表では打ち消す */
+.rakumart-item-row select {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 8px 10px;
+}
+
+.rakumart-item-row .rakumart-item-name,
+.rakumart-source-row input:not([type='checkbox']),
+.rakumart-detail-row input:not([type='checkbox']) {
+  width: auto;
+  padding: 8px 10px;
+}
+
+.rakumart-lines-table th,
+.rakumart-lines-table td {
+  position: static;
+  border-bottom: none;
+  background: transparent;
+  white-space: normal;
+}
+
+.rakumart-lines-table td input {
+  font-size: 13px;
+}
+
+.rakumart-text-button,
+.rakumart-row-remove {
+  box-shadow: none;
+}
+
+@media (max-width: 640px) {
+  .rakumart-item-row select {
+    flex: 1 1 120px;
+  }
+}
