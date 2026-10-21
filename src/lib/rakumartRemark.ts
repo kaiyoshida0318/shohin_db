@@ -36,7 +36,8 @@ function normalize(value: string) {
  * {構成品名:規格値} に当たる明細を探す。
  *   1. 規格値の組み合わせがぴったり同じ明細（「サイズ/色」のように / でつないだ指定も可）
  *   2. なければ、指定した値をすべて含む明細が1つだけならそれ
- *   どちらでも1つに決まらなければ null（試し表示で「見つからない差し込み」になる）
+ *   3. なければ、規格値の一部に一致する明細が1つだけならそれ（例：{巾着:20*30}）
+ *   どれでも1つに決まらなければ null（試し表示で「見つからない差し込み」になる）
  */
 export function findRakumartRemarkLine(item: RakumartRemarkItem, spec: string): RakumartRemarkLine | null {
   const target = normalize(spec)
@@ -55,7 +56,14 @@ export function findRakumartRemarkLine(item: RakumartRemarkItem, spec: string): 
     const values = line.specs.map(normalize)
     return values.includes(target) || (parts.length > 1 && parts.every((part) => values.includes(part)))
   })
-  return partial.length === 1 ? partial[0] : null
+  if (partial.length === 1) return partial[0]
+  if (partial.length > 1) return null
+  // 規格値の一部だけ（例：{巾着:20*30} → 空白抽绳袋 咖啡绳子;14丝20*30;EVA）。1つに決まるときだけ
+  const contains = item.lines.filter((line) => {
+    const values = line.specs.map(normalize)
+    return parts.length > 0 && parts.every((part) => values.some((value) => value.includes(part)))
+  })
+  return contains.length === 1 ? contains[0] : null
 }
 
 export function renderRakumartRemarkTemplate(
