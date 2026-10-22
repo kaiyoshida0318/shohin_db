@@ -933,7 +933,7 @@ function getRakumartLegacyOrderUrls(product: Product) {
 
 // 商品DBのサイズ・カラーを明細に分ける。
 //   半角カンマ「,」区切り → 別々の明細（例：浅灰,深灰,黑色 → 3明細）
-//   末尾の「(数字)」      → 数量倍率（例：20*30(3) → 規格値 20*30・倍率3）
+//   末尾の「(数字)」      → NE1あたりのRM数（例：20*30(3) → 規格値 20*30・NE1:RM3）
 //   全角「，」や「/」は1つの規格名の一部として扱う（例：B款，16mm / 黑/灰）
 //   サイズとカラーの両方が複数なら、組み合わせごとに明細を作る（規格1＝カラー、規格2＝サイズ）
 type RakumartLegacySpec = { value: string; multiplier: number }
@@ -1154,7 +1154,7 @@ function serializeRakumartRecipeDraft(draft: RakumartRecipeDraft) {
               const quantityMultiplier = Number(line.quantityMultiplier)
               if (!Number.isFinite(quantityMultiplier) || quantityMultiplier <= 0) {
                 throw new Error(
-                  `${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}の数量倍率を確認してください。`,
+                  `${itemName} の仕入先${sourceIndex + 1}・明細${lineIndex + 1}のRM数（NE1あたり何個発注するか）を確認してください。`,
                 )
               }
 
@@ -7243,7 +7243,7 @@ function App() {
                                     <th className="col-no">明細</th>
                                     <th>規格1</th>
                                     <th>規格2</th>
-                                    <th className="col-num" title="本体1つに、この行の物をいくつ使うか">倍率</th>
+                                    <th className="col-num" title="NEの1つに対して、この行をラクマートで何個発注するか（NE1:RM◯ の◯）">NE1:RM</th>
                                     <th className="col-num" title="この数の倍数に切り上げ（任意）">倍数</th>
                                     <th className="col-num" title="最低ロット（任意）">最低数</th>
                                     {rakumartShowDetails && <th>明細メモ</th>}
@@ -7293,7 +7293,7 @@ function App() {
                                               quantityMultiplier: event.target.value,
                                             })
                                           }
-                                          aria-label={`明細${lineIndex + 1}の倍率`}
+                                          aria-label={`明細${lineIndex + 1}のRM数（NE1あたり）`}
                                         />
                                       </td>
                                       <td className="col-num">
@@ -7378,8 +7378,8 @@ function App() {
                                     onChange={(event) =>
                                       setRakumartBulk({ ...rakumartBulk, multiplier: event.target.value })
                                     }
-                                    aria-label="全行共通の倍率"
-                                    title="倍率（全行共通）"
+                                    aria-label="全行共通のRM数（NE1あたり）"
+                                    title="NE1:RM◯ の◯（全行共通）"
                                   />
                                   <button type="button" className="small" onClick={() => addRakumartLinesBulk(item.id, source.id)}>
                                     明細を作る
