@@ -3,6 +3,9 @@
 //   {構成品名}        → その構成品の行番号（注文詳細の No）。複数行ならカンマ区切り  例：{ソックス} → 7,8,9
 //   {構成品名:規格値} → その規格の1行だけの番号                                    例：{巾着:20*30} → 1
 //   {数量}            → オーダー数（NEの単位）
+//   {商品コード/構成品名}（:規格値 も可）→ セットの相手（別の商品コード）の構成品の番号  例：{si-23-13-04-stick/スティック}
+//     2つ以上の商品コードで1つの袋になるセット用。相手と同じオーダー数で選んだときだけ自動発注される。
+//     この画面の試し表示では相手の番号が分からないので「◯」と表示する
 //
 // ●商品コード▲日付-数量 はテンプレートに書かず、末尾に自動で付ける（入庫一括の原価計算の目印）。
 // 共有の付属品の行には、その行を使う全商品の「指示文＋●▲」を空行区切りで並べる。
@@ -27,6 +30,8 @@ export type RakumartRemarkResult = {
 }
 
 const PLACEHOLDER = /\{([^{}]+)\}/g
+/** {商品コード/構成品名…}。商品コードは英数字とハイフン（ハイフンを含む）。規格値の「黒/均码」とは、: より前かどうかで区別する */
+const CROSS_REF = /^([A-Za-z0-9][A-Za-z0-9._]*-[A-Za-z0-9._-]*)\/(.+)$/
 
 function normalize(value: string) {
   return value.replace(/\s+/g, '').toLowerCase()
@@ -77,6 +82,8 @@ export function renderRakumartRemarkTemplate(
   const text = template.replace(PLACEHOLDER, (whole, rawKey: string) => {
     const key = rawKey.trim()
     if (key === '数量') return String(orderQuantity)
+    // セットの相手の番号：発注時に、同じ注文に入った相手の行番号に置き換わる
+    if (CROSS_REF.test(key.split(/[:：]/)[0])) return '◯'
 
     const colon = key.search(/[:：]/)
     if (colon >= 0) {
