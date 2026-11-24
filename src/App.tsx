@@ -528,6 +528,109 @@ function isHeaderFilterColumn(key: string): key is HeaderFilterColumnKey {
   return (HEADER_FILTER_COLUMN_KEYS as readonly string[]).includes(key)
 }
 
+// 編集モードで、Excelなどのセル範囲をそのまま貼り付けられる列（1列＝1つの入力欄の列だけ）
+const RANGE_PASTE_COLUMN_KEYS = [
+  'product_name',
+  'floor',
+  'special_notes',
+  'picking_advice',
+  'delivery_line_4',
+  'rack_number',
+  'rack_level',
+  'sticker_color_1',
+  'sticker_color_2',
+  'sticker_color_3',
+  'shipping_floor',
+  'order_memo_1',
+  'order_memo_2',
+  'order_memo_3',
+  'order_memo_4',
+  'order_memo_5',
+  'order_url_1',
+  'order_url_2',
+  'order_url_3',
+  'order_size',
+  'order_color',
+  'order_simple_instruction',
+  'order_detail_instruction',
+  'order_quantity_condition',
+  'order_note',
+] as const satisfies readonly EditableTextProductKey[]
+type RangePasteColumnKey = (typeof RANGE_PASTE_COLUMN_KEYS)[number]
+
+// 複数行入力（textarea）の列。それ以外の列ではセル内改行を空白に置き換える
+const RANGE_PASTE_MULTILINE_KEYS: ReadonlySet<string> = new Set([
+  'special_notes',
+  'picking_advice',
+  'delivery_line_4',
+  'order_simple_instruction',
+  'order_detail_instruction',
+  'order_quantity_condition',
+  'order_note',
+])
+
+function isRangePasteColumn(key: string): key is RangePasteColumnKey {
+  return (RANGE_PASTE_COLUMN_KEYS as readonly string[]).includes(key)
+}
+
+// クリップボードの文字（タブ区切り・改行区切り）を行×列に分ける。
+// Excelはセル内に改行やタブがあると "..." で囲み、" は "" にするので、それも元に戻す
+function parseClipboardGrid(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let inQuotes = false
+  let atCellStart = true
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (text[index + 1] === '"') {
+          cell += '"'
+          index += 1
+        } else {
+          inQuotes = false
+        }
+      } else if (char !== '\r') {
+        cell += char
+      }
+      continue
+    }
+
+    if (char === '"' && atCellStart) {
+      inQuotes = true
+      atCellStart = false
+    } else if (char === '\t') {
+      row.push(cell)
+      cell = ''
+      atCellStart = true
+    } else if (char === '\n') {
+      row.push(cell)
+      rows.push(row)
+      row = []
+      cell = ''
+      atCellStart = true
+    } else if (char !== '\r') {
+      cell += char
+      atCellStart = false
+    }
+  }
+
+  if (cell !== '' || row.length > 0) {
+    row.push(cell)
+    rows.push(row)
+  }
+
+  // 末尾の空行（Excelのコピーは最後に改行が付く）は捨てる
+  while (rows.length > 0 && rows[rows.length - 1].every((value) => value === '')) {
+    rows.pop()
+  }
+
+  return rows
+}
+
 function normalizeHeaderFilterText(value: string | null | undefined) {
   return (value ?? '').normalize('NFKC').trim().toLowerCase()
 }
@@ -2473,15 +2576,18 @@ function UrlEditCell({
   value,
   onChange,
   placeholder = 'URL',
+  pasteKey,
 }: {
   value: string
   onChange: (value: string) => void
   placeholder?: string
+  pasteKey?: string
 }) {
   return (
     <div className="url-edit-cell">
       <input
         className="table-input url-input"
+        data-paste-key={pasteKey}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
@@ -4328,6 +4434,117 @@ function App() {
     }))
   }
 
+  // 編集モードの入力欄に、Excelなどでコピーしたセル範囲を貼り付ける。
+  // カーソルのあるセルを左上にして、画面の並びどおりに右と下へ入れていく（Excelと同じ位置合わせ）。
+  // チェックの付いていない行・貼り付けできない列に当たった値は、ずらさずに飛ばす。
+  function handleTableRangePaste(event: ClipboardEvent<HTMLTableSectionElement>) {
+    if (!isEditMode || savingCode) {
+      return
+    }
+
+    const target = event.target as HTMLElement
+    const startCell = target.closest<HTMLElement>('[data-paste-key]')
+    const startRow = target.closest<HTMLElement>('tr[data-product-code]')
+    const startKey = startCell?.dataset.pasteKey
+    const startCode = startRow?.dataset.productCode
+
+    if (!startKey || !startCode) {
+      return
+    }
+
+    const text = event.clipboardData.getData('text/plain')
+    const grid = parseClipboardGrid(text)
+    const isSingleCell = grid.length <= 1 && (grid[0]?.length ?? 0) <= 1
+
+    // 1セルだけなら、ふつうの貼り付けに任せる
+    if (isSingleCell) {
+      return
+    }
+
+    // 複数行入力欄に、タブなしの複数行の文章を貼るときは、表計算ソフトからのコピーのときだけ行に分ける
+    const fromSpreadsheet = /<table[\s>]/i.test(event.clipboardData.getData('text/html'))
+    if (target instanceof HTMLTextAreaElement && !text.includes('\t') && !fromSpreadsheet) {
+      return
+    }
+
+    const columnKeys = dataColumnSpecs.map((column) => column.key)
+    const startColumnIndex = columnKeys.indexOf(startKey)
+    const startRowIndex = pagedProducts.findIndex((product) => product.product_code === startCode)
+
+    if (startColumnIndex < 0 || startRowIndex < 0) {
+      return
+    }
+
+    event.preventDefault()
+
+    const updates = new Map<string, Partial<Record<RangePasteColumnKey, string>>>()
+    let pastedCellCount = 0
+    let uncheckedRowCount = 0
+    let overflowRowCount = 0
+    const skippedColumnLabels = new Set<string>()
+
+    grid.forEach((cells, rowOffset) => {
+      const product = pagedProducts[startRowIndex + rowOffset]
+
+      if (!product) {
+        overflowRowCount += 1
+        return
+      }
+
+      if (!editingCodes.has(product.product_code)) {
+        uncheckedRowCount += 1
+        return
+      }
+
+      cells.forEach((rawValue, columnOffset) => {
+        const column = dataColumnSpecs[startColumnIndex + columnOffset]
+
+        if (!column) {
+          skippedColumnLabels.add('表の右端より先')
+          return
+        }
+
+        if (!isRangePasteColumn(column.key)) {
+          skippedColumnLabels.add(column.label)
+          return
+        }
+
+        const value = RANGE_PASTE_MULTILINE_KEYS.has(column.key)
+          ? rawValue
+          : rawValue.replace(/\s*\n\s*/g, ' ').trim()
+        const rowUpdate = updates.get(product.product_code) ?? {}
+        rowUpdate[column.key] = value
+        updates.set(product.product_code, rowUpdate)
+        pastedCellCount += 1
+      })
+    })
+
+    if (updates.size > 0) {
+      setRowDrafts((prev) => {
+        const next = { ...prev }
+
+        updates.forEach((rowUpdate, code) => {
+          const product = productByCode.get(code)
+
+          if (product) {
+            next[code] = { ...(prev[code] ?? productToDraft(product)), ...rowUpdate }
+          }
+        })
+
+        return next
+      })
+    }
+
+    const notes: string[] = []
+    if (uncheckedRowCount > 0) notes.push(`チェックなしの${uncheckedRowCount}行は飛ばしました`)
+    if (overflowRowCount > 0) notes.push(`このページに入りきらない${overflowRowCount}行は貼り付けていません`)
+    if (skippedColumnLabels.size > 0) notes.push(`貼り付けできない列（${Array.from(skippedColumnLabels).join('・')}）は飛ばしました`)
+
+    setMessage(
+      `${updates.size}行・${pastedCellCount}セルに貼り付けました。保存するまで確定されません。${notes.length > 0 ? `（${notes.join('／')}）` : ''}`,
+    )
+  }
+
   function hasRowChanges(product: Product, draft: EditableProduct) {
     return isDraftDirty(product, draft) || Boolean(imageDrafts[product.product_code])
   }
@@ -4860,6 +5077,7 @@ function App() {
         return (
           <textarea
             className={`table-input table-textarea ${options.inputClassName ?? ''}`}
+            data-paste-key={key}
             value={draft[key]}
             onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
             placeholder={placeholder}
@@ -4870,6 +5088,7 @@ function App() {
       return (
         <input
           className={`table-input ${options.inputClassName ?? ''}`}
+          data-paste-key={key}
           value={draft[key]}
           onChange={(event) => updateDraft(product.product_code, key, event.target.value)}
           placeholder={placeholder}
@@ -4894,6 +5113,7 @@ function App() {
           value={draft[key]}
           onChange={(value) => updateDraft(product.product_code, key, value)}
           placeholder={EDIT_FIELD_PLACEHOLDERS[key]}
+          pasteKey={key}
         />
       )
     }
@@ -4926,6 +5146,7 @@ function App() {
         <div className="order-edit-stack">
           <input
             className="table-input order-input"
+            data-paste-key={orderKey}
             value={draft[orderKey]}
             onChange={(event) =>
               updateDraft(product.product_code, orderKey, event.target.value)
@@ -6521,7 +6742,7 @@ function App() {
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody onPaste={handleTableRangePaste}>
                 {pagedProducts.map((product) => {
                   const draft = rowDrafts[product.product_code] ?? productToDraft(product)
                   const isEditing = editingCodes.has(product.product_code)
@@ -6531,6 +6752,7 @@ function App() {
                     <tr
                       key={product.product_code}
                       className={`${isEditing ? 'is-editing' : ''} ${dirty ? 'is-dirty' : ''}`}
+                      data-product-code={product.product_code}
                       onDoubleClick={(event) => handleRowDoubleClick(product, event)}
                     >
                       {isEditMode && (
