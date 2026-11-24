@@ -5043,3 +5043,41 @@ select.is-invalid {
     flex: 1 1 120px;
   }
 }
+
+/* 列見出しの上の検索窓（階数・棚番号-位置・棚番号-段） */
+.products-table th.has-header-filter {
+  vertical-align: top;
+  padding-top: 5px;
+}
+
+.header-filter {
+  margin-bottom: 4px;
+}
+
+.products-table .header-filter-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 2px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #fff;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+.products-table .header-filter-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.products-table .header-filter-input.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}

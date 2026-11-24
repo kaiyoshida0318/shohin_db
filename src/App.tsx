@@ -517,6 +517,20 @@ const SORTABLE_COLUMN_KEYS = [
 ] as const
 
 type SortableColumnKey = (typeof SORTABLE_COLUMN_KEYS)[number]
+
+// 列見出しの上に検索窓を出す列（その列の値の完全一致で絞り込む。全角/半角・大小文字・前後の空白は区別しない）
+const HEADER_FILTER_COLUMN_KEYS = ['floor', 'rack_number', 'rack_level'] as const
+type HeaderFilterColumnKey = (typeof HEADER_FILTER_COLUMN_KEYS)[number]
+type HeaderFilters = Record<HeaderFilterColumnKey, string>
+const EMPTY_HEADER_FILTERS: HeaderFilters = { floor: '', rack_number: '', rack_level: '' }
+
+function isHeaderFilterColumn(key: string): key is HeaderFilterColumnKey {
+  return (HEADER_FILTER_COLUMN_KEYS as readonly string[]).includes(key)
+}
+
+function normalizeHeaderFilterText(value: string | null | undefined) {
+  return (value ?? '').normalize('NFKC').trim().toLowerCase()
+}
 type SortDirection = 'asc' | 'desc'
 type SortConfig = { key: SortableColumnKey; direction: SortDirection } | null
 
@@ -2908,6 +2922,8 @@ function App() {
   const [debouncedKeyword, setDebouncedKeyword] = useState('')
   const [suffixKeyword, setSuffixKeyword] = useState('')
   const [debouncedSuffixKeyword, setDebouncedSuffixKeyword] = useState('')
+  const [headerFilters, setHeaderFilters] = useState<HeaderFilters>(EMPTY_HEADER_FILTERS)
+  const [debouncedHeaderFilters, setDebouncedHeaderFilters] = useState<HeaderFilters>(EMPTY_HEADER_FILTERS)
   const [isEditMode, setIsEditMode] = useState(false)
   const [bulkColumnEdit, setBulkColumnEdit] = useState<BulkColumnEditState | null>(null)
   const [tableView, setTableView] = useState<TableView>('order')
@@ -3178,14 +3194,15 @@ function App() {
     const timer = window.setTimeout(() => {
       setDebouncedKeyword(keyword)
       setDebouncedSuffixKeyword(suffixKeyword)
+      setDebouncedHeaderFilters(headerFilters)
     }, 220)
 
     return () => window.clearTimeout(timer)
-  }, [keyword, suffixKeyword])
+  }, [keyword, suffixKeyword, headerFilters])
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [debouncedKeyword, debouncedSuffixKeyword, tableView, sortConfig])
+  }, [debouncedKeyword, debouncedSuffixKeyword, debouncedHeaderFilters, tableView, sortConfig])
 
   useEffect(() => {
     setRowDrafts((prev) => {
@@ -3250,8 +3267,16 @@ function App() {
     //     ※ 全項目を対象にすると「20」が在庫数などにも当たって絞り込めないため
     const q = debouncedKeyword.trim().toLowerCase()
     const narrowQuery = debouncedSuffixKeyword.trim().toLowerCase()
+    // 列見出しの検索窓（階数・棚番号-位置・棚番号-段）。表示中の列だけに効かせる
+    const visibleColumnKeys = new Set(
+      getViewColumnSpecs(tableView, isEditMode, customColumnKeys).map((column) => column.key),
+    )
+    const activeHeaderFilters = HEADER_FILTER_COLUMN_KEYS
+      .filter((key) => visibleColumnKeys.has(key))
+      .map((key) => [key, normalizeHeaderFilterText(debouncedHeaderFilters[key])] as const)
+      .filter(([, value]) => value !== '')
 
-    if (!q && !narrowQuery) {
+    if (!q && !narrowQuery && activeHeaderFilters.length === 0) {
       return products
     }
 
@@ -3268,9 +3293,15 @@ function App() {
         return false
       }
 
+      for (const [key, value] of activeHeaderFilters) {
+        if (normalizeHeaderFilterText(product[key]) !== value) {
+          return false
+        }
+      }
+
       return true
     })
-  }, [products, productSearchTextByCode, debouncedKeyword, debouncedSuffixKeyword])
+  }, [products, productSearchTextByCode, debouncedKeyword, debouncedSuffixKeyword, debouncedHeaderFilters, tableView, isEditMode, customColumnKeys])
 
   const filteredSelectedCount = useMemo(() => {
     if (editingCodes.size === 0) {
@@ -5581,6 +5612,7 @@ function App() {
       sortable ? 'is-sortable' : '',
       sorted ? 'is-sorted' : '',
       bulkConfig ? 'has-bulk-trigger' : '',
+      isHeaderFilterColumn(column.key) ? 'has-header-filter' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -5591,6 +5623,23 @@ function App() {
         className={className}
         aria-sort={sorted ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : undefined}
       >
+        {isHeaderFilterColumn(column.key) && (
+          <div className="header-filter">
+            <input
+              type="search"
+              className={headerFilters[column.key] ? 'header-filter-input is-active' : 'header-filter-input'}
+              value={headerFilters[column.key]}
+              onChange={(event) => {
+                const value = event.target.value
+                const key = column.key as HeaderFilterColumnKey
+                setHeaderFilters((prev) => ({ ...prev, [key]: value }))
+              }}
+              placeholder="検索"
+              aria-label={`${column.label}で絞り込み`}
+              title={`${column.label}が入力した値と完全一致する商品に絞り込みます（上の検索とAND条件）`}
+            />
+          </div>
+        )}
         {sortable ? (
           <button
             type="button"
