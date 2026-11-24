@@ -3030,6 +3030,13 @@ function App() {
   const [debouncedSuffixKeyword, setDebouncedSuffixKeyword] = useState('')
   const [headerFilters, setHeaderFilters] = useState<HeaderFilters>(EMPTY_HEADER_FILTERS)
   const [debouncedHeaderFilters, setDebouncedHeaderFilters] = useState<HeaderFilters>(EMPTY_HEADER_FILTERS)
+  // 直前に確定した検索条件。未保存の変更があって検索の切り替えをキャンセルしたとき、ここに戻す
+  const acceptedSearchRef = useRef<{
+    keyword: string
+    suffixKeyword: string
+    headerFilters: HeaderFilters
+    tableView: TableView
+  }>({ keyword: '', suffixKeyword: '', headerFilters: EMPTY_HEADER_FILTERS, tableView: 'order' })
   const [isEditMode, setIsEditMode] = useState(false)
   const [bulkColumnEdit, setBulkColumnEdit] = useState<BulkColumnEditState | null>(null)
   const [tableView, setTableView] = useState<TableView>('order')
@@ -3408,6 +3415,64 @@ function App() {
       return true
     })
   }, [products, productSearchTextByCode, debouncedKeyword, debouncedSuffixKeyword, debouncedHeaderFilters, tableView, isEditMode, customColumnKeys])
+
+  // 編集のチェックは「いま表に出ている検索結果」の中だけにする。
+  // 検索を切り替えて結果から外れた商品は、チェックを自動で外す。
+  // 外れる商品に未保存の変更があるときは確認を出し、キャンセルなら検索を元に戻す。
+  useEffect(() => {
+    if (savingCode) {
+      return
+    }
+
+    const currentSearch = {
+      keyword: debouncedKeyword,
+      suffixKeyword: debouncedSuffixKeyword,
+      headerFilters: debouncedHeaderFilters,
+      tableView,
+    }
+
+    if (editingCodes.size === 0) {
+      acceptedSearchRef.current = currentSearch
+      return
+    }
+
+    const visibleCodes = new Set(filteredProducts.map((product) => product.product_code))
+    const droppedCodes = Array.from(editingCodes).filter((code) => !visibleCodes.has(code))
+
+    if (droppedCodes.length === 0) {
+      acceptedSearchRef.current = currentSearch
+      return
+    }
+
+    const dirtyCodes = getDirtyCodes(droppedCodes)
+
+    if (
+      dirtyCodes.length > 0 &&
+      !window.confirm(
+        `未保存の変更が${dirtyCodes.length}件あります。検索を切り替えると、表示から外れる商品の編集を終了し、変更は破棄されます。終了しますか？`,
+      )
+    ) {
+      const accepted = acceptedSearchRef.current
+      setKeyword(accepted.keyword)
+      setDebouncedKeyword(accepted.keyword)
+      setSuffixKeyword(accepted.suffixKeyword)
+      setDebouncedSuffixKeyword(accepted.suffixKeyword)
+      setHeaderFilters(accepted.headerFilters)
+      setDebouncedHeaderFilters(accepted.headerFilters)
+      setTableView(accepted.tableView)
+      return
+    }
+
+    acceptedSearchRef.current = currentSearch
+    resetRowDrafts(droppedCodes)
+    setEditingCodes((prev) => {
+      const next = new Set(prev)
+      droppedCodes.forEach((code) => next.delete(code))
+      return next
+    })
+    setMessage(`検索結果から外れた${droppedCodes.length}件のチェックを外しました。`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredProducts, editingCodes, savingCode])
 
   const filteredSelectedCount = useMemo(() => {
     if (editingCodes.size === 0) {
@@ -4716,12 +4781,24 @@ function App() {
 
     applySavedRows(payload)
 
+    // 保存が済んだ行はチェックを外す（変更のなかった行も含む）。
+    // 画像アップロードに失敗した行だけは、やり直せるようにチェックを残す。
+    setEditingCodes((prev) => {
+      const next = new Set<string>()
+      prev.forEach((code) => {
+        if (failedImageCodes.has(code)) {
+          next.add(code)
+        }
+      })
+      return next
+    })
+
     if (failedImageCodes.size > 0) {
       setMessage(
-        `保存しましたが、画像アップロード失敗が${failedImageCodes.size}件あります。失敗した画像は保存待ちのまま残しました。例：${failedImageNames.slice(0, 3).join('、')}`,
+        `保存しましたが、画像アップロード失敗が${failedImageCodes.size}件あります。失敗した行はチェックと画像を残しました。例：${failedImageNames.slice(0, 3).join('、')}`,
       )
     } else {
-      setMessage(`${dirtyProducts.length}件保存しました。編集モードは継続中です。`)
+      setMessage(`${dirtyProducts.length}件保存してチェックを外しました。編集モードは継続中です。`)
     }
 
     setSavingCode(null)
@@ -4958,8 +5035,13 @@ function App() {
       }
     }
 
-    setMessage(`保存しました：${product.product_code}`)
+    setMessage(`保存してチェックを外しました：${product.product_code}`)
     applySavedRows([{ product_code: product.product_code, ...payload }])
+    setEditingCodes((prev) => {
+      const next = new Set(prev)
+      next.delete(product.product_code)
+      return next
+    })
     setSavingCode(null)
     await refreshProductsByCodes([product.product_code])
   }
