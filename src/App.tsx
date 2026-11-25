@@ -2168,8 +2168,8 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
           <tr>
             <th>棚番号</th>
             <th>シール</th>
-            <th>商品名</th>
             <th>商品コード</th>
+            <th>商品名</th>
           </tr>
         </thead>
         <tbody>
@@ -2182,12 +2182,13 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
                 <span className="delivery-preview-rack">
                   {renderPreviewValue(preview.rackNumber)}
                 </span>
-                <span className="delivery-preview-level">
-                  {renderPreviewValue(preview.rackLevel)}
-                </span>
               </div>
             </td>
+            {/* 納品書PDFと同じ：シール欄の上に棚番号-段、その下にシール */}
             <td className={hasSticker ? 'delivery-preview-sticker has-sticker' : 'delivery-preview-sticker'}>
+              <span className="delivery-preview-level">
+                {renderPreviewValue(preview.rackLevel)}
+              </span>
               {hasSticker ? (
                 <div className={`delivery-preview-sticker-stack count-${stickers.length}`}>
                   {stickers.map((sticker, index) => (
@@ -2201,6 +2202,13 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
                 </div>
               ) : ''}
             </td>
+            <td className="delivery-preview-code">
+              {productCodeLines.length > 0 ? (
+                <PreviewLines lines={productCodeLines} className="mono-text" />
+              ) : (
+                <PreviewMissingText>未入力</PreviewMissingText>
+              )}
+            </td>
             <td className="delivery-preview-name">
               <div className="delivery-preview-name-stack">
                 {productNameLines.length > 0 ? (
@@ -2212,13 +2220,6 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
                 <PreviewLines lines={pickingAdviceLines} className="delivery-preview-name-sub" />
                 <PreviewLines lines={deliveryLine4Lines} className="delivery-preview-name-sub" />
               </div>
-            </td>
-            <td className="delivery-preview-code">
-              {productCodeLines.length > 0 ? (
-                <PreviewLines lines={productCodeLines} className="mono-text" />
-              ) : (
-                <PreviewMissingText>未入力</PreviewMissingText>
-              )}
             </td>
           </tr>
         </tbody>

@@ -2915,12 +2915,13 @@ button.danger-button:disabled {
   width: 66px;
 }
 
+/* 納品書PDFと同じ並び：棚番号｜シール｜商品コード｜商品名 */
 .delivery-preview-table th:nth-child(3) {
-  width: 239px;
+  width: 210px;
 }
 
 .delivery-preview-table th:nth-child(4) {
-  width: 210px;
+  width: 239px;
 }
 
 .delivery-preview-table tbody td {
@@ -2959,9 +2960,10 @@ button.danger-button:disabled {
   transform: translateX(0.09em);
 }
 
+/* 棚番号-段：シール欄のいちばん上に出す */
 .delivery-preview-level {
   display: block;
-  margin-top: 4px;
+  margin-bottom: 4px;
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.16em;
