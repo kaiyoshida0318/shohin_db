@@ -716,8 +716,8 @@ type BulkFieldColumn = {
 const BULK_FIELD_COLUMNS: BulkFieldColumn[] = [
   { key: 'product_name', label: '商品名', placeholder: '商品名' },
   { key: 'floor', label: '階数', placeholder: '階数' },
-  { key: 'rack_number', label: '棚番号-位置', placeholder: '棚番号-位置' },
-  { key: 'rack_level', label: '棚番号-段', placeholder: '棚番号-段' },
+  { key: 'rack_number', label: '棚番号', placeholder: '棚番号' },
+  { key: 'rack_level', label: '段', placeholder: '段' },
   { key: 'sticker_color_1', label: 'シール1', placeholder: 'シール1' },
   { key: 'sticker_color_2', label: 'シール2', placeholder: 'シール2' },
   { key: 'sticker_color_3', label: 'シール3', placeholder: 'シール3' },
@@ -752,8 +752,8 @@ const EDIT_FIELD_PLACEHOLDERS: Record<EditableTextProductKey, string> = {
   special_notes: '2行目',
   picking_advice: '3行目',
   delivery_line_4: '4行目',
-  rack_number: '棚番号-位置',
-  rack_level: '棚番号-段',
+  rack_number: '棚番号',
+  rack_level: '段',
   sticker_color_1: 'シール1',
   sticker_color_2: 'シール2',
   sticker_color_3: 'シール3',
@@ -2164,10 +2164,16 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
   return (
     <div className="delivery-preview-wrap">
       <table className="delivery-preview-table">
+        {/* 納品書PDFと同じ並び：階・棚番号｜段・シール｜商品コード｜商品名。左の2列は見出しだけ「商品住所」にまとめる */}
+        <colgroup>
+          <col className="delivery-preview-col-shelf" />
+          <col className="delivery-preview-col-sticker" />
+          <col className="delivery-preview-col-code" />
+          <col className="delivery-preview-col-name" />
+        </colgroup>
         <thead>
           <tr>
-            <th>棚番号</th>
-            <th>シール</th>
+            <th colSpan={2}>商品住所</th>
             <th>商品コード</th>
             <th>商品名</th>
           </tr>
@@ -2184,7 +2190,7 @@ function DeliverySlipPreview({ preview }: { preview: DeliverySlipPreviewData }) 
                 </span>
               </div>
             </td>
-            {/* 納品書PDFと同じ：シール欄の上に棚番号-段、その下にシール */}
+            {/* 納品書PDFと同じ：シール欄の上に段、その下にシール */}
             <td className={hasSticker ? 'delivery-preview-sticker has-sticker' : 'delivery-preview-sticker'}>
               <span className="delivery-preview-level">
                 {renderPreviewValue(preview.rackLevel)}
@@ -2863,8 +2869,8 @@ function getAllViewColumnSpecs(): ColumnSpec[] {
     { key: 'special_notes', label: '2行目', width: 171 },
     { key: 'picking_advice', label: '3行目', width: 175 },
     { key: 'delivery_line_4', label: '4行目', width: 175 },
-    { key: 'rack_number', label: '棚番号-位置', width: 126 },
-    { key: 'rack_level', label: '棚番号-段', width: 114 },
+    { key: 'rack_number', label: '棚番号', width: 126 },
+    { key: 'rack_level', label: '段', width: 114 },
     { key: 'sticker_color_1', label: 'シール1', width: 88 },
     { key: 'sticker_color_2', label: 'シール2', width: 88 },
     { key: 'sticker_color_3', label: 'シール3', width: 88 },
@@ -2941,8 +2947,8 @@ function getViewColumnSpecs(
       { key: 'picking_advice', label: '3行目', width: 175 },
       { key: 'delivery_line_4', label: '4行目', width: 175 },
       { key: 'floor', label: '階数', width: 87 },
-      { key: 'rack_number', label: '棚番号-位置', width: 126 },
-      { key: 'rack_level', label: '棚番号-段', width: 114 },
+      { key: 'rack_number', label: '棚番号', width: 126 },
+      { key: 'rack_level', label: '段', width: 114 },
       { key: 'sticker_color_1', label: 'シール1', width: 88 },
       { key: 'sticker_color_2', label: 'シール2', width: 88 },
       { key: 'sticker_color_3', label: 'シール3', width: 88 },
@@ -3381,7 +3387,7 @@ function App() {
     //     ※ 全項目を対象にすると「20」が在庫数などにも当たって絞り込めないため
     const q = debouncedKeyword.trim().toLowerCase()
     const narrowQuery = debouncedSuffixKeyword.trim().toLowerCase()
-    // 列見出しの検索窓（階数・棚番号-位置・棚番号-段）。表示中の列だけに効かせる
+    // 列見出しの検索窓（階数・棚番号・段）。表示中の列だけに効かせる
     const visibleColumnKeys = new Set(
       getViewColumnSpecs(tableView, isEditMode, customColumnKeys).map((column) => column.key),
     )

@@ -2907,20 +2907,20 @@ button.danger-button:disabled {
   letter-spacing: 0;
 }
 
-.delivery-preview-table th:nth-child(1) {
+/* 納品書PDFと同じ並び：階・棚番号｜段・シール｜商品コード｜商品名（見出しは左の2列をまとめるので、幅は col で決める） */
+.delivery-preview-col-shelf {
   width: 60px;
 }
 
-.delivery-preview-table th:nth-child(2) {
+.delivery-preview-col-sticker {
   width: 66px;
 }
 
-/* 納品書PDFと同じ並び：棚番号｜シール｜商品コード｜商品名 */
-.delivery-preview-table th:nth-child(3) {
+.delivery-preview-col-code {
   width: 210px;
 }
 
-.delivery-preview-table th:nth-child(4) {
+.delivery-preview-col-name {
   width: 239px;
 }
 
